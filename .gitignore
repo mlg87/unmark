@@ -1,0 +1,3 @@
+node_modules/
+# Renderer bundle output, rebuilt by `pnpm --dir renderer build` (#14).
+App/Resources/Renderer/
