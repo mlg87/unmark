@@ -1,4 +1,5 @@
 import { createMarkdown } from "./markdown.ts";
+import { sanitize } from "./sanitize.ts";
 
 /** Document outline entry. The heading-anchors issue (#16) fills these in. */
 export interface Heading {
@@ -35,7 +36,8 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   // Set before inserting content so relative <img> URLs resolve against the document,
   // not the renderer bundle (#22).
   setDocumentBase(documentBaseURL);
-  article.innerHTML = md.render(markdown);
+  // Documents are untrusted: nothing markdown-it emits reaches the DOM unsanitized (#15).
+  article.replaceChildren(sanitize(md.render(markdown)));
 
   return { headings: [] };
 }
