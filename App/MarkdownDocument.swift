@@ -13,7 +13,11 @@ final class MarkdownDocument: NSDocument {
     /// Where the next window's top-left corner goes, so windows cascade instead of stacking exactly.
     @MainActor private static var nextWindowTopLeft = NSPoint.zero
 
-    private(set) var text = ""
+    private let state = DocumentState()
+
+    private lazy var externalChanges = ExternalChangeMonitor(
+        fileDidChange: { [weak self] in self?.reloadIfChangedOnDisk() },
+        fileWasDeleted: { [weak self] in self?.state.fileWasDeleted = true })
 
     /// From the start of reading the file to the first render reaching the Preview.
     private var openToPreview: OSSignpostIntervalState?
@@ -27,7 +31,11 @@ final class MarkdownDocument: NSDocument {
 
     override func read(from url: URL, ofType typeName: String) throws {
         MainActor.assumeIsolated {
-            openToPreview = Self.signposter.beginInterval("open-to-preview", id: Self.signposter.makeSignpostID())
+            // A reload reads again into the existing window; only the read before the window exists is an open.
+            if windowControllers.isEmpty {
+                openToPreview = Self.signposter.beginInterval(
+                    "open-to-preview", id: Self.signposter.makeSignpostID())
+            }
         }
         try super.read(from: url, ofType: typeName)
     }
@@ -37,20 +45,18 @@ final class MarkdownDocument: NSDocument {
         if decoded.replacedInvalidBytes {
             Self.logger.warning("File isn't valid UTF-8; invalid bytes were replaced with U+FFFD")
         }
-        MainActor.assumeIsolated { text = decoded.text }
+        MainActor.assumeIsolated { state.text = decoded.text }
     }
 
     override func data(ofType typeName: String) throws -> Data {
-        MainActor.assumeIsolated { MarkdownText.encode(text) }
+        MainActor.assumeIsolated { MarkdownText.encode(state.text) }
     }
 
     override func makeWindowControllers() {
         MainActor.assumeIsolated {
-            // Every document is opened from a file (there are no untitled ones, q21), so `fileURL` is set. Without
-            // one, relative paths resolve inside the renderer bundle and match nothing.
-            let documentBaseURL =
-                fileURL.map(PreviewURL.documentBaseURL(forDocumentAt:)) ?? PreviewURL.rendererPage
-            let content = DocumentWindow(text: text, documentBaseURL: documentBaseURL) { [weak self] in
+            // Every document is opened from a file (there are no untitled ones, q21), so `fileURL` is set.
+            state.fileURL = fileURL
+            let content = DocumentWindow(state: state) { [weak self] in
                 self?.endOpenToPreview()
             }
             let window = NSWindow(contentViewController: NSHostingController(rootView: content))
@@ -58,6 +64,55 @@ final class MarkdownDocument: NSDocument {
             window.center()
             Self.nextWindowTopLeft = window.cascadeTopLeft(from: Self.nextWindowTopLeft)
             addWindowController(NSWindowController(window: window))
+            if let fileURL {
+                externalChanges.watch(fileURL)
+            }
+        }
+    }
+
+    override func close() {
+        externalChanges.stop()
+        super.close()
+    }
+
+    // NSDocument's presenter callbacks arrive on its presenter queue. Reading the file from inside one can return
+    // without running the read (ADR-0003), so the work hops to the main actor.
+
+    nonisolated override func presentedItemDidChange() {
+        super.presentedItemDidChange()
+        guard let fileURL else { return }
+        Task { @MainActor [weak self] in
+            self?.externalChanges.presenterReportedChange(at: fileURL)
+        }
+    }
+
+    /// `super` updates `fileURL` and the window title.
+    nonisolated override func presentedItemDidMove(to newURL: URL) {
+        super.presentedItemDidMove(to: newURL)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            state.fileURL = newURL
+            externalChanges.watch(newURL)
+        }
+    }
+
+    /// Replaces the text with the file's when another app changed it (#24, ADR-0003).
+    @MainActor private func reloadIfChangedOnDisk() {
+        // `state.fileURL` already follows a move that `fileURL` hasn't caught up with yet.
+        guard var url = state.fileURL, let fileType else { return }
+        // URL caches resource values per instance, and this one may have read the date before the change.
+        url.removeAllCachedResourceValues()
+        guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        else { return }
+        // The presenter's late duplicate of a change the vnode source already reloaded.
+        guard modified != fileModificationDate else { return }
+        // Unsaved edits are never replaced here; the conflict banner (#28) handles them.
+        guard !isDocumentEdited else { return }
+        do {
+            try revert(toContentsOf: url, ofType: fileType)
+            state.fileWasDeleted = false
+        } catch {
+            Self.logger.error("Reload failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
