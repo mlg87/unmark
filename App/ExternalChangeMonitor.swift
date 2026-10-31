@@ -19,15 +19,24 @@ final class ExternalChangeMonitor {
     private let fileDidChange: @MainActor () -> Void
     /// Called when the file was deleted rather than replaced or moved.
     private let fileWasDeleted: @MainActor () -> Void
+    /// Called when a file is at the path again after `fileWasDeleted`. `fileDidChange` follows to reload it.
+    private let fileDidReappear: @MainActor () -> Void
 
     private var watchedURL: URL?
     private var watcher: VnodeWatcher?
+    /// Runs only while the file is deleted, to see it come back (#73).
+    private var folderWatcher: VnodeWatcher?
+    private var isDeleted = false
     private var pendingChange: Task<Void, Never>?
     private var pendingLookup: Task<Void, Never>?
 
-    init(fileDidChange: @escaping @MainActor () -> Void, fileWasDeleted: @escaping @MainActor () -> Void) {
+    init(
+        fileDidChange: @escaping @MainActor () -> Void, fileWasDeleted: @escaping @MainActor () -> Void,
+        fileDidReappear: @escaping @MainActor () -> Void
+    ) {
         self.fileDidChange = fileDidChange
         self.fileWasDeleted = fileWasDeleted
+        self.fileDidReappear = fileDidReappear
     }
 
     /// Watches the file now at `url`, replacing any earlier watch. Also call it with the URL
@@ -36,12 +45,20 @@ final class ExternalChangeMonitor {
         pendingLookup?.cancel()
         pendingLookup = nil
         watchedURL = url
-        watcher = VnodeWatcher(url: url) { [weak self] event in self?.handle(event) }
+        watcher = VnodeWatcher(url: url, eventMask: [.write, .extend, .rename, .delete]) { [weak self] event in
+            self?.handle(event)
+        }
+        // With nothing at `url` yet, a deleted file keeps its folder watch.
+        if isDeleted, watcher != nil {
+            isDeleted = false
+            folderWatcher = nil
+            fileDidReappear()
+        }
     }
 
     /// For `presentedItemDidChange()`. Usually a late duplicate of a change the vnode source already reported. With
-    /// no vnode source running, it also re-arms one: after a file is deleted and comes back later than the reappear
-    /// timeout, this is the next signal. A running source is kept, since `url` may still be the pre-move `fileURL`.
+    /// no vnode source running, it also tries to re-arm one, in case the file is back and the folder watch missed it.
+    /// A running source is kept, since `url` may still be the pre-move `fileURL`.
     func presenterReportedChange(at url: URL) {
         if watcher == nil {
             watch(url)
@@ -55,6 +72,8 @@ final class ExternalChangeMonitor {
         pendingChange = nil
         pendingLookup = nil
         watcher = nil
+        folderWatcher = nil
+        isDeleted = false
         watchedURL = nil
     }
 
@@ -80,9 +99,28 @@ final class ExternalChangeMonitor {
                 watch(url)
                 scheduleChange()
             } else if event.contains(.delete) {
-                watchedURL = nil
+                isDeleted = true
                 fileWasDeleted()
+                watchFolder(for: url)
             }
+        }
+    }
+
+    /// A deleted file can come back at its path long after the reappear timeout, for example through
+    /// `git checkout -- file` or a restore from backup (#73). Creating a file writes its folder, so a vnode source on
+    /// the folder reports it.
+    private func watchFolder(for url: URL) {
+        folderWatcher = VnodeWatcher(url: url.deletingLastPathComponent(), eventMask: .write) { [weak self] _ in
+            self?.rearmIfFileExists(at: url)
+        }
+        // The file may have come back before the folder's source started.
+        rearmIfFileExists(at: url)
+    }
+
+    private func rearmIfFileExists(at url: URL) {
+        watch(url)
+        if watcher != nil {
+            scheduleChange()
         }
     }
 
@@ -101,19 +139,22 @@ final class ExternalChangeMonitor {
     }
 }
 
-/// A `DispatchSource` vnode source on one file. It follows the file it opened across renames and stops seeing the
-/// path once another file replaces it there.
+/// A `DispatchSource` vnode source on one file or folder. On a file, it follows the file it opened across renames and
+/// stops seeing the path once another file replaces it there.
 @MainActor
 private final class VnodeWatcher {
     private let source: any DispatchSourceFileSystemObject
 
     /// `nil` when nothing at `url` can be opened.
-    init?(url: URL, onEvent: @escaping @MainActor (DispatchSource.FileSystemEvent) -> Void) {
+    init?(
+        url: URL, eventMask: DispatchSource.FileSystemEvent,
+        onEvent: @escaping @MainActor (DispatchSource.FileSystemEvent) -> Void
+    ) {
         // O_EVTONLY watches without keeping the volume from unmounting.
         let descriptor = open(url.path(percentEncoded: false), O_EVTONLY)
         guard descriptor >= 0 else { return nil }
         let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descriptor, eventMask: [.write, .extend, .rename, .delete], queue: .main)
+            fileDescriptor: descriptor, eventMask: eventMask, queue: .main)
         // The handler holds the source until cancel() releases the handlers.
         source.setEventHandler {
             MainActor.assumeIsolated { onEvent(source.data) }

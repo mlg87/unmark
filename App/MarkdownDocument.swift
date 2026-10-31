@@ -17,7 +17,8 @@ final class MarkdownDocument: NSDocument {
 
     private lazy var externalChanges = ExternalChangeMonitor(
         fileDidChange: { [weak self] in self?.reloadIfChangedOnDisk() },
-        fileWasDeleted: { [weak self] in self?.state.fileWasDeleted = true })
+        fileWasDeleted: { [weak self] in self?.state.fileWasDeleted = true },
+        fileDidReappear: { [weak self] in self?.state.fileWasDeleted = false })
 
     /// From the start of reading the file to the first render reaching the Preview.
     private var openToPreview: OSSignpostIntervalState?
@@ -137,7 +138,6 @@ final class MarkdownDocument: NSDocument {
         guard !isDocumentEdited else { return }
         do {
             try revert(toContentsOf: url, ofType: fileType)
-            state.fileWasDeleted = false
         } catch {
             Self.logger.error("Reload failed: \(error.localizedDescription, privacy: .public)")
         }

@@ -55,7 +55,7 @@ SwiftUI has no public dirty-state API. The private `NSDocument` subclass behind 
   - the document's own `NSFilePresenter` conformance: override `presentedItemDidChange()` and `presentedItemDidMove(to:)`, and call `super` in both;
   - a `DispatchSource.makeFileSystemObjectSource` vnode source on the file's path (`.write`, `.extend`, `.rename`, `.delete`), which reacts within milliseconds. The presenter alone takes about 1.05 s for uncoordinated writes, which misses #24's 500 ms target.
 
-  The handler skips the event when the file's `contentModificationDate` equals `fileModificationDate`. Otherwise it calls `revert(toContentsOf:ofType:)` for a clean document and shows the banner for a document with unsaved edits. After `.rename` or `.delete`, a file still at the path means an atomic save: re-arm and reload. No file at the path means a move (wait for `presentedItemDidMove(to:)` and re-arm on its URL) or a delete.
+  The handler skips the event when the file's `contentModificationDate` equals `fileModificationDate`. Otherwise it calls `revert(toContentsOf:ofType:)` for a clean document and shows the banner for a document with unsaved edits. After `.rename` or `.delete`, a file still at the path means an atomic save: re-arm and reload. No file at the path means a move (wait for `presentedItemDidMove(to:)` and re-arm on its URL) or a delete. After a delete, a vnode source on the parent folder (`.write`) watches for a file at the path again, for example from `git checkout`. When one appears, the handler re-arms the file's source, reloads, and clears the deleted notice (#73).
 
 ## Considered Options
 
