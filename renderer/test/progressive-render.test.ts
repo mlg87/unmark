@@ -165,6 +165,20 @@ test("scrolling to an element in a later chunk renders up to it, not the whole d
   expect(article.innerHTML).toBe(renderedAllAtOnce(longDocument));
 });
 
+test("a scroll whose element arrives while it waits its turn renders no further", async () => {
+  vi.useFakeTimers();
+  tallBlocks();
+  Element.prototype.scrollIntoView = () => {};
+  await render(longDocument);
+  expect(document.getElementById("part-20")).toBeNull();
+  // The second call waits for the first, whose batch brings in part-20 too.
+  await Promise.all([
+    window.unmark.scrollToElement("part-30"),
+    window.unmark.scrollToElement("part-20"),
+  ]);
+  expect(document.getElementById("part-59")).toBeNull();
+});
+
 test("scrolling to an element that isn't in the document renders all of it", async () => {
   vi.useFakeTimers();
   tallBlocks();
