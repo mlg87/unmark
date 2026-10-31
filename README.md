@@ -39,9 +39,9 @@ on a `macos-15` runner with Xcode 16.4. A single job, `ci`, runs `make lint`, th
 renderer tests, `make test`, and an ad-hoc signed universal Release build, then
 fails unless `lipo -archs` reports both `x86_64` and `arm64`.
 
-Mark the `ci` job as the required status check in the `main` branch ruleset.
-GitHub lists it as `ci` when you add required checks (it shows as `CI / ci` on
-pull requests).
+The `main: baseline` ruleset requires the `ci` check (pinned to the GitHub
+Actions app) before a pull request can merge, so red builds can't land on
+`main`. GitHub lists the check as `ci`; pull requests show it as `CI / ci`.
 
 ## License
 
