@@ -3,11 +3,11 @@
   "vcs": {
     "enabled": true,
     "clientKind": "git",
-    "root": "..",
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": false
+    "ignoreUnknown": false,
+    "includes": ["renderer/**"]
   },
   "formatter": {
     "enabled": true,
@@ -17,7 +17,10 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "suspicious": {
+        "noVar": "error"
+      }
     }
   },
   "javascript": {

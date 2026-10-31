@@ -13,7 +13,11 @@ make bootstrap   # install XcodeGen and SwiftLint from the Brewfile
 make project     # generate Unmark.xcodeproj from project.yml
 make build       # universal Release build in build/DerivedData
 make test        # run the UnmarkCore package tests
+make lint        # swift-format, SwiftLint, and Biome checks; run after every change
+make format      # apply swift-format, SwiftLint, and Biome fixes
 ```
+
+`make lint` needs `pnpm --dir renderer install` first so Biome is available.
 
 `Unmark.xcodeproj` is generated and gitignored. Edit `project.yml` and rerun
 `make project` instead of changing project settings in Xcode.

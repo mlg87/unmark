@@ -12,6 +12,6 @@ let package = Package(
     targets: [
         // Pure logic only: no AppKit or WebKit imports, so `swift test` runs without the app.
         .target(name: "UnmarkCore"),
-        .testTarget(name: "UnmarkCoreTests", dependencies: ["UnmarkCore"])
+        .testTarget(name: "UnmarkCoreTests", dependencies: ["UnmarkCore"]),
     ]
 )

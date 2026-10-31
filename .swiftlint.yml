@@ -1,0 +1,16 @@
+# swift-format owns layout (.swift-format); SwiftLint keeps its default rules for everything else.
+disabled_rules:
+  # swift-format adds trailing commas to multiline collection literals.
+  - trailing_comma
+  # swift-format decides brace placement, which can differ from SwiftLint's expectation on wrapped signatures.
+  - opening_brace
+
+# Matches swift-format's lineLength so the two tools agree on where a line is too long.
+line_length: 120
+
+excluded:
+  - .build
+  - "**/.build"
+  - DerivedData
+  - build
+  - renderer/node_modules
