@@ -1,5 +1,6 @@
 # Generated from project.yml by `make project`.
 *.xcodeproj
+App/Info.plist
 DerivedData/
 build/
 # SwiftPM build output from `make test`.

@@ -27,7 +27,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | Path | Contents |
 | --- | --- |
 | `project.yml` | XcodeGen spec for the `Unmark` app target |
-| `App/` | SwiftUI app target; resources in `App/Resources/` |
+| `App/` | AppKit app target (`NSDocument`, SwiftUI window content, ADR-0003); resources in `App/Resources/`. `App/Info.plist` is generated from `project.yml` |
 | `Packages/UnmarkCore/` | Swift package with pure, unit-tested logic (no AppKit or WebKit) |
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
 | `scripts/` | Build and release scripts (added with the release work) |

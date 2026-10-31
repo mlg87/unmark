@@ -33,6 +33,31 @@ targets:
           - Resources/Renderer
     dependencies:
       - package: UnmarkCore
+    # Keys GENERATE_INFOPLIST_FILE can't express. XcodeGen writes them to App/Info.plist on
+    # `make project`, and Xcode merges that file with the generated keys.
+    info:
+      path: App/Info.plist
+      properties:
+        # XcodeGen otherwise writes 1.0 and 1 here, overriding the version build settings.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Editor rank Default registers Unmark as a markdown handler without claiming to own
+        # the type. macOS 14 has no UTType.markdown, hence the imported declaration.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Markdown Document
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Default
+            LSItemContentTypes: [net.daringfireball.markdown]
+            NSDocumentClass: $(PRODUCT_MODULE_NAME).MarkdownDocument
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: net.daringfireball.markdown
+            UTTypeDescription: Markdown Document
+            UTTypeConformsTo: [public.plain-text]
+            UTTypeReferenceURL: https://daringfireball.net/projects/markdown/
+            UTTypeTagSpecification:
+              # Keep in sync with MarkdownFile.pathExtensions in UnmarkCore.
+              public.filename-extension: [md, markdown, mdown, mdwn, mkd, mkdn, mkdown]
+              public.mime-type: [text/markdown]
     settings:
       base:
         PRODUCT_NAME: Unmark
