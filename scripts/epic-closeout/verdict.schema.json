@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "criteria"],
+  "properties": {
+    "verdict": { "type": "string", "enum": ["pass", "fail"] },
+    "summary": { "type": "string", "description": "One or two sentences on whether the epic is delivered." },
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["criterion", "met", "evidence"],
+        "properties": {
+          "criterion": { "type": "string", "description": "The Success Criterion, quoted from the epic." },
+          "met": { "type": "boolean" },
+          "evidence": {
+            "type": "string",
+            "description": "Commands run and output observed, or exactly what is missing."
+          }
+        }
+      }
+    }
+  }
+}

@@ -23,6 +23,25 @@ bd close <id>         # Complete work
 bd dolt push          # Push beads data to remote
 ```
 
+## Every Code Change Is Tracked
+
+No code change lands without all three of these. Create whatever is missing
+before you edit anything.
+
+1. **A GitHub issue.** If none exists, open one with `gh issue create`.
+2. **At least one bead linked to that issue:**
+   `bd create "<title>" --external-ref https://github.com/mlg87/unmark/issues/N`
+   (add `--parent <epic-id>` for work under an epic), or
+   `bd update <id> --external-ref <issue URL>` for an existing bead. Then
+   `bd dolt push`.
+3. **A git worktree off `origin/main` HEAD:** `git fetch origin`, then
+   `git worktree add ../unmark-<slug> -b N-<slug> origin/main`. Make every edit,
+   install, test, and commit there. Never edit, switch branches, or stash in the
+   primary checkout.
+
+The PR body names the bead ID(s) and contains `Closes #N`, so merging closes
+the issue.
+
 ## Agent Workflow (Team-maintainer opt-in)
 
 This repository opts in to the **Team-maintainer** Beads profile. Agents run the
@@ -30,18 +49,44 @@ whole loop below without asking for approval. A current "do not commit" or
 "do not push" instruction from the user still wins.
 
 1. **Claim:** `bd update <id> --claim`, then `bd dolt push`.
-2. **Branch:** work in a git worktree off fresh `origin/main`. For a bead linked to
-   GitHub issue N, name the branch `N-<slug>` and push it before making changes.
+2. **Branch:** create the worktree from "Every Code Change Is Tracked" (branch
+   `N-<slug>` off `origin/main` HEAD) and push the branch before making changes.
    Never commit to `main`.
 3. **Quality gates:** run lint, tests, and build for everything you changed.
 4. **Ship:** commit, push, and open a PR to `main` whose body contains
    `Closes #N`. Then queue it: `gh pr merge <pr> --auto --squash`.
-5. **Close out after the merge:** `bd close <id>`, `bd dolt push`,
-   `git worktree remove <path>`, and `git branch -D <branch>`. If the PR can't
-   merge (failing checks or requested changes), fix it. If it's still blocked,
-   leave the bead `in_progress` with the PR URL in `--notes` and report why.
+5. **Close out after the merge:** `bd close <id>`, `bd dolt push`, then
+   `scripts/epic-closeout/epic-closeout.sh` (see "Epics Close Automatically";
+   wait for it to finish), then `git worktree remove <path>` and
+   `git branch -D <branch>`. If the PR can't merge (failing checks or requested
+   changes), fix it. If it's still blocked, leave the bead `in_progress` with the
+   PR URL in `--notes` and report why.
 6. **Sync beads:** run `bd dolt push` after any other bead change too (new
    follow-up beads, notes, status updates).
+
+## Epics Close Automatically
+
+Never close an epic by hand. `scripts/epic-closeout/epic-closeout.sh` runs on
+the maintainer's Mac, never in GitHub Actions, and uses the local Claude Code
+login rather than an API key. It runs after every close-out (step 5), and launchd
+runs it hourly as a backstop (`epic-closeout.sh install-schedule`, log in
+`~/Library/Logs/unmark-epic-closeout.log`).
+
+Each run finds open epics whose children are all closed. For each one, a
+headless Claude verifier checks the epic's `## Success Criteria` in a fresh
+worktree off `origin/main` HEAD and records evidence for every criterion. If a
+criterion needs tools this Mac lacks, such as full Xcode, the verifier uses the
+`CI` run for that commit instead.
+
+- **Pass:** the script closes the epic bead and its GitHub issue, with the
+  evidence attached.
+- **Fail:** the script opens a GitHub issue and a child bead for each unmet
+  criterion. The epic stays open, and the gaps show up in `bd ready`. Closing
+  the last gap makes the epic eligible again.
+
+So every epic needs a `## Success Criteria` section of checkable bullets. An
+epic without one always fails. To preview a run without changing beads or
+issues, use `epic-closeout.sh --dry-run`.
 
 ## Non-Interactive Shell Commands
 
