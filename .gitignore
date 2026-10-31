@@ -1,3 +1,8 @@
 node_modules/
 # Renderer bundle output, rebuilt by `pnpm --dir renderer build` (#14).
 App/Resources/Renderer/
+# bd appends to this audit log on every bead change, always in the main checkout,
+# which left main permanently dirty. The Dolt DB (synced via `bd dolt push`)
+# already holds the same history. Kept here, not in .beads/.gitignore, because
+# bd regenerates that file.
+.beads/interactions.jsonl
