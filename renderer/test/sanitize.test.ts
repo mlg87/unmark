@@ -23,10 +23,6 @@ async function render(markdown: string): Promise<string> {
 
 describe("removes what GitHub's allowlist doesn't allow", () => {
   test.each([
-    ["<script>", "<script>alert(1)</script>\n\ntext", "<p>text</p>"],
-    ["<style>", "<style>body { display: none }</style>\n\ntext", "<p>text</p>"],
-    ["<iframe>", '<iframe src="https://example.com"></iframe>\n\ntext', "<p>text</p>"],
-    ["inline <script>", "a <script>alert(1)</script> b", "<p>a  b</p>"],
     ["onerror=", '<img src="x.png" onerror="alert(1)">', '<img src="x.png">'],
     ["onclick=", '<p onclick="alert(1)">x</p>', "<p>x</p>"],
     ["javascript: href", '<a href="javascript:alert(1)">x</a>', "<p><a>x</a></p>"],
@@ -92,8 +88,9 @@ describe("keeps what GitHub's allowlist allows", () => {
   });
 });
 
-// GFM's tagfilter escapes these tags (https://github.github.com/gfm/#disallowed-raw-html-extension-);
-// the allowlist removes them instead, so the parity check is that none reach the DOM.
+// GFM's tagfilter (https://github.github.com/gfm/#disallowed-raw-html-extension-) escapes
+// these tags before the sanitizer sees them: removing them instead let an unclosed one
+// swallow the rest of the document.
 const TAGFILTER_TAGS = [
   "title",
   "textarea",
@@ -116,12 +113,43 @@ const tagfilterExamples = [
     .map(({ id, markdown }) => [id, markdown]),
 );
 
-describe("tagfilter parity: no disallowed element reaches the DOM", () => {
-  test.each(TAGFILTER_TAGS)("<%s> as a block and inline", async (tag) => {
+describe("escapes GFM tagfilter tags as github.com does", () => {
+  test.each([
+    [
+      "<script>",
+      "<script>alert(1)</script>\n\ntext",
+      "&lt;script&gt;alert(1)&lt;/script&gt;\n<p>text</p>",
+    ],
+    [
+      "<iframe>",
+      '<iframe src="https://example.com"></iframe>\n\ntext',
+      '&lt;iframe src="https://example.com"&gt;&lt;/iframe&gt;\n<p>text</p>',
+    ],
+    [
+      "inline <script>",
+      "a <script>alert(1)</script> b",
+      "<p>a &lt;script&gt;alert(1)&lt;/script&gt; b</p>",
+    ],
+    [
+      "an unclosed inline <xmp>",
+      "This is <xmp> not okay, but **this** <strong>is</strong>.\n\nNext para",
+      "<p>This is &lt;xmp&gt; not okay, but <strong>this</strong> <strong>is</strong>.</p>\n<p>Next para</p>",
+    ],
+    [
+      "an unclosed inline <textarea>",
+      "a <textarea> b\n\n*later*",
+      "<p>a &lt;textarea&gt; b</p>\n<p><em>later</em></p>",
+    ],
+  ])("%s", async (_name, markdown, expected) => {
+    expect(await render(markdown)).toBe(expected);
+  });
+
+  test.each(TAGFILTER_TAGS)("<%s> as a block, inline, and unclosed", async (tag) => {
     await render(
-      `<${tag}>\nblock\n</${tag}>\n\ninline <${tag}>x</${tag}> and <${tag.toUpperCase()}>`,
+      `<${tag}>\nblock\n</${tag}>\n\ninline <${tag}>x</${tag}> and <${tag.toUpperCase()}>\n\n*after*`,
     );
     expect(article.querySelector(TAGFILTER_TAGS.join(","))).toBeNull();
+    expect(article.lastElementChild?.outerHTML).toBe("<p><em>after</em></p>");
   });
 
   test.each(tagfilterExamples)("%s", async (_id, markdown) => {

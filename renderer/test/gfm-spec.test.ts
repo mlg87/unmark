@@ -13,9 +13,17 @@ const IN_SCOPE_SECTIONS: Record<string, string[]> = {
     "Strikethrough (extension)",
     "Autolinks (extension)",
     "Task list items (extension)",
+    "Disallowed Raw HTML (extension)",
   ],
   // "Interop" only combines the in-scope extensions with each other.
-  "extensions.txt": ["Tables", "Strikethroughs", "Autolinks", "Task lists", "Interop"],
+  "extensions.txt": [
+    "Tables",
+    "Strikethroughs",
+    "Autolinks",
+    "Task lists",
+    "HTML tag filter",
+    "Interop",
+  ],
 };
 
 // cmark-gfm marks examples whose output is unspecified; only "doesn't throw" is checked.
