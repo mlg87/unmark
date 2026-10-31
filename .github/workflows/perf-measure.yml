@@ -48,13 +48,19 @@ jobs:
           app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
           sysctl -n machdep.cpu.brand_string; sw_vers
           /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
+          i=0
           for mode in cold cold cold cold warm warm warm warm; do
+            i=$((i + 1))
             osascript -e 'tell application id "com.mlg87.unmark" to quit' >/dev/null 2>&1 || true; sleep 3
             if [ "$mode" = warm ]; then open -a "$app" "$PWD/docs/fixtures/kitchen-sink.md"; sleep 8; fi
             start=$(date '+%Y-%m-%d %H:%M:%S')
             open -a "$app" /tmp/perf/one-mb.md; sleep 12
             log show --start "$start" --signpost --predicate 'subsystem == "com.mlg87.unmark"' --style compact | grep -E 'open-to-preview|render' || true
             log show --start "$start" --predicate 'process == "Unmark" AND subsystem == "com.apple.WebKit" AND (eventMessage CONTAINS "didFinishLaunching" OR eventMessage CONTAINS "loadRequest:" OR eventMessage CONTAINS "didFinishLoadForFrame" OR eventMessage CONTAINS "didFinishDocumentLoad")' --style compact | cut -c1-180 || true
+            if [ "$i" = 2 ]; then
+              log show --start "$start" --predicate '(process == "Unmark" AND subsystem BEGINSWITH "com.apple.WebKit") OR process == "com.apple.WebKit.WebContent" OR (process == "Unmark" AND subsystem == "com.mlg87.unmark")' --style compact --signpost \
+                | grep -v -i -E 'sandbox|AXRuntime|xpc.bundle|ProcessThrottler|ProcessAssertion|ProcessSuspension' | cut -c12-23,40-200 | head -400 || true
+            fi
             log show --start "$start" --signpost --predicate 'subsystem == "com.mlg87.unmark"' --style compact 2>/dev/null | grep open-to-preview \
               | python3 -c 'import sys,datetime as d
           ts=[d.datetime.strptime(l[:23],"%Y-%m-%d %H:%M:%S.%f") for l in sys.stdin]
