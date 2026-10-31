@@ -1,6 +1,7 @@
 import type { Heading, RenderEnv } from "./headings.ts";
 import { createMarkdown } from "./markdown.ts";
 import { sanitize } from "./sanitize.ts";
+import { captureScrollAnchor, restoreScrollAnchor } from "./scroll-anchor.ts";
 
 export type { Heading };
 
@@ -34,7 +35,11 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   setDocumentBase(documentBaseURL);
   const env: RenderEnv = { headings: [] };
   // Documents are untrusted: nothing markdown-it emits reaches the DOM unsanitized (#15).
-  article.replaceChildren(sanitize(md.render(markdown, env)));
+  const content = sanitize(md.render(markdown, env));
+  // Captured after parsing, right before the swap, so a reload keeps the reader's place (#24).
+  const anchor = captureScrollAnchor(article);
+  article.replaceChildren(content);
+  if (anchor) restoreScrollAnchor(article, anchor);
 
   return { headings: env.headings };
 }

@@ -46,6 +46,9 @@ struct PreviewView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate {
         private static let logger = Logger(subsystem: "com.mlg87.unmark", category: "PreviewView")
+        /// One `render` interval per render in Points of Interest, so Instruments counts the renders a burst of
+        /// file changes costs (#24).
+        private static let signposter = OSSignposter(subsystem: "com.mlg87.unmark", category: .pointsOfInterest)
 
         weak var webView: WKWebView?
         var didRender: @MainActor () -> Void = {}
@@ -78,6 +81,7 @@ struct PreviewView: NSViewRepresentable {
             guard pageLoaded, !isRendering, let webView, let request = waiting else { return }
             waiting = nil
             isRendering = true
+            let interval = Self.signposter.beginInterval("render", id: Self.signposter.makeSignpostID())
             Task {
                 do {
                     // `callAsyncJavaScript` passes the text as an argument, so it needs no escaping, and awaits the
@@ -100,6 +104,7 @@ struct PreviewView: NSViewRepresentable {
                     // The description carries WebKit's WKJavaScriptExceptionMessage, which names the cause.
                     Self.logger.error("Render failed: \(String(describing: error), privacy: .public)")
                 }
+                Self.signposter.endInterval("render", interval)
                 isRendering = false
                 renderNextIfReady()
             }
