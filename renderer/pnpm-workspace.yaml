@@ -1,2 +1,5 @@
 allowBuilds:
   esbuild: true
+patchedDependencies:
+  markdown-it-anchor@10.0.0: patches/markdown-it-anchor@10.0.0.patch
+  markdown-it-footnote@4.0.0: patches/markdown-it-footnote@4.0.0.patch

@@ -1,0 +1,40 @@
+diff --git a/dist/index.cjs.js b/dist/index.cjs.js
+index 806448c967261a61288f0faa0633a91f77d35968..fe01c5d0576248bde1ebea83aff22a1251f5b741 100644
+--- a/dist/index.cjs.js
++++ b/dist/index.cjs.js
+@@ -269,7 +269,7 @@ function footnote_plugin(md) {
+       } else if (list[i].label) {
+         tokens = refTokens[`:${list[i].label}`];
+       }
+-      if (tokens) state.tokens = state.tokens.concat(tokens);
++      if (tokens) for (const token of tokens) state.tokens.push(token);
+       let lastParagraph;
+       if (state.tokens[state.tokens.length - 1].type === 'paragraph_close') {
+         lastParagraph = state.tokens.pop();
+diff --git a/dist/markdown-it-footnote.js b/dist/markdown-it-footnote.js
+index 1f6ea08a2fc4873000b642c91ad69307760d9146..2f47ba7507f479b551ff27a4358f5bb85d86f78d 100644
+--- a/dist/markdown-it-footnote.js
++++ b/dist/markdown-it-footnote.js
+@@ -264,7 +264,7 @@
+         } else if (list[i].label) {
+           tokens = refTokens[`:${list[i].label}`];
+         }
+-        if (tokens) state.tokens = state.tokens.concat(tokens);
++        if (tokens) for (const token of tokens) state.tokens.push(token);
+         let lastParagraph;
+         if (state.tokens[state.tokens.length - 1].type === "paragraph_close") {
+           lastParagraph = state.tokens.pop();
+diff --git a/index.mjs b/index.mjs
+index 48277ca67206f248b9deb0058e9a7d69dbc07702..68d9569565ea31534400411afe23b2120e609ff5 100644
+--- a/index.mjs
++++ b/index.mjs
+@@ -319,7 +319,8 @@ export default function footnote_plugin (md) {
+         tokens = refTokens[`:${list[i].label}`]
+       }
+ 
+-      if (tokens) state.tokens = state.tokens.concat(tokens)
++      // Appending in place: concat copied every token once per footnote, quadratic on long documents.
++      if (tokens) for (const token of tokens) state.tokens.push(token)
+ 
+       let lastParagraph
+ 

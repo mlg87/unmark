@@ -162,6 +162,10 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  markdown-it-anchor@10.0.0: 7e1859712fbe26a1ec237a785ea993d574efd4bc99824353bd176a80c5deb967
+  markdown-it-footnote@4.0.0: e069125388134e87af07457551b06c5b83b1b4f7248146e6a1ec35d0e0bc6641
+
 importers:
 
   .:
@@ -193,15 +197,18 @@ importers:
       katex:
         specifier: ^0.19.1
         version: 0.19.1
+      linkify-it:
+        specifier: ^6.1.0
+        version: 6.1.0
       markdown-it:
         specifier: ^15.0.3
         version: 15.0.3
       markdown-it-anchor:
         specifier: ^10.0.0
-        version: 10.0.0(@types/markdown-it@14.2.0)(markdown-it@15.0.3)
+        version: 10.0.0(patch_hash=7e1859712fbe26a1ec237a785ea993d574efd4bc99824353bd176a80c5deb967)(@types/markdown-it@14.2.0)(markdown-it@15.0.3)
       markdown-it-footnote:
         specifier: ^4.0.0
-        version: 4.0.0
+        version: 4.0.0(patch_hash=e069125388134e87af07457551b06c5b83b1b4f7248146e6a1ec35d0e0bc6641)
       markdown-it-front-matter:
         specifier: ^0.2.4
         version: 0.2.4
@@ -2568,12 +2575,12 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  markdown-it-anchor@10.0.0(@types/markdown-it@14.2.0)(markdown-it@15.0.3):
+  markdown-it-anchor@10.0.0(patch_hash=7e1859712fbe26a1ec237a785ea993d574efd4bc99824353bd176a80c5deb967)(@types/markdown-it@14.2.0)(markdown-it@15.0.3):
     dependencies:
       '@types/markdown-it': 14.2.0
       markdown-it: 15.0.3
 
-  markdown-it-footnote@4.0.0: {}
+  markdown-it-footnote@4.0.0(patch_hash=e069125388134e87af07457551b06c5b83b1b4f7248146e6a1ec35d0e0bc6641): {}
 
   markdown-it-front-matter@0.2.4: {}
 
