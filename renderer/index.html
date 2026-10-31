@@ -23,6 +23,19 @@
           padding: 15px;
         }
       }
+
+      /* Primer's utility, which github.com loads globally: hides the footnotes heading but
+         keeps it as the label screen readers announce for footnote references (#16). */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        word-wrap: normal;
+        border: 0;
+      }
     </style>
     <script type="module" src="unmark.js"></script>
   </head>
