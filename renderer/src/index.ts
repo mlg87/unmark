@@ -20,7 +20,7 @@ export interface UnmarkRenderer {
   render(markdown: string, opts: RenderOptions): Promise<void>;
   /** The rendered document's headings, in document order, once all of it is parsed. */
   outline(): Promise<Heading[]>;
-  /** Scrolls the element with `id` into view, once the background tasks have inserted it. */
+  /** Scrolls the element with `id` into view, rendering the document up to it first if needed. */
   scrollToElement(id: string): Promise<void>;
 }
 
@@ -42,8 +42,11 @@ const BACKGROUND_TASK_MS = 30;
 
 const md = createMarkdown();
 let latestRender = 0;
-/** The document on the page: its outline so far, and when its background work settles. */
-let rendered: { headings: Heading[]; background: Promise<void> } = {
+/**
+ * The document on the page: its outline so far, the chunks not yet appended, and when its
+ * background work settles.
+ */
+let rendered: { headings: Heading[]; pending?: PendingChunks; background: Promise<void> } = {
   headings: [],
   background: Promise.resolve(),
 };
@@ -87,10 +90,8 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
     if (next) article.append(next);
     await drawDiagrams(article);
   }
-  rendered = {
-    headings: env.headings,
-    background: chunks.done ? Promise.resolve() : appendInBackground(article, chunks, isCurrent),
-  };
+  const pending = new PendingChunks(article, chunks, isCurrent);
+  rendered = { headings: env.headings, pending, background: appendInBackground(pending) };
 }
 
 /** Waits for the background work of the document on the page, even if a render replaces it. */
@@ -106,24 +107,11 @@ async function outline(): Promise<Heading[]> {
   return rendered.headings;
 }
 
-async function appendInBackground(
-  article: Element,
-  chunks: Fragments,
-  isCurrent: () => boolean,
-): Promise<void> {
-  while (!chunks.done) {
+async function appendInBackground(pending: PendingChunks): Promise<void> {
+  while (!pending.done) {
     await new Promise((resolve) => setTimeout(resolve));
-    if (!isCurrent()) return;
-    const batch = document.createDocumentFragment();
     const deadline = performance.now() + BACKGROUND_TASK_MS;
-    while (!chunks.done && performance.now() < deadline) {
-      const next = await chunks.next(BACKGROUND_CHUNK);
-      if (next) batch.append(next);
-    }
-    // A newer render may have started while KaTeX loaded.
-    if (!isCurrent()) return;
-    article.append(batch);
-    await drawDiagrams(article);
+    await pending.appendUntil(() => performance.now() >= deadline);
   }
 }
 
@@ -137,8 +125,58 @@ async function drawDiagrams(article: Element): Promise<void> {
 }
 
 async function scrollToElement(id: string): Promise<void> {
-  if (!document.getElementById(id)) await whenRendered();
+  // Pulls chunks only up to the target rather than waiting for the background tasks to
+  // reach it, so an anchor to a late heading doesn't wait for the whole document
+  // (unmark-1793451426597-3-58814491.9).
+  if (!document.getElementById(id)) {
+    await rendered.pending?.appendUntil((batch) => batch.getElementById(id) !== null);
+  }
   document.getElementById(id)?.scrollIntoView();
+}
+
+/**
+ * A rendered document's chunks not yet on the page. The background tasks and
+ * scrollToElement both append them, one call at a time so the chunks land in order.
+ */
+class PendingChunks {
+  readonly #article: Element;
+  readonly #chunks: Fragments;
+  readonly #isCurrent: () => boolean;
+  #lastCall: Promise<void> = Promise.resolve();
+
+  constructor(article: Element, chunks: Fragments, isCurrent: () => boolean) {
+    this.#article = article;
+    this.#chunks = chunks;
+    this.#isCurrent = isCurrent;
+  }
+
+  /** True once every chunk is on the page, or a newer render replaced the document. */
+  get done(): boolean {
+    return this.#chunks.done || !this.#isCurrent();
+  }
+
+  /**
+   * Appends the next chunks as one batch, pulling until `enough(batch)` holds or the
+   * document ends. The pull never yields to other tasks, so callers that must keep the
+   * page responsive pull in small steps.
+   */
+  appendUntil(enough: (batch: DocumentFragment) => boolean): Promise<void> {
+    const call = this.#lastCall.then(async () => {
+      if (this.done) return;
+      const batch = document.createDocumentFragment();
+      do {
+        const next = await this.#chunks.next(BACKGROUND_CHUNK);
+        if (next) batch.append(next);
+      } while (!this.#chunks.done && !enough(batch));
+      // A newer render may have started while KaTeX loaded.
+      if (!this.#isCurrent()) return;
+      this.#article.append(batch);
+      await drawDiagrams(this.#article);
+    });
+    // A call that failed (a lazy chunk that didn't load) mustn't block the ones after it.
+    this.#lastCall = call.catch(() => {});
+    return call;
+  }
 }
 
 /** Sanitized, ready-to-insert fragments of the document, in order. */
