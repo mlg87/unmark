@@ -63,15 +63,18 @@ const URL_PATTERNS: Record<string, Record<string, RegExp>> = {
 export interface AllowlistExtension {
   /** Elements to allow, each with the attributes it may carry beyond GitHub's global ones. */
   elements?: Record<string, readonly string[]>;
-  /** Exact class names an element may carry. Every other class is removed. */
-  classes?: Record<string, readonly string[]>;
+  /**
+   * Class names an element may carry: exact names, or anchored (`^…$`) patterns for
+   * generated families such as highlight.js's scopes. Every other class is removed.
+   */
+  classes?: Record<string, readonly (string | RegExp)[]>;
 }
 
 const allowedElements = new Set(GITHUB_ELEMENTS);
 const elementAttributes = new Map(
   Object.entries(GITHUB_ELEMENT_ATTRIBUTES).map(([tag, names]) => [tag, new Set(names)]),
 );
-const elementClasses = new Map<string, Set<string>>();
+const elementClasses = new Map<string, Set<string | RegExp>>();
 
 /**
  * Widens the allowlist for markup a renderer plugin emits itself. Plugins call this
@@ -88,7 +91,7 @@ export function extendAllowlist({ elements = {}, classes = {} }: AllowlistExtens
   }
 }
 
-function addAll(map: Map<string, Set<string>>, key: string, values: readonly string[]): void {
+function addAll<T>(map: Map<string, Set<T>>, key: string, values: readonly T[]): void {
   const set = map.get(key) ?? new Set();
   for (const value of values) set.add(value);
   map.set(key, set);
@@ -139,8 +142,12 @@ function purifyConfig(): Config & { RETURN_DOM_FRAGMENT: true } {
 
 function keepAttribute(tag: string, name: string, event: { attrValue: string }): boolean {
   if (name === "class") {
-    const allowed = elementClasses.get(tag);
-    const kept = event.attrValue.split(/\s+/).filter((token) => allowed?.has(token));
+    const allowed = [...(elementClasses.get(tag) ?? [])];
+    const kept = event.attrValue
+      .split(/\s+/)
+      .filter((token) =>
+        allowed.some((entry) => (typeof entry === "string" ? entry === token : entry.test(token))),
+      );
     event.attrValue = kept.join(" ");
     return kept.length > 0;
   }

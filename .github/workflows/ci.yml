@@ -53,6 +53,10 @@ jobs:
       - name: Renderer tests
         run: pnpm --dir renderer test
 
+      # Fails when a dependency exceeds its entry-chunk size budget in build.mjs (#17).
+      - name: Renderer build
+        run: pnpm --dir renderer build
+
       - name: Swift tests
         run: make test
 
