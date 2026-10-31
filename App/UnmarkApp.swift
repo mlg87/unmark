@@ -7,6 +7,8 @@ import AppKit
 enum UnmarkApp {
     static func main() {
         let app = NSApplication.shared
+        // The first NSDocumentController created becomes `shared`, so this must run before anything touches it.
+        _ = DocumentController()
         let delegate = AppDelegate()
         // NSApplication holds its delegate weakly.
         withExtendedLifetime(delegate) {

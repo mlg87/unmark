@@ -47,8 +47,15 @@ unmark --help | --version
 
 `unmark` opens existing files in the Unmark app it ships inside, launching it if
 needed, and exits 0. Missing paths print `unmark: <path>: No such file or directory`
-and make it exit 1; it never creates files. Usage errors exit 2. `--wait` is
-accepted but doesn't wait yet.
+and make it exit 1; it never creates files. Usage errors exit 2.
+
+`--wait` returns only once every file it opened has its window closed, saved or
+not, or Unmark quits, so `GIT_EDITOR="unmark --wait"` works. A file that's already
+open gets its window brought forward and waited on. Files without a markdown
+extension, like `COMMIT_EDITMSG`, open as markdown. The app announces closed
+windows with the distributed notification `com.mlg87.unmark.documentClosed` and
+answers `com.mlg87.unmark.queryOpen` with `com.mlg87.unmark.openPaths`, which the
+tool polls every 2 s in case a notification was dropped.
 
 The binary is `Unmark.app/Contents/Helpers/unmark`, not `Contents/MacOS/unmark`:
 on a case-insensitive volume that name would replace the app's own `Unmark`

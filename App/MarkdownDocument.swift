@@ -100,7 +100,12 @@ final class MarkdownDocument: NSDocument {
 
     override func close() {
         externalChanges.stop()
+        // Posted after `super` so the window is already gone when a waiting `unmark --wait` returns (#37).
+        let closedURL = fileURL
         super.close()
+        if let closedURL {
+            OpenDocumentsBroadcaster.shared.documentClosed(at: closedURL)
+        }
     }
 
     // NSDocument's presenter callbacks arrive on its presenter queue. Reading the file from inside one can return

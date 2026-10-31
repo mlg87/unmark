@@ -2,7 +2,7 @@ import Foundation
 
 /// What the `unmark` command-line tool was asked to do: `unmark [--wait] <path>...`, `--help`/`-h`, or `--version`.
 public enum CLICommand: Equatable, Sendable {
-    /// Open `paths`, as typed, in Unmark. `wait` is parsed now and implemented by the `--wait` bead.
+    /// Open `paths`, as typed, in Unmark. With `wait`, return only once every opened document's window closes.
     case open(paths: [String], wait: Bool)
     case help
     case version
