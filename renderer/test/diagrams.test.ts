@@ -102,6 +102,25 @@ test("switching to dark mode redraws every diagram on the page in the dark theme
   expect(article.querySelector("svg")?.getAttribute("data-theme")).toBe("dark");
 });
 
+test("print output redraws diagrams light in dark mode, and screen output redraws them dark", async () => {
+  mermaid.render.mockImplementation(async () => ({
+    svg: `<svg data-theme="${mermaid.initialize.mock.lastCall?.[0].theme}"></svg>`,
+  }));
+  colorScheme.dark = true;
+  const article = articleWith("graph TD; A--&gt;B");
+  await renderDiagrams(article);
+  expect(article.querySelector("svg")?.getAttribute("data-theme")).toBe("dark");
+
+  await renderDiagrams(article, "print");
+  expect(mermaid.initialize).toHaveBeenLastCalledWith(
+    expect.objectContaining({ theme: "default", darkMode: false }),
+  );
+  expect(article.querySelector("svg")?.getAttribute("data-theme")).toBe("default");
+
+  await renderDiagrams(article, "screen");
+  expect(article.querySelector("svg")?.getAttribute("data-theme")).toBe("dark");
+});
+
 test("a reload's diagrams replace the old ones as the ones a theme change redraws", async () => {
   mermaid.render.mockResolvedValue({ svg: "<svg></svg>" });
   await renderDiagrams(articleWith("graph TD; old"));

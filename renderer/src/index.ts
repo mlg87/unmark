@@ -11,6 +11,12 @@ export interface RenderOptions {
   documentBaseURL: string;
 }
 
+/**
+ * `screen` follows the system appearance (q8). `print` is what goes on paper (#34, q61):
+ * GitHub's light theme in either appearance, without UI-only affordances.
+ */
+export type OutputMode = "screen" | "print";
+
 export interface UnmarkRenderer {
   /**
    * Resolves once the part of the document that fills the viewport is on the page; the rest
@@ -22,6 +28,12 @@ export interface UnmarkRenderer {
   outline(): Promise<Heading[]>;
   /** Scrolls the element with `id` into view, rendering the document up to it first if needed. */
   scrollToElement(id: string): Promise<void>;
+  /**
+   * Switches the page's styling and diagrams to `mode`. `print` resolves once the whole
+   * document is on the page in the light theme, so a print operation started then captures
+   * all of it.
+   */
+  setOutputMode(mode: OutputMode): Promise<void>;
 }
 
 declare global {
@@ -42,6 +54,7 @@ const BACKGROUND_TASK_MS = 30;
 
 const md = createMarkdown();
 let latestRender = 0;
+let outputMode: OutputMode = "screen";
 /**
  * The document on the page: its outline so far, the chunks not yet appended, and when its
  * background work settles.
@@ -121,7 +134,27 @@ async function appendInBackground(pending: PendingChunks): Promise<void> {
 async function drawDiagrams(article: Element): Promise<void> {
   if (!article.querySelector("pre[data-mermaid]")) return;
   const { renderDiagrams } = await import("./diagrams.ts");
-  await renderDiagrams(article);
+  await renderDiagrams(article, outputMode);
+}
+
+async function setOutputMode(mode: OutputMode): Promise<void> {
+  outputMode = mode;
+  // print.css keys the light canvas and hidden heading link icons off this attribute.
+  document.documentElement.dataset.outputMode = mode;
+  // Swapping `media` rather than `disabled`: WebKit fetches a stylesheet whose media doesn't
+  // match at page load, so the print theme is ready before the first print.
+  for (const link of document.querySelectorAll<HTMLLinkElement>("link[data-output-mode]")) {
+    link.media = link.dataset.outputMode === mode ? "all" : "not all";
+  }
+  const article = document.querySelector("article.markdown-body");
+  if (!article) return;
+  // Printing captures only what's on the page, so the background chunks must land first.
+  if (mode === "print") await whenRendered();
+  // Redraws the diagrams already drawn, unlike drawDiagrams, which draws only new blocks.
+  if (outputMode !== mode || !article.querySelector(".mermaid-diagram, pre[data-mermaid]")) return;
+  // Dynamic, like drawDiagrams: Mermaid stays a lazy chunk for documents without diagrams.
+  const { renderDiagrams } = await import("./diagrams.ts");
+  await renderDiagrams(article, mode);
 }
 
 async function scrollToElement(id: string): Promise<void> {
@@ -226,4 +259,4 @@ function setDocumentBase(href: string): void {
   base.href = href;
 }
 
-window.unmark = { render, outline, scrollToElement };
+window.unmark = { render, outline, scrollToElement, setOutputMode };

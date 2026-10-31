@@ -11,6 +11,8 @@ struct PreviewView: NSViewRepresentable {
     let documentBaseURL: URL
     /// The element to scroll to once the current text has rendered.
     let scrollRequest: ScrollRequest?
+    /// Prints the Preview once the current text has rendered (#34).
+    let printRequest: PrintRequest?
     /// Called after each render reaches the page.
     let didRender: @MainActor () -> Void
     /// Called with a clicked link's URL, resolved against `documentBaseURL`. The Preview itself never navigates
@@ -35,6 +37,7 @@ struct PreviewView: NSViewRepresentable {
         // After `render`, so a request that arrives with new text waits for that text to render.
         context.coordinator.render(RenderRequest(markdown: markdown, documentBaseURL: documentBaseURL))
         context.coordinator.scroll(to: scrollRequest)
+        context.coordinator.printPreview(printRequest)
     }
 
     struct RenderRequest: Equatable {
@@ -42,9 +45,14 @@ struct PreviewView: NSViewRepresentable {
         let documentBaseURL: URL
     }
 
+    /// The renderer's `OutputMode`.
+    private enum OutputMode: String {
+        case screen, print
+    }
+
     /// Queues renders until the renderer page has loaded, then runs them one at a time. Only the newest waiting
-    /// request is kept, so a burst of text changes costs at most one render after the current one. A scroll waits
-    /// until no render is running or waiting, so it finds the element it names.
+    /// request is kept, so a burst of text changes costs at most one render after the current one. A scroll or print
+    /// waits until no render is running or waiting, so it finds the element it names or prints the current text.
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate {
         private static let logger = Logger(subsystem: "com.mlg87.unmark", category: "PreviewView")
@@ -65,6 +73,12 @@ struct PreviewView: NSViewRepresentable {
         private var pendingScroll: ScrollRequest?
         /// The last scroll request seen, so SwiftUI updates that don't change it don't scroll again.
         private var latestScroll: ScrollRequest?
+        private var pendingPrint: PrintRequest?
+        /// The last print request seen, so SwiftUI updates that don't change it don't print again.
+        private var latestPrint: PrintRequest?
+        /// Set from the switch to print output until the switch back, so a second Print… can't restore screen output
+        /// under the first one's print panel.
+        private var isPrinting = false
 
         func render(_ request: RenderRequest) {
             guard request != latest else { return }
@@ -77,6 +91,13 @@ struct PreviewView: NSViewRepresentable {
             guard let request, request != latestScroll else { return }
             latestScroll = request
             pendingScroll = request
+            renderNextIfReady()
+        }
+
+        func printPreview(_ request: PrintRequest?) {
+            guard let request, request != latestPrint else { return }
+            latestPrint = request
+            pendingPrint = request
             renderNextIfReady()
         }
 
@@ -109,6 +130,7 @@ struct PreviewView: NSViewRepresentable {
             guard pageLoaded, !isRendering, let webView else { return }
             guard let request = waiting else {
                 scrollToPendingElement(in: webView)
+                printPendingRequest(in: webView)
                 return
             }
             waiting = nil
@@ -158,6 +180,46 @@ struct PreviewView: NSViewRepresentable {
                 } catch {
                     Self.logger.error("Scroll failed: \(String(describing: error), privacy: .public)")
                 }
+            }
+        }
+
+        /// Prints in print output, GitHub's light theme in either appearance (q61), and switches back to screen
+        /// output once the print panel closes, whether it printed or was cancelled.
+        private func printPendingRequest(in webView: WKWebView) {
+            guard latest != nil, pendingPrint != nil else { return }
+            pendingPrint = nil
+            guard !isPrinting, let window = webView.window else { return }
+            isPrinting = true
+            Task {
+                await setOutputMode(.print, in: webView)
+                let operation = webView.printOperation(with: NSPrintInfo.shared)
+                // WKWebView hands back a print view with a zero frame, which prints blank pages.
+                operation.view?.frame = webView.bounds
+                operation.runModal(
+                    for: window, delegate: self, didRun: #selector(printOperationDidRun(_:success:contextInfo:)),
+                    contextInfo: nil)
+            }
+        }
+
+        @objc private func printOperationDidRun(
+            _ operation: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?
+        ) {
+            Task {
+                if let webView {
+                    await setOutputMode(.screen, in: webView)
+                }
+                isPrinting = false
+            }
+        }
+
+        private func setOutputMode(_ mode: OutputMode, in webView: WKWebView) async {
+            do {
+                // Print output resolves once the whole document is on the page in the light theme.
+                _ = try await webView.callAsyncJavaScript(
+                    "await window.unmark.setOutputMode(mode);", arguments: ["mode": mode.rawValue],
+                    contentWorld: .page)
+            } catch {
+                Self.logger.error("Output mode switch failed: \(String(describing: error), privacy: .public)")
             }
         }
     }
