@@ -1,7 +1,64 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Open a markdown file to preview it." : {
+    "About %@" : {
+
+    },
+    "Bring All to Front" : {
+
+    },
+    "Close" : {
+
+    },
+    "Copy" : {
+
+    },
+    "Cut" : {
+
+    },
+    "Edit" : {
+
+    },
+    "File" : {
+
+    },
+    "Hide %@" : {
+
+    },
+    "Hide Others" : {
+
+    },
+    "Minimize" : {
+
+    },
+    "Open…" : {
+
+    },
+    "Paste" : {
+
+    },
+    "Quit %@" : {
+
+    },
+    "Redo" : {
+
+    },
+    "Select All" : {
+
+    },
+    "Services" : {
+
+    },
+    "Show All" : {
+
+    },
+    "Undo" : {
+
+    },
+    "Window" : {
+
+    },
+    "Zoom" : {
 
     }
   },

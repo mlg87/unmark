@@ -1,12 +1,17 @@
-import SwiftUI
+import AppKit
 
+/// AppKit lifecycle rather than a SwiftUI `App`: SwiftUI's `DocumentGroup` can't show the Open panel on an
+/// empty launch or turn off autosave (ADR-0003).
 @main
-struct UnmarkApp: App {
-    var body: some Scene {
-        WindowGroup {
-            Text("Open a markdown file to preview it.")
-                .padding()
-                .frame(minWidth: 480, minHeight: 320)
+@MainActor
+enum UnmarkApp {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        // NSApplication holds its delegate weakly.
+        withExtendedLifetime(delegate) {
+            app.delegate = delegate
+            app.run()
         }
     }
 }
