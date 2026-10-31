@@ -6,11 +6,15 @@
     <!-- github-markdown-css switches light/dark via prefers-color-scheme (q8); this lets the page canvas follow too. -->
     <meta name="color-scheme" content="light dark" />
     <title>Unmark Preview</title>
-    <link rel="stylesheet" href="github-markdown.css" />
-    <link rel="stylesheet" href="highlight.css" />
+    <!-- setOutputMode() (src/index.ts) enables the links whose data-output-mode matches; print is light in either appearance (#34). -->
+    <link rel="stylesheet" href="github-markdown.css" data-output-mode="screen" />
+    <link rel="stylesheet" href="github-markdown-light.css" data-output-mode="print" media="not all" />
+    <link rel="stylesheet" href="highlight.css" data-output-mode="screen" />
+    <link rel="stylesheet" href="highlight-light.css" data-output-mode="print" media="not all" />
     <link rel="stylesheet" href="alerts.css" />
     <link rel="stylesheet" href="diagrams.css" />
     <link rel="stylesheet" href="render-error.css" />
+    <link rel="stylesheet" href="print.css" />
     <!-- Layout from github-markdown-css's README, matching github.com's README width. -->
     <style>
       /* github-markdown-css scopes --bgColor-default to .markdown-body, so the canvas repeats

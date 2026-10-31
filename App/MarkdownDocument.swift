@@ -98,6 +98,12 @@ final class MarkdownDocument: NSDocument {
         }
     }
 
+    /// Prints the Preview, never the Source (#34). Instead of NSDocument's `printOperation(withSettings:)`, which
+    /// must return its operation synchronously: the Preview switches to print output in JavaScript before printing.
+    override func printDocument(_ sender: Any?) {
+        state.printRequest = PrintRequest()
+    }
+
     override func close() {
         externalChanges.stop()
         super.close()

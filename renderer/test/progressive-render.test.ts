@@ -137,6 +137,16 @@ test("outline() waits for the blocks parsed in the background", async () => {
   );
 });
 
+test("print output is ready only once the whole document is on the page", async () => {
+  vi.useFakeTimers();
+  tallBlocks();
+  await render(longDocument);
+  const htmlWhenReady = window.unmark.setOutputMode("print").then(() => article.innerHTML);
+  await vi.runAllTimersAsync();
+  expect(await htmlWhenReady).toBe(renderedAllAtOnce(longDocument));
+  await window.unmark.setOutputMode("screen");
+});
+
 test("a newer render stops the previous one's background chunks", async () => {
   vi.useFakeTimers();
   tallBlocks();

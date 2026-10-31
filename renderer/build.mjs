@@ -19,9 +19,11 @@ const result = await build({
   entryPoints: {
     unmark: "src/index.ts",
     highlight: "src/highlight.css",
+    "highlight-light": "src/highlight-light.css",
     alerts: "src/alerts.css",
     diagrams: "src/diagrams.css",
     "render-error": "src/render-error.css",
+    print: "src/print.css",
   },
   outdir,
   bundle: true,
@@ -37,10 +39,10 @@ const result = await build({
 });
 
 await copyFile(join(packageDir, "index.html"), join(outdir, "index.html"));
-await copyFile(
-  require.resolve("github-markdown-css/github-markdown.css"),
-  join(outdir, "github-markdown.css"),
-);
+// github-markdown-light.css is the print theme (#34), light in either appearance.
+for (const theme of ["github-markdown.css", "github-markdown-light.css"]) {
+  await copyFile(require.resolve(`github-markdown-css/${theme}`), join(outdir, theme));
+}
 
 // math.ts links KaTeX's stylesheet, whose @font-face rules load fonts/ by relative URL.
 // Only the woff2 files: each rule lists woff2 first, and Safari 17 supports it, so the

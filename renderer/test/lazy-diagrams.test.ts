@@ -35,7 +35,7 @@ test("a document without mermaid blocks never imports diagrams.ts", async () => 
 test("a mermaid block survives sanitizing as escaped source, then is handed to diagrams.ts", async () => {
   await render("```mermaid\ngraph TD; A-->B<script>\n```");
   expect(diagrams.imported).toBe(true);
-  expect(diagrams.renderDiagrams).toHaveBeenCalledWith(article);
+  expect(diagrams.renderDiagrams).toHaveBeenCalledWith(article, "screen");
   expect(article.innerHTML.trim()).toBe(
     '<pre class="mermaid-source" data-mermaid="">graph TD; A--&gt;B&lt;script&gt;\n</pre>',
   );

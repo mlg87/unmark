@@ -62,6 +62,10 @@ enum MainMenu {
 
         menu.addItem(
             withTitle: String(localized: "Close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        menu.addItem(.separator())
+
+        menu.addItem(
+            withTitle: String(localized: "Print…"), action: #selector(NSDocument.printDocument(_:)), keyEquivalent: "p")
         return menu
     }
 

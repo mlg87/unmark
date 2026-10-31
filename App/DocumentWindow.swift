@@ -14,7 +14,7 @@ struct DocumentWindow: View {
             }
             PreviewView(
                 markdown: state.text, documentBaseURL: state.documentBaseURL, scrollRequest: state.scrollRequest,
-                didRender: didRender, linkActivated: linkActivated)
+                printRequest: state.printRequest, didRender: didRender, linkActivated: linkActivated)
         }
         .overlay(alignment: .bottom) {
             if let missing = state.missingLinkTarget {

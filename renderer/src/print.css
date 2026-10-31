@@ -1,0 +1,25 @@
+/*
+ * Print output (#34). setOutputMode('print') sets data-output-mode on <html> and swaps in
+ * github-markdown-light.css and highlight-light.css; these rules cover the rest.
+ */
+
+/* Outranks index.html's dark canvas, and keeps form controls (task list boxes) light. */
+:root[data-output-mode="print"] {
+  color-scheme: light;
+  background-color: #ffffff;
+}
+
+/* The link icon beside a heading is for clicking, which paper can't do. */
+:root[data-output-mode="print"] .markdown-body .anchor {
+  display: none;
+}
+
+/* A block split across two pages is hard to read on either. */
+@media print {
+  .markdown-body pre,
+  .markdown-body table,
+  .markdown-body img,
+  .markdown-body .mermaid-diagram {
+    break-inside: avoid;
+  }
+}

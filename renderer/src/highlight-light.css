@@ -1,0 +1,5 @@
+/*
+ * highlight.js's light GitHub theme alone, for print output (#34), which is light in either
+ * appearance. index.ts swaps it in for highlight.css while printing.
+ */
+@import "@highlightjs/cdn-assets/styles/github.css";

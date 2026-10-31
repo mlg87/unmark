@@ -17,6 +17,8 @@ final class DocumentState {
     var scrollRequest: ScrollRequest?
     /// A clicked link named a file that doesn't exist (#23). The window shows it briefly.
     var missingLinkTarget: MissingLinkTarget?
+    /// File → Print… was chosen; the Preview prints itself next (#34).
+    var printRequest: PrintRequest?
 
     /// Where the document's relative images and links resolve; see `PreviewURL.documentBaseURL(forDocumentAt:)`.
     /// Without a file, relative paths resolve inside the renderer bundle and match nothing.
@@ -33,6 +35,11 @@ struct ScrollRequest: Equatable {
     init(elementID: String) {
         self.elementID = elementID
     }
+}
+
+/// Each request is distinct, so choosing Print… again prints again.
+struct PrintRequest: Equatable {
+    private let id = UUID()
 }
 
 /// Each notice is distinct, so a second click on the same broken link restarts the notice's timer.

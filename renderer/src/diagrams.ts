@@ -7,6 +7,7 @@
 // diagram's labels and disables click handlers. sanitize.ts documents this exception.
 
 import mermaid from "mermaid";
+import type { OutputMode } from "./index.ts";
 
 const DIAGRAM_CLASS = "mermaid-diagram";
 
@@ -14,13 +15,17 @@ const DIAGRAM_CLASS = "mermaid-diagram";
 const sources = new WeakMap<Element, string>();
 
 let colorScheme: MediaQueryList | undefined;
+let outputMode: OutputMode = "screen";
 let nextId = 0;
 // Mermaid's config is global, so passes run one at a time: a theme change mid-pass
 // must not switch the theme under diagrams still drawing.
 let queue: Promise<void> = Promise.resolve();
 
-/** Replaces each `<pre data-mermaid>` under `root` with its diagram, or with an error box. */
-export function renderDiagrams(root: ParentNode): Promise<void> {
+/**
+ * Replaces each `<pre data-mermaid>` under `root` with its diagram, or with an error box.
+ * When `mode` differs from the last call's, redraws the diagrams already under `root` too.
+ */
+export function renderDiagrams(root: ParentNode, mode: OutputMode = "screen"): Promise<void> {
   const containers = [...root.querySelectorAll("pre[data-mermaid]")].map((pre) => {
     const container = document.createElement("div");
     container.className = DIAGRAM_CLASS;
@@ -35,7 +40,9 @@ export function renderDiagrams(root: ParentNode): Promise<void> {
       void enqueue([...document.querySelectorAll(`.${DIAGRAM_CLASS}`)]);
     });
   }
-  return enqueue(containers);
+  if (mode === outputMode) return enqueue(containers);
+  outputMode = mode;
+  return enqueue([...root.querySelectorAll(`.${DIAGRAM_CLASS}`)]);
 }
 
 function enqueue(containers: Element[]): Promise<void> {
@@ -44,7 +51,8 @@ function enqueue(containers: Element[]): Promise<void> {
 }
 
 async function draw(containers: Element[]): Promise<void> {
-  const dark = colorScheme?.matches ?? false;
+  // Print output is light in either appearance (#34).
+  const dark = outputMode === "screen" && (colorScheme?.matches ?? false);
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: "strict",
