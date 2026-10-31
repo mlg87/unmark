@@ -44,17 +44,18 @@ struct CLICommandTests {
         #expect(try CLICommand.parse(["-"]) == .open(paths: ["-"], wait: false))
     }
 
+    // Paths, not URLs: whether a directory URL ends in `/` depends on whether it exists on this machine.
     @Test func findsTheAppContainingTheExecutable() {
         let executable = URL(fileURLWithPath: "/Applications/Unmark.app/Contents/Helpers/unmark")
-        #expect(CLICommand.containingAppBundle(of: executable) == URL(fileURLWithPath: "/Applications/Unmark.app"))
+        #expect(CLICommand.containingAppBundle(of: executable)?.path == "/Applications/Unmark.app")
     }
 
     @Test func picksTheInnermostApp() {
         let executable = URL(
             fileURLWithPath: "/Applications/Outer.app/Contents/Resources/Unmark.app/Contents/Helpers/unmark")
         #expect(
-            CLICommand.containingAppBundle(of: executable)
-                == URL(fileURLWithPath: "/Applications/Outer.app/Contents/Resources/Unmark.app"))
+            CLICommand.containingAppBundle(of: executable)?.path
+                == "/Applications/Outer.app/Contents/Resources/Unmark.app")
     }
 
     @Test func findsNoAppOutsideABundle() {
