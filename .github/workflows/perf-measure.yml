@@ -53,7 +53,8 @@ jobs:
             if [ "$mode" = warm ]; then open -a "$app" "$PWD/docs/fixtures/kitchen-sink.md"; sleep 8; fi
             start=$(date '+%Y-%m-%d %H:%M:%S')
             open -a "$app" /tmp/perf/one-mb.md; sleep 12
-            log show --start "$start" --signpost --predicate 'subsystem == "com.mlg87.unmark"' --style compact | grep open-to-preview || true
+            log show --start "$start" --signpost --predicate 'subsystem == "com.mlg87.unmark"' --style compact | grep -E 'open-to-preview|render' || true
+            log show --start "$start" --predicate 'process == "Unmark" AND subsystem == "com.apple.WebKit" AND (eventMessage CONTAINS "didFinishLaunching" OR eventMessage CONTAINS "loadRequest:" OR eventMessage CONTAINS "didFinishLoadForFrame" OR eventMessage CONTAINS "didFinishDocumentLoad")' --style compact | cut -c1-180 || true
             log show --start "$start" --signpost --predicate 'subsystem == "com.mlg87.unmark"' --style compact 2>/dev/null | grep open-to-preview \
               | python3 -c 'import sys,datetime as d
           ts=[d.datetime.strptime(l[:23],"%Y-%m-%d %H:%M:%S.%f") for l in sys.stdin]
