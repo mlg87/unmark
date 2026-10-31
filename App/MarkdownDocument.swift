@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import UnmarkCore
 import os
 
@@ -98,10 +99,33 @@ final class MarkdownDocument: NSDocument {
         }
     }
 
+    /// The paper size from File → Page Setup…, which Print… and Export as PDF… use. App-wide rather than NSDocument's
+    /// per-document copy, whose setter records each Page Setup change as an edit to the file.
+    override var printInfo: NSPrintInfo {
+        get { NSPrintInfo.shared }
+        set { NSPrintInfo.shared = newValue }
+    }
+
     /// Prints the Preview, never the Source (#34). Instead of NSDocument's `printOperation(withSettings:)`, which
     /// must return its operation synchronously: the Preview switches to print output in JavaScript before printing.
     override func printDocument(_ sender: Any?) {
-        state.printRequest = PrintRequest()
+        state.printRequest = PrintRequest(destination: .printPanel)
+    }
+
+    /// File → Export as PDF…: the Preview's print output saved as a paginated PDF (q54). Replaces NSDocument's
+    /// version for the same reason as `printDocument(_:)`, and so the file defaults to the document's name and folder.
+    override func saveToPDF(_ sender: Any?) {
+        guard let window = windowControllers.first?.window, let documentURL = state.fileURL else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.directoryURL = documentURL.deletingLastPathComponent()
+        panel.nameFieldStringValue =
+            documentURL.deletingPathExtension().appendingPathExtension("pdf")
+            .lastPathComponent
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.state.printRequest = PrintRequest(destination: .pdf(url))
+        }
     }
 
     override func close() {

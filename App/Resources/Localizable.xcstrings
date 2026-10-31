@@ -19,6 +19,9 @@
     "Edit" : {
 
     },
+    "Export as PDF…" : {
+
+    },
     "File" : {
 
     },
@@ -32,6 +35,9 @@
 
     },
     "Open…" : {
+
+    },
+    "Page Setup…" : {
 
     },
     "Paste" : {
