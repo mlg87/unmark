@@ -10,7 +10,7 @@
     "build": "node build.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check ."
+    "lint": "biome check --error-on-warnings ."
   },
   "dependencies": {
     "@mdit/plugin-tasklist": "^1.1.4",
