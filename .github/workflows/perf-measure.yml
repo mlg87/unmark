@@ -1,0 +1,62 @@
+# TEMPORARY (unmark-1793451426597-3-58814491.6): measures open-to-preview for a 1 MB file on the
+# Apple silicon macos-15 runner. Removed before merge.
+name: Perf measure
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: renderer/package.json
+      - run: make bootstrap && make project
+      - run: |
+          xcodebuild -project Unmark.xcodeproj -scheme Unmark -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData \
+            build CODE_SIGN_IDENTITY=- | tail -5
+      - name: Make a 1 MB document
+        run: |
+          python3 - <<'EOF'
+          import os, shutil
+          section = open("docs/fixtures/kitchen-sink.md").read().split("---\n", 2)[2]
+          section = section.replace("[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)", "")
+          prose = ("Lorem ipsum dolor sit amet, **consectetur** adipiscing elit, sed do *eiusmod* tempor incididunt ut labore "
+                   "et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud `exercitation` ullamco laboris nisi ut aliquip. ") * 4
+          parts, i = [], 0
+          while sum(map(len, parts)) < 1024 * 1024:
+              i += 1
+              parts.append(f"\n## Part {i}\n\n{prose}\n\n{prose}\n\n" + section.replace("[^1]", f"[^{i}]").replace("# Kitchen sink", f"# Kitchen sink {i}"))
+          os.makedirs("/tmp/perf/img", exist_ok=True)
+          shutil.copy("docs/fixtures/img/a.png", "/tmp/perf/img/a.png")
+          open("/tmp/perf/one-mb.md", "w").write("".join(parts))
+          EOF
+          ls -l /tmp/perf/one-mb.md
+      - name: Measure open-to-preview
+        run: |
+          app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
+          sysctl -n machdep.cpu.brand_string; sw_vers
+          /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
+          for mode in cold cold cold cold warm warm warm warm; do
+            osascript -e 'tell application id "com.mlg87.unmark" to quit' >/dev/null 2>&1 || true; sleep 3
+            if [ "$mode" = warm ]; then open -a "$app" "$PWD/docs/fixtures/kitchen-sink.md"; sleep 8; fi
+            start=$(date '+%Y-%m-%d %H:%M:%S')
+            open -a "$app" /tmp/perf/one-mb.md; sleep 12
+            log show --start "$start" --signpost --predicate 'subsystem == "com.mlg87.unmark"' --style compact | grep open-to-preview || true
+            log show --start "$start" --signpost --predicate 'subsystem == "com.mlg87.unmark"' --style compact 2>/dev/null | grep open-to-preview \
+              | python3 -c 'import sys,datetime as d
+          ts=[d.datetime.strptime(l[:23],"%Y-%m-%d %H:%M:%S.%f") for l in sys.stdin]
+          print("RESULT", sys.argv[1], "%.2f s" % (ts[-1]-ts[-2]).total_seconds() if len(ts)>=2 else "n/a")' $mode
+          done
+          log show --last 5m --predicate 'subsystem == "com.mlg87.unmark"' --style compact | tail -20
