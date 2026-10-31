@@ -34,12 +34,9 @@ public enum PreviewURL {
 
     /// What a request URL refers to, or `nil` for anything outside the two routes, which the handler answers 404.
     public static func resource(for url: URL) -> Resource? {
-        guard url.scheme?.lowercased() == scheme, url.host(percentEncoded: false)?.lowercased() == host else {
-            return nil
-        }
-        let path = url.path(percentEncoded: false)
+        guard isAppURL(url) else { return nil }
 
-        if let relative = path.dropPrefix("/renderer/") {
+        if let relative = url.path(percentEncoded: false).dropPrefix("/renderer/") {
             let components = relative.split(separator: "/", omittingEmptySubsequences: false)
             // WebKit removes dot segments before a request is sent, but a percent-encoded `%2E%2E` survives
             // until the path is decoded here and would otherwise reach outside the bundle.
@@ -47,10 +44,24 @@ public enum PreviewURL {
             return .renderer(path: relative)
         }
 
-        if let absolute = path.dropPrefix("/doc"), absolute.hasPrefix("/"), !absolute.hasSuffix("/") {
-            return .document(fileURL: URL(fileURLWithPath: absolute).standardizedFileURL)
+        if let fileURL = documentItem(for: url), !fileURL.hasDirectoryPath {
+            return .document(fileURL: fileURL)
         }
         return nil
+    }
+
+    /// The file or folder on disk that a `unmark://app/doc/` URL names, ignoring its query and fragment, or `nil`
+    /// outside that route. Unlike `resource(for:)` this keeps folders (a trailing `/`), because a link such as `#top`
+    /// resolves against the document's folder (#23).
+    public static func documentItem(for url: URL) -> URL? {
+        guard isAppURL(url), let absolute = url.path(percentEncoded: false).dropPrefix("/doc"),
+            absolute.hasPrefix("/")
+        else { return nil }
+        return URL(fileURLWithPath: absolute, isDirectory: absolute.hasSuffix("/")).standardizedFileURL
+    }
+
+    private static func isAppURL(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == scheme && url.host(percentEncoded: false)?.lowercased() == host
     }
 
     /// The `Content-Type` for a served file. WebKit refuses module scripts and stylesheets with the wrong type,

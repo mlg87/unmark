@@ -56,9 +56,10 @@ final class MarkdownDocument: NSDocument {
         MainActor.assumeIsolated {
             // Every document is opened from a file (there are no untitled ones, q21), so `fileURL` is set.
             state.fileURL = fileURL
-            let content = DocumentWindow(state: state) { [weak self] in
-                self?.endOpenToPreview()
-            }
+            let content = DocumentWindow(
+                state: state,
+                didRender: { [weak self] in self?.endOpenToPreview() },
+                linkActivated: { [weak self] url in self?.followLink(to: url) })
             let window = NSWindow(contentViewController: NSHostingController(rootView: content))
             window.setContentSize(NSSize(width: 720, height: 800))
             window.center()
@@ -67,6 +68,32 @@ final class MarkdownDocument: NSDocument {
             if let fileURL {
                 externalChanges.watch(fileURL)
             }
+        }
+    }
+
+    /// Sends a link clicked in the Preview where `LinkRouter` says it goes (#23).
+    @MainActor private func followLink(to url: URL) {
+        // `state.fileURL` already follows a move that `fileURL` hasn't caught up with yet.
+        guard let documentURL = state.fileURL else { return }
+        switch LinkRouter.route(url: url, documentURL: documentURL) {
+        case .anchor(let elementID):
+            state.scrollRequest = ScrollRequest(elementID: elementID)
+        case .markdownFile(let fileURL, let fragment):
+            NSDocumentController.shared.openDocument(withContentsOf: fileURL, display: true) { document, _, error in
+                // NSDocumentController calls this on the main thread, and doesn't present errors itself.
+                MainActor.assumeIsolated {
+                    if let error {
+                        NSDocumentController.shared.presentError(error)
+                    } else if let fragment, let document = document as? MarkdownDocument {
+                        document.state.scrollRequest = ScrollRequest(elementID: fragment)
+                    }
+                }
+            }
+        case .external(let target):
+            NSWorkspace.shared.open(target)
+        case .missingFile(let target):
+            NSSound.beep()
+            state.missingLinkTarget = MissingLinkTarget(fileName: target.lastPathComponent)
         }
     }
 
