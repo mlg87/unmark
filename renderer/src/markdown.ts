@@ -20,6 +20,7 @@ export function createMarkdown(): MarkdownIt {
 
   restrictFuzzyLinksToWww(md);
   alignTableCellsWithAttribute(md);
+  filterDisallowedRawHtml(md);
 
   // github.com emits <del> for ~~text~~; markdown-it defaults to <s>.
   md.renderer.rules.s_open = () => "<del>";
@@ -81,6 +82,29 @@ function alignTableCellsWithAttribute(md: MarkdownIt): void {
       if (!align) continue;
       token.attrs = token.attrs?.filter(([name]) => name !== "style") ?? null;
       token.attrSet("align", align);
+    }
+  });
+}
+
+// GFM's tagfilter (https://github.github.com/gfm/#disallowed-raw-html-extension-).
+// These tags put the HTML parser into raw-text, RCDATA, or plaintext mode, so leaving
+// one for the sanitizer (#15) to remove lets an unclosed tag swallow the rest of the
+// document first. github.com escapes the `<` instead, like cmark-gfm's tagfilter.c:
+// https://github.com/github/cmark-gfm/blob/587a12bb54d95ac37241377e6ddc93ea0e45439b/extensions/tagfilter.c
+const DISALLOWED_TAG_START =
+  /<(?=\/?(?:title|textarea|style|xmp|iframe|noembed|noframes|script|plaintext)(?:[\t\n\v\f\r >]|\/>))/gi;
+
+function filterDisallowedRawHtml(md: MarkdownIt): void {
+  md.core.ruler.push("gfm_tagfilter", (state) => {
+    for (const token of state.tokens) {
+      if (token.type === "html_block") {
+        token.content = token.content.replace(DISALLOWED_TAG_START, "&lt;");
+      }
+      for (const child of token.children ?? []) {
+        if (child.type === "html_inline") {
+          child.content = child.content.replace(DISALLOWED_TAG_START, "&lt;");
+        }
+      }
     }
   });
 }
