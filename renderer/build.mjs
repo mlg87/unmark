@@ -16,7 +16,7 @@ await mkdir(outdir, { recursive: true });
 
 const result = await build({
   absWorkingDir: packageDir,
-  entryPoints: { unmark: "src/index.ts", highlight: "src/highlight.css" },
+  entryPoints: { unmark: "src/index.ts", highlight: "src/highlight.css", alerts: "src/alerts.css" },
   outdir,
   bundle: true,
   // ESM + splitting lets later renderers (KaTeX, Mermaid) load as lazy chunks via import().
