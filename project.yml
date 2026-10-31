@@ -45,6 +45,15 @@ targets:
         basedOnDependencyAnalysis: false
     dependencies:
       - package: UnmarkCore
+      # The `unmark` command-line tool ships inside the app (#8). It goes in Contents/Helpers, not next to
+      # the app's executable in Contents/MacOS: on case-insensitive APFS, the default for macOS volumes,
+      # `unmark` and `Unmark` are the same file.
+      - target: unmark-cli
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
     # Keys GENERATE_INFOPLIST_FILE can't express. XcodeGen writes them to App/Info.plist on
     # `make project`, and Xcode merges that file with the generated keys.
     info:
@@ -99,6 +108,30 @@ targets:
           ONLY_ACTIVE_ARCH: true
         Release:
           # Standard Architectures: one universal binary for Apple silicon and Intel.
+          ONLY_ACTIVE_ARCH: false
+          ARCHS: $(ARCHS_STANDARD)
+
+  unmark-cli:
+    type: tool
+    platform: macOS
+    sources:
+      - path: CLI
+    dependencies:
+      - package: UnmarkCore
+    settings:
+      base:
+        PRODUCT_NAME: unmark
+        PRODUCT_BUNDLE_IDENTIFIER: com.mlg87.unmark.cli
+        # Notarization requires the hardened runtime on every executable in the app (ADR-0002).
+        ENABLE_HARDENED_RUNTIME: true
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+        # Installed only inside Unmark.app, so archives don't also copy it to /usr/local/bin.
+        SKIP_INSTALL: true
+      configs:
+        Debug:
+          ONLY_ACTIVE_ARCH: true
+        Release:
           ONLY_ACTIVE_ARCH: false
           ARCHS: $(ARCHS_STANDARD)
 
