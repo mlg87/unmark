@@ -6,7 +6,9 @@ Requirements:
 
 - macOS 14 or later with Xcode 16.4 or later
 - [Homebrew](https://brew.sh)
-- Node.js 22.12 or later and [pnpm](https://pnpm.io) (for the `renderer/` package)
+- Node.js 22.12 or later and [pnpm](https://pnpm.io). The app target's first build
+  phase runs `scripts/build-renderer.sh`, which installs and builds the `renderer/`
+  package into `App/Resources/Renderer/` on every build, so Xcode builds need them too.
 
 ```sh
 make bootstrap   # install XcodeGen and SwiftLint from the Brewfile
@@ -28,9 +30,11 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | --- | --- |
 | `project.yml` | XcodeGen spec for the `Unmark` app target |
 | `App/` | AppKit app target (`NSDocument`, SwiftUI window content, ADR-0003); resources in `App/Resources/`. `App/Info.plist` is generated from `project.yml` |
+| `App/Preview/` | The Preview: a WKWebView that loads the renderer and the document's files from the `unmark://app/` scheme |
 | `Packages/UnmarkCore/` | Swift package with pure, unit-tested logic (no AppKit or WebKit) |
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
-| `scripts/` | Build and release scripts (added with the release work) |
+| `scripts/` | Build and release scripts |
+| `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
 
 ## Continuous integration
 

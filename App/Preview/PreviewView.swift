@@ -1,0 +1,108 @@
+import SwiftUI
+import UnmarkCore
+import WebKit
+import os
+
+/// The rendered document: the renderer bundle in a WKWebView, served by `UnmarkSchemeHandler` (#22). The page follows
+/// the system appearance through `prefers-color-scheme` (q8).
+struct PreviewView: NSViewRepresentable {
+    let markdown: String
+    /// Where the document's relative images and links resolve; see `PreviewURL.documentBaseURL(forDocumentAt:)`.
+    let documentBaseURL: URL
+    /// Called after each render reaches the page.
+    let didRender: @MainActor () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.setURLSchemeHandler(UnmarkSchemeHandler(), forURLScheme: PreviewURL.scheme)
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        #if DEBUG
+            // Lets Safari's Develop menu attach the Web Inspector to the Preview.
+            webView.isInspectable = true
+        #endif
+        webView.navigationDelegate = context.coordinator
+        context.coordinator.webView = webView
+        webView.load(URLRequest(url: PreviewURL.rendererPage))
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.didRender = didRender
+        context.coordinator.render(RenderRequest(markdown: markdown, documentBaseURL: documentBaseURL))
+    }
+
+    struct RenderRequest: Equatable {
+        let markdown: String
+        let documentBaseURL: URL
+    }
+
+    /// Queues renders until the renderer page has loaded, then runs them one at a time. Only the newest waiting
+    /// request is kept, so a burst of text changes costs at most one render after the current one.
+    @MainActor
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        private static let logger = Logger(subsystem: "com.mlg87.unmark", category: "PreviewView")
+
+        weak var webView: WKWebView?
+        var didRender: @MainActor () -> Void = {}
+
+        private var pageLoaded = false
+        private var isRendering = false
+        private var waiting: RenderRequest?
+        /// The last request handed to the renderer, so SwiftUI updates that don't change the text don't re-render.
+        private var latest: RenderRequest?
+
+        func render(_ request: RenderRequest) {
+            guard request != latest else { return }
+            latest = request
+            waiting = request
+            renderNextIfReady()
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            pageLoaded = true
+            renderNextIfReady()
+        }
+
+        func webView(
+            _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error
+        ) {
+            Self.logger.error("Renderer page failed to load: \(error.localizedDescription, privacy: .public)")
+        }
+
+        private func renderNextIfReady() {
+            guard pageLoaded, !isRendering, let webView, let request = waiting else { return }
+            waiting = nil
+            isRendering = true
+            Task {
+                do {
+                    // `callAsyncJavaScript` passes the text as an argument, so it needs no escaping, and awaits the
+                    // promise `render` returns. WebKit can report the page loaded before the page's module script
+                    // has run; importing that same module waits for it to finish instead of finding no
+                    // `window.unmark`.
+                    _ = try await webView.callAsyncJavaScript(
+                        """
+                        await import(rendererScript);
+                        await window.unmark.render(markdown, { documentBaseURL });
+                        """,
+                        arguments: [
+                            "rendererScript": PreviewURL.rendererScript.absoluteString,
+                            "markdown": request.markdown,
+                            "documentBaseURL": request.documentBaseURL.absoluteString,
+                        ],
+                        contentWorld: .page)
+                    didRender()
+                } catch {
+                    // The description carries WebKit's WKJavaScriptExceptionMessage, which names the cause.
+                    Self.logger.error("Render failed: \(String(describing: error), privacy: .public)")
+                }
+                isRendering = false
+                renderNextIfReady()
+            }
+        }
+    }
+}
