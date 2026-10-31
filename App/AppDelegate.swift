@@ -4,6 +4,8 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.make()
+        // Before AppKit opens the launch's documents, so the Preview's web view loads while they're read (q47).
+        PreviewWebViewPool.shared.prepare()
     }
 
     /// Unmark opens existing files only (q21): an empty launch shows the Open panel instead of an Untitled

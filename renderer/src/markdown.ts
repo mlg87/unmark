@@ -6,6 +6,7 @@ import { alert } from "@mdit/plugin-alert";
 import { fullEmoji } from "@mdit/plugin-emoji";
 import { tasklist } from "@mdit/plugin-tasklist";
 import { tex } from "@mdit/plugin-tex";
+import { LinkifyIt } from "linkify-it";
 import markdownit, { type MarkdownIt } from "markdown-it";
 import { footnotes } from "./footnotes.ts";
 import { frontMatter } from "./front-matter.ts";
@@ -59,8 +60,7 @@ export function createMarkdown(): MarkdownIt {
   footnotes(md);
   githubAlerts(md);
   mermaidFences(md);
-  // Plain emoji characters: github.com's <g-emoji> wrapper isn't on its own allowlist.
-  md.use(fullEmoji);
+  githubEmoji(md);
   githubMath(md);
   headingAnchors(md);
 
@@ -94,6 +94,28 @@ function mermaidFences(md: MarkdownIt): void {
 function highlightFencedCode(code: string, language: string): string {
   if (!language || !hljs.getLanguage(language)) return "";
   return hljs.highlight(code, { language, ignoreIllegals: true }).value;
+}
+
+// Every :shortcode: has a colon, and every one of fullEmoji's ASCII shortcuts (`:)`, `<3`,
+// `;)`, `8-)`, …) has one of these. "&" covers entities that decode to them, like `&#58;`.
+const EMOJI_CANDIDATE = /[:;<&]|-\)/;
+
+// Plain emoji characters: github.com's <g-emoji> wrapper isn't on its own allowlist.
+// The plugin tests every text against one regex of all ~1,900 shortcodes, which WebKit
+// runs far slower than V8: 280 ms of a 1 MB document's parse (q47). Its rule now sees
+// only the inline tokens that could contain one; the rest can't change.
+function githubEmoji(md: MarkdownIt): void {
+  md.use(fullEmoji);
+  const { fn: replaceShortcodes } = md.core.ruler.__rules__[md.core.ruler.__find__("emoji")] ?? {};
+  if (!replaceShortcodes)
+    throw new Error("@mdit/plugin-emoji no longer adds a core rule named emoji");
+  md.core.ruler.at("emoji", (state) => {
+    const tokens = state.tokens.filter(
+      (token) => token.type === "inline" && EMOJI_CANDIDATE.test(token.content),
+    );
+    // The rule reads only `tokens` from the state, and replaces children on the tokens.
+    return replaceShortcodes(Object.create(state, { tokens: { value: tokens } }));
+  });
 }
 
 // The five alert types github.com supports, in its markup and classes, which
@@ -154,11 +176,29 @@ function githubMath(md: MarkdownIt): void {
 // `www.` (https://github.github.com/gfm/#extended-www-autolink). linkify-it 6 has no
 // www-only mode: fuzzy links are off by default, and turning them on also links bare
 // `example.com`, which github.com leaves as text.
+//
+// Scanning every text was a 1 MB document's largest parse cost (q47), mostly linkify-it's
+// fuzzy search, and its Unicode-heavy regexes run far slower in WebKit than in V8. So only
+// text containing `www.`, the only fuzzy links kept, goes through a fuzzy instance, and
+// only text that could hold a link reaches linkify-it at all: every default schema
+// (http:, https:, ftp:, mailto:, //) has a ":" or "//", every email an "@", and "&"
+// covers entities that decode to one of them.
+const WWW = /www\./i;
+const WWW_START = /^www\./i;
+const LINK_CANDIDATE = /[:@&]|\/\//;
+
 function restrictFuzzyLinksToWww(md: MarkdownIt): void {
-  md.linkify.set({ fuzzyLink: true });
-  const match = md.linkify.match.bind(md.linkify);
-  md.linkify.match = (text) =>
-    match(text)?.filter((link) => link.schema !== "" || /^www\./i.test(link.raw)) ?? null;
+  const strict = md.linkify;
+  const fuzzy = new LinkifyIt({ fuzzyLink: true });
+  const strictTest = strict.test.bind(strict);
+  const strictMatch = strict.match.bind(strict);
+  strict.test = (text) =>
+    WWW.test(text) ? fuzzy.test(text) : LINK_CANDIDATE.test(text) && strictTest(text);
+  strict.match = (text) =>
+    WWW.test(text)
+      ? (fuzzy.match(text)?.filter((link) => link.schema !== "" || WWW_START.test(link.raw)) ??
+        null)
+      : strictMatch(text);
 }
 
 // markdown-it aligns cells with style="text-align:…", but GitHub's sanitizer

@@ -22,17 +22,10 @@ struct PreviewView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> WKWebView {
-        let configuration = WKWebViewConfiguration()
-        configuration.setURLSchemeHandler(UnmarkSchemeHandler(), forURLScheme: PreviewURL.scheme)
-
-        let webView = WKWebView(frame: .zero, configuration: configuration)
-        #if DEBUG
-            // Lets Safari's Develop menu attach the Web Inspector to the Preview.
-            webView.isInspectable = true
-        #endif
+        let (webView, pageLoaded) = PreviewWebViewPool.shared.take()
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
-        webView.load(URLRequest(url: PreviewURL.rendererPage))
+        context.coordinator.pageLoaded = pageLoaded
         return webView
     }
 
@@ -63,7 +56,8 @@ struct PreviewView: NSViewRepresentable {
         var didRender: @MainActor () -> Void = {}
         var linkActivated: @MainActor (URL) -> Void = { _ in }
 
-        private var pageLoaded = false
+        /// Set by `makeNSView` when the pool hands over a web view whose page already loaded.
+        var pageLoaded = false
         private var isRendering = false
         private var waiting: RenderRequest?
         /// The last request handed to the renderer, so SwiftUI updates that don't change the text don't re-render.
@@ -125,10 +119,11 @@ struct PreviewView: NSViewRepresentable {
                     // `callAsyncJavaScript` passes the text as an argument, so it needs no escaping, and awaits the
                     // promise `render` returns. WebKit can report the page loaded before the page's module script
                     // has run; importing that same module waits for it to finish instead of finding no
-                    // `window.unmark`.
+                    // `window.unmark`. The import costs about 40 ms even when the module already ran, so it's
+                    // skipped then (q47).
                     _ = try await webView.callAsyncJavaScript(
                         """
-                        await import(rendererScript);
+                        if (!window.unmark) await import(rendererScript);
                         await window.unmark.render(markdown, { documentBaseURL });
                         """,
                         arguments: [
@@ -144,6 +139,8 @@ struct PreviewView: NSViewRepresentable {
                 }
                 Self.signposter.endInterval("render", interval)
                 isRendering = false
+                // After the render, so making the next window's web view doesn't slow this one's (q47).
+                PreviewWebViewPool.shared.prepare()
                 renderNextIfReady()
             }
         }
@@ -154,8 +151,9 @@ struct PreviewView: NSViewRepresentable {
             pendingScroll = nil
             Task {
                 do {
+                    // The renderer waits for the element when it's in blocks still being inserted (q47).
                     _ = try await webView.callAsyncJavaScript(
-                        "document.getElementById(elementID)?.scrollIntoView();",
+                        "await window.unmark.scrollToElement(elementID);",
                         arguments: ["elementID": request.elementID], contentWorld: .page)
                 } catch {
                     Self.logger.error("Scroll failed: \(String(describing: error), privacy: .public)")

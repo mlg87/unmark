@@ -33,6 +33,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `App/Preview/` | The Preview: a WKWebView that loads the renderer and the document's files from the `unmark://app/` scheme |
 | `Packages/UnmarkCore/` | Swift package with pure, unit-tested logic (no AppKit or WebKit) |
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
+| `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
 | `scripts/` | Build and release scripts |
 | `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
 
