@@ -13,6 +13,23 @@
     <link rel="stylesheet" href="render-error.css" />
     <!-- Layout from github-markdown-css's README, matching github.com's README width. -->
     <style>
+      /* github-markdown-css scopes --bgColor-default to .markdown-body, so the canvas repeats
+         its values; otherwise the 8 px body margin and the gutters beside the 980 px column
+         show WebKit's default dark canvas, not GitHub's #0d1117. */
+      html {
+        background-color: #ffffff;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html {
+          background-color: #0d1117;
+        }
+      }
+
+      body {
+        margin: 0;
+      }
+
       .markdown-body {
         box-sizing: border-box;
         min-width: 200px;
