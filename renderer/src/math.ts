@@ -4,15 +4,13 @@
 
 import katex from "katex";
 
-// build.mjs copies KaTeX's stylesheet, with its fonts beside it, and math.css next to
-// the chunks. Resolved against this chunk's URL because <base> points at the document's
-// folder, not the renderer's.
-for (const stylesheet of ["katex/katex.min.css", "math.css"]) {
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = new URL(stylesheet, import.meta.url).href;
-  document.head.append(link);
-}
+// build.mjs copies KaTeX's stylesheet next to the chunks, with its fonts beside it. The
+// error box's style is render-error.css, which the page loads. Resolved against this
+// chunk's URL because <base> points at the document's folder, not the renderer's.
+const katexStylesheet = document.createElement("link");
+katexStylesheet.rel = "stylesheet";
+katexStylesheet.href = new URL("katex/katex.min.css", import.meta.url).href;
+document.head.append(katexStylesheet);
 
 /** Replaces every `.math` placeholder under `root` with KaTeX's output, or an error box. */
 export function renderMath(root: ParentNode): void {

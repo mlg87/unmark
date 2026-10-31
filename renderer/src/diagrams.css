@@ -1,0 +1,24 @@
+/*
+ * Mermaid diagrams (#19). Mermaid sizes each SVG with an inline max-width, so a small
+ * diagram keeps its natural size, centered like github.com's, and a wide one shrinks
+ * to the column. The error box itself is render-error.css.
+ */
+
+.markdown-body .mermaid-diagram {
+  margin-bottom: var(--base-size-16);
+  text-align: center;
+}
+
+/* Mermaid's parse errors point at the column with a caret line under the source. */
+.markdown-body .mermaid-error {
+  font-family: var(--fontStack-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 85%;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The source below a failed diagram's error box reads left-aligned too. */
+.markdown-body .mermaid-diagram pre {
+  text-align: left;
+}

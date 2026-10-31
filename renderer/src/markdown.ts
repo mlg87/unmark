@@ -58,12 +58,33 @@ export function createMarkdown(): MarkdownIt {
   frontMatter(md);
   footnotes(md);
   githubAlerts(md);
+  mermaidFences(md);
   // Plain emoji characters: github.com's <g-emoji> wrapper isn't on its own allowlist.
   md.use(fullEmoji);
   githubMath(md);
   headingAnchors(md);
 
   return md;
+}
+
+// Mermaid diagrams (#19) render after sanitizing, in diagrams.ts, which index.ts loads
+// only when a document has one: Mermaid is several MB (epic #3, q3, q38, q55). Until
+// then the block is its escaped source, so a document reads fine before the diagram
+// draws or if it can't.
+function mermaidFences(md: MarkdownIt): void {
+  const renderFence = md.renderer.rules.fence;
+  if (!renderFence) throw new Error("markdown-it no longer has a default fence rule");
+  md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+    const token = tokens[idx];
+    if (token?.info.trim().split(/\s+/)[0] !== "mermaid") {
+      return renderFence(tokens, idx, options, env, self);
+    }
+    return `<pre class="mermaid-source" data-mermaid>${md.utils.escapeHtml(token.content)}</pre>\n`;
+  };
+  extendAllowlist({
+    elements: { pre: ["data-mermaid"] },
+    classes: { pre: ["mermaid-source"] },
+  });
 }
 
 // Syntax highlighting with GitHub's light and dark themes (#17, epic #3 decision q24).

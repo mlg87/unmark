@@ -20,11 +20,12 @@ const result = await build({
     unmark: "src/index.ts",
     highlight: "src/highlight.css",
     alerts: "src/alerts.css",
-    math: "src/math.css",
+    diagrams: "src/diagrams.css",
+    "render-error": "src/render-error.css",
   },
   outdir,
   bundle: true,
-  // ESM + splitting loads KaTeX (src/math.ts) and later renderers (Mermaid) as lazy
+  // ESM + splitting loads KaTeX (src/math.ts) and Mermaid (src/diagrams.ts) as lazy
   // chunks via import(), which the unmark:// scheme serves from one origin (#22).
   format: "esm",
   splitting: true,
@@ -85,8 +86,13 @@ for (const [name, budget] of Object.entries(ENTRY_BUDGETS)) {
 }
 
 // Packages that must stay out of what every document loads: the entry and the chunks
-// it imports statically. unmark-1793451433078-17-487f189f: KaTeX loads only for math.
-const LAZY_PACKAGES = ["katex"];
+// it imports statically.
+const LAZY_PACKAGES = [
+  // unmark-1793451433078-17-487f189f: KaTeX loads only for math.
+  "katex",
+  // #19: Mermaid is several MB; diagrams.ts imports it only for diagrams.
+  "mermaid",
+];
 
 const eagerOutputs = [
   entry,
@@ -100,7 +106,7 @@ for (const name of LAZY_PACKAGES) {
   const lazy = Object.entries(outputs).filter(
     ([, output]) => !eagerOutputs.includes(output) && packageBytes(output, name) > 0,
   );
-  console.log(`${name} is in lazy chunk(s) ${lazy.map(([file]) => file).join(", ") || "none"}`);
+  console.log(`${name} is in ${lazy.length} lazy chunk(s)`);
   if (eager > 0 || lazy.length === 0) {
     console.error(`${name}: expected only in lazy chunks, got ${eager} bytes loaded eagerly`);
     process.exitCode = 1;
