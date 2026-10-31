@@ -27,10 +27,22 @@ targets:
     sources:
       - path: App
         # The renderer bundle is build output from `pnpm --dir renderer build`. Globbing
-        # it here would flatten its files into the bundle root, so the WKWebView
-        # Preview work adds it as a folder reference instead.
+        # it here would flatten its files into the bundle root, so it's added below as a
+        # folder reference instead.
         excludes:
           - Resources/Renderer
+      # A folder reference copies Contents/Resources/Renderer/ with its layout intact, which
+      # UnmarkSchemeHandler serves as unmark://app/renderer/ (#22). Optional because the
+      # folder doesn't exist until the first build runs the script below.
+      - path: App/Resources/Renderer
+        type: folder
+        buildPhase: resources
+        optional: true
+    preBuildScripts:
+      - name: Build renderer
+        script: '"$SRCROOT/scripts/build-renderer.sh"'
+        # pnpm and esbuild decide what's stale, so the phase runs on every build.
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: UnmarkCore
     # Keys GENERATE_INFOPLIST_FILE can't express. XcodeGen writes them to App/Info.plist on
@@ -58,6 +70,10 @@ targets:
               # Keep in sync with MarkdownFile.pathExtensions in UnmarkCore.
               public.filename-extension: [md, markdown, mdown, mdwn, mkd, mkdn, mkdown]
               public.mime-type: [text/markdown]
+        # Remote images load over http as well as https (q28). Scoped to web content, so the
+        # app's own networking keeps App Transport Security.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
     settings:
       base:
         PRODUCT_NAME: Unmark
@@ -75,6 +91,9 @@ targets:
         CODE_SIGN_STYLE: Automatic
         LOCALIZATION_PREFERS_STRING_CATALOGS: true
         SWIFT_EMIT_LOC_STRINGS: true
+        # The Build renderer phase writes App/Resources/Renderer/ and runs pnpm from the
+        # user's PATH, which the script sandbox blocks.
+        ENABLE_USER_SCRIPT_SANDBOXING: false
       configs:
         Debug:
           ONLY_ACTIVE_ARCH: true
