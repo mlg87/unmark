@@ -5,6 +5,7 @@ import hljs from "@highlightjs/cdn-assets/es/highlight.min.js";
 import { alert } from "@mdit/plugin-alert";
 import { fullEmoji } from "@mdit/plugin-emoji";
 import { tasklist } from "@mdit/plugin-tasklist";
+import { tex } from "@mdit/plugin-tex";
 import markdownit, { type MarkdownIt } from "markdown-it";
 import { footnotes } from "./footnotes.ts";
 import { frontMatter } from "./front-matter.ts";
@@ -59,6 +60,7 @@ export function createMarkdown(): MarkdownIt {
   githubAlerts(md);
   // Plain emoji characters: github.com's <g-emoji> wrapper isn't on its own allowlist.
   md.use(fullEmoji);
+  githubMath(md);
   headingAnchors(md);
 
   return md;
@@ -104,6 +106,26 @@ function githubAlerts(md: MarkdownIt): void {
       p: ["markdown-alert-title"],
       span: ["octicon", ...Object.values(ALERT_OCTICONS).map((icon) => `octicon-${icon}`)],
     },
+  });
+}
+
+// $…$, $$…$$, and ```math blocks, which cmark-gfm can't parse and github.com renders
+// (ADR-0001). Parsing emits only a placeholder holding the escaped TeX: KaTeX is a lazy
+// chunk that index.ts loads after sanitizing, only for documents that contain math.
+function githubMath(md: MarkdownIt): void {
+  md.use(tex, {
+    delimiters: "dollars",
+    mathFence: true,
+    // The plugin passes displayMode only for blocks, so a display placeholder can be a <div>.
+    render: (content, displayMode) => {
+      const tag = displayMode ? "div" : "span";
+      const source = md.utils.escapeHtml(content);
+      return `<${tag} class="math" data-display="${displayMode}">${source}</${tag}>${displayMode ? "\n" : ""}`;
+    },
+  });
+  extendAllowlist({
+    elements: { span: ["data-display"], div: ["data-display"] },
+    classes: { span: ["math"], div: ["math"] },
   });
 }
 
