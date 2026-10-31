@@ -2,6 +2,10 @@
 
 This file provides instructions and context for AI coding agents working on this project.
 
+This repository opts in to the Team-maintainer Beads profile. Follow the
+"Agent Workflow (Team-maintainer opt-in)" section of @AGENTS.md: claim, branch,
+ship a PR with auto-merge, close the bead, and `bd dolt push` without asking.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
 
