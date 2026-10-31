@@ -128,8 +128,11 @@ async function scrollToElement(id: string): Promise<void> {
   // Pulls chunks only up to the target rather than waiting for the background tasks to
   // reach it, so an anchor to a late heading doesn't wait for the whole document
   // (unmark-1793451426597-3-58814491.9).
+  // Checks the page too: an append queued before this call's turn may bring the element in.
   if (!document.getElementById(id)) {
-    await rendered.pending?.appendUntil((batch) => batch.getElementById(id) !== null);
+    await rendered.pending?.appendUntil(
+      (batch) => document.getElementById(id) !== null || batch.getElementById(id) !== null,
+    );
   }
   document.getElementById(id)?.scrollIntoView();
 }
@@ -157,17 +160,18 @@ class PendingChunks {
 
   /**
    * Appends the next chunks as one batch, pulling until `enough(batch)` holds or the
-   * document ends. The pull never yields to other tasks, so callers that must keep the
-   * page responsive pull in small steps.
+   * document ends. `enough` is asked first, when this call's turn comes, since earlier calls
+   * may have appended what it needed. The pull never yields to other tasks, so callers that
+   * must keep the page responsive pull in small steps.
    */
   appendUntil(enough: (batch: DocumentFragment) => boolean): Promise<void> {
     const call = this.#lastCall.then(async () => {
       if (this.done) return;
       const batch = document.createDocumentFragment();
-      do {
+      while (!this.#chunks.done && !enough(batch)) {
         const next = await this.#chunks.next(BACKGROUND_CHUNK);
         if (next) batch.append(next);
-      } while (!this.#chunks.done && !enough(batch));
+      }
       // A newer render may have started while KaTeX loaded.
       if (!this.#isCurrent()) return;
       this.#article.append(batch);
