@@ -36,8 +36,10 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`
 on a `macos-15` runner with Xcode 16.4. A single job, `ci`, runs `make lint`, the
-renderer tests, `make test`, and an ad-hoc signed universal Release build, then
-fails unless `lipo -archs` reports both `x86_64` and `arm64`.
+renderer tests, the renderer build (which fails if a dependency exceeds its
+entry-chunk size budget in `renderer/build.mjs`), `make test`, and an ad-hoc signed
+universal Release build, then fails unless `lipo -archs` reports both `x86_64` and
+`arm64`.
 
 Mark the `ci` job as the required status check in the `main` branch ruleset.
 GitHub lists it as `ci` when you add required checks (it shows as `CI / ci` on

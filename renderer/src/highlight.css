@@ -1,0 +1,7 @@
+/*
+ * highlight.js's GitHub themes (#17), switched by prefers-color-scheme like
+ * github-markdown-css (q8). Code blocks carry no `hljs` class, so the themes color
+ * tokens only and github-markdown-css keeps styling the <pre> box.
+ */
+@import "@highlightjs/cdn-assets/styles/github.css" (prefers-color-scheme: light);
+@import "@highlightjs/cdn-assets/styles/github-dark.css" (prefers-color-scheme: dark);

@@ -1,3 +1,7 @@
+// highlight.js's own prebuilt bundle, not highlight.js/lib/common: both register the
+// same 36 languages, but esbuild minifies lib/common to 160 KB, over #17's 150 KB
+// entry budget (build.mjs), while the prebuilt bundle adds about 126 KB.
+import hljs from "@highlightjs/cdn-assets/es/highlight.min.js";
 import { tasklist } from "@mdit/plugin-tasklist";
 import markdownit, { type MarkdownIt } from "markdown-it";
 import { extendAllowlist } from "./sanitize.ts";
@@ -7,6 +11,7 @@ export function createMarkdown(): MarkdownIt {
     // GitHub renders raw HTML; sanitize.ts strips what GitHub's allowlist does (#15).
     html: true,
     linkify: true,
+    highlight: highlightFencedCode,
   });
 
   // The default preset already enables both rules; enabling them by name fails
@@ -39,8 +44,20 @@ export function createMarkdown(): MarkdownIt {
       input: ["task-list-item-checkbox"],
     },
   });
+  // highlight.js wraps tokens in <span class="hljs-…">. A dotted scope such as
+  // title.class adds suffix classes ("hljs-title class_"), which the themes also select.
+  extendAllowlist({ classes: { span: [/^hljs-[a-z_-]+$/, /^[a-z]+_+$/] } });
 
   return md;
+}
+
+// Syntax highlighting with GitHub's light and dark themes (#17, epic #3 decision q24).
+// Like github.com, only a fence's declared language is highlighted: an absent or
+// unknown language renders plain, never auto-detected. Returning "" tells
+// markdown-it to escape the code itself.
+function highlightFencedCode(code: string, language: string): string {
+  if (!language || !hljs.getLanguage(language)) return "";
+  return hljs.highlight(code, { language, ignoreIllegals: true }).value;
 }
 
 // GFM's extended autolinks recognize scheme-less links only when they start with
