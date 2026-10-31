@@ -45,6 +45,11 @@ struct PreviewView: NSViewRepresentable {
         let documentBaseURL: URL
     }
 
+    /// The renderer's `OutputMode`.
+    private enum OutputMode: String {
+        case screen, print
+    }
+
     /// Queues renders until the renderer page has loaded, then runs them one at a time. Only the newest waiting
     /// request is kept, so a burst of text changes costs at most one render after the current one. A scroll or print
     /// waits until no render is running or waiting, so it finds the element it names or prints the current text.
@@ -205,11 +210,6 @@ struct PreviewView: NSViewRepresentable {
                 }
                 isPrinting = false
             }
-        }
-
-        /// The renderer's `OutputMode`.
-        private enum OutputMode: String {
-            case screen, print
         }
 
         private func setOutputMode(_ mode: OutputMode, in webView: WKWebView) async {
