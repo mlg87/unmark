@@ -23,6 +23,26 @@ bd close <id>         # Complete work
 bd dolt push          # Push beads data to remote
 ```
 
+## Agent Workflow (Team-maintainer opt-in)
+
+This repository opts in to the **Team-maintainer** Beads profile. Agents run the
+whole loop below without asking for approval. A current "do not commit" or
+"do not push" instruction from the user still wins.
+
+1. **Claim:** `bd update <id> --claim`, then `bd dolt push`.
+2. **Branch:** work in a git worktree off fresh `origin/main`. For a bead linked to
+   GitHub issue N, name the branch `N-<slug>` and push it before making changes.
+   Never commit to `main`.
+3. **Quality gates:** run lint, tests, and build for everything you changed.
+4. **Ship:** commit, push, and open a PR to `main` whose body contains
+   `Closes #N`. Then queue it: `gh pr merge <pr> --auto --squash`.
+5. **Close out after the merge:** `bd close <id>`, `bd dolt push`,
+   `git worktree remove <path>`, and `git branch -D <branch>`. If the PR can't
+   merge (failing checks or requested changes), fix it. If it's still blocked,
+   leave the bead `in_progress` with the PR URL in `--notes` and report why.
+6. **Sync beads:** run `bd dolt push` after any other bead change too (new
+   follow-up beads, notes, status updates).
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
