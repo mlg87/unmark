@@ -146,7 +146,7 @@ test("a newer render stops the previous one's background chunks", async () => {
   expect(article.innerHTML).toBe(renderedAllAtOnce("# Replaced"));
 });
 
-test("scrolling to an element in a later chunk waits for it", async () => {
+test("scrolling to an element in a later chunk renders up to it, not the whole document", async () => {
   vi.useFakeTimers();
   tallBlocks();
   // jsdom doesn't implement scrollIntoView.
@@ -155,11 +155,22 @@ test("scrolling to an element in a later chunk waits for it", async () => {
     scrolledTo(this.id);
   };
   await render(longDocument);
+  expect(document.getElementById("part-30")).toBeNull();
+  // No timers run, so no background task contributes to the scroll.
+  await window.unmark.scrollToElement("part-30");
+  expect(scrolledTo).toHaveBeenCalledWith("part-30");
   expect(document.getElementById("part-59")).toBeNull();
-  const scrolled = window.unmark.scrollToElement("part-59");
+  // The background tasks carry on from where the scroll stopped.
   await vi.runAllTimersAsync();
-  await scrolled;
-  expect(scrolledTo).toHaveBeenCalledWith("part-59");
+  expect(article.innerHTML).toBe(renderedAllAtOnce(longDocument));
+});
+
+test("scrolling to an element that isn't in the document renders all of it", async () => {
+  vi.useFakeTimers();
+  tallBlocks();
+  await render(longDocument);
+  await window.unmark.scrollToElement("missing");
+  expect(article.innerHTML).toBe(renderedAllAtOnce(longDocument));
 });
 
 test("a reload while scrolled swaps in the whole document at once", async () => {
