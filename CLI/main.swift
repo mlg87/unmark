@@ -57,7 +57,7 @@ case .version:
     print("unmark \(version as? String ?? "unknown")")
     exit(.success)
 
-case .open(let paths, _):
+case .open(let paths, let wait):
     var fileURLs: [URL] = []
     var anyMissing = false
     for path in paths {
@@ -74,13 +74,17 @@ case .open(let paths, _):
     }
 
     if !fileURLs.isEmpty {
+        let app: NSRunningApplication
         do {
             // One call, so the app receives a single open event and can group the files as tabs.
-            let _: NSRunningApplication = try await NSWorkspace.shared.open(
+            app = try await NSWorkspace.shared.open(
                 fileURLs, withApplicationAt: containingApp(), configuration: NSWorkspace.OpenConfiguration())
         } catch {
             printError("unmark: \(error.localizedDescription)")
             exit(.failure)
+        }
+        if wait {
+            await DocumentWaiter(app: app, fileURLs: fileURLs).wait()
         }
     }
     exit(anyMissing ? .failure : .success)

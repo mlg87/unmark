@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenu.make()
         // Before AppKit opens the launch's documents, so the Preview's web view loads while they're read (q47).
         PreviewWebViewPool.shared.prepare()
+        // Before the launch's documents open, so `unmark --wait` gets answers about them from the start (#37).
+        OpenDocumentsBroadcaster.shared.start()
     }
 
     /// Unmark opens existing files only (q21): an empty launch shows the Open panel instead of an Untitled
