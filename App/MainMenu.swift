@@ -8,7 +8,7 @@ enum MainMenu {
         NSApp.windowsMenu = windowMenu
 
         let mainMenu = NSMenu()
-        for submenu in [appMenu(), fileMenu(), editMenu(), windowMenu] {
+        for submenu in [appMenu(), fileMenu(), editMenu(), viewMenu(), windowMenu] {
             let item = NSMenuItem()
             item.submenu = submenu
             mainMenu.addItem(item)
@@ -51,8 +51,9 @@ enum MainMenu {
         return menu
     }
 
-    /// No New item: Unmark doesn't create files (q17). There's no hand-built Open Recent either: NSDocumentController
-    /// inserts and maintains its own after the Open… item, and a second one built here showed up as a duplicate.
+    /// No New item: Unmark doesn't create files (q17), and so no Save As… either. There's no hand-built Open Recent:
+    /// NSDocumentController inserts and maintains its own after the Open… item, and a second one built here showed up
+    /// as a duplicate.
     private static func fileMenu() -> NSMenu {
         let menu = NSMenu(title: String(localized: "File"))
         menu.addItem(
@@ -62,6 +63,11 @@ enum MainMenu {
 
         menu.addItem(
             withTitle: String(localized: "Close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        // Saving is explicit, there's no autosave (q13).
+        menu.addItem(withTitle: String(localized: "Save"), action: #selector(NSDocument.save(_:)), keyEquivalent: "s")
+        menu.addItem(
+            withTitle: String(localized: "Revert to Saved"), action: #selector(NSDocument.revertToSaved(_:)),
+            keyEquivalent: "")
         menu.addItem(.separator())
 
         menu.addItem(
@@ -87,6 +93,33 @@ enum MainMenu {
         menu.addItem(withTitle: String(localized: "Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         menu.addItem(
             withTitle: String(localized: "Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: String(localized: "Find"), action: nil, keyEquivalent: "").submenu = findMenu()
+        return menu
+    }
+
+    /// Drives the Source's find bar (`usesFindBar`).
+    private static func findMenu() -> NSMenu {
+        let menu = NSMenu(title: String(localized: "Find"))
+        func addItem(_ title: String, _ action: NSTextFinder.Action, keyEquivalent: String) {
+            menu.addItem(
+                withTitle: title, action: #selector(NSResponder.performTextFinderAction(_:)),
+                keyEquivalent: keyEquivalent
+            ).tag = action.rawValue
+        }
+        addItem(String(localized: "Find…"), .showFindInterface, keyEquivalent: "f")
+        addItem(String(localized: "Find Next"), .nextMatch, keyEquivalent: "g")
+        addItem(String(localized: "Find Previous"), .previousMatch, keyEquivalent: "G")
+        addItem(String(localized: "Use Selection for Find"), .setSearchString, keyEquivalent: "e")
+        return menu
+    }
+
+    private static func viewMenu() -> NSMenu {
+        let menu = NSMenu(title: String(localized: "View"))
+        // `DocumentWindowController` retitles it to Hide Source while its window is in Split mode.
+        menu.addItem(
+            withTitle: DocumentWindowController.toggleSourceTitle(sourceVisible: false),
+            action: #selector(DocumentWindowController.toggleSource(_:)), keyEquivalent: "E")
         return menu
     }
 

@@ -13,8 +13,10 @@ struct PreviewView: NSViewRepresentable {
     let scrollRequest: ScrollRequest?
     /// Prints the Preview once the current text has rendered (#34).
     let printRequest: PrintRequest?
-    /// Called after each render reaches the page.
-    let didRender: @MainActor () -> Void
+    /// How long a text change waits for further changes before it renders. Zero renders at once.
+    let renderDebounce: Duration
+    /// Called with the rendered text after each render reaches the page.
+    let didRender: @MainActor (String) -> Void
     /// Called with a clicked link's URL, resolved against `documentBaseURL`. The Preview itself never navigates
     /// away from the renderer page (#23).
     let linkActivated: @MainActor (URL) -> Void
@@ -35,7 +37,8 @@ struct PreviewView: NSViewRepresentable {
         context.coordinator.didRender = didRender
         context.coordinator.linkActivated = linkActivated
         // After `render`, so a request that arrives with new text waits for that text to render.
-        context.coordinator.render(RenderRequest(markdown: markdown, documentBaseURL: documentBaseURL))
+        context.coordinator.render(
+            RenderRequest(markdown: markdown, documentBaseURL: documentBaseURL), after: renderDebounce)
         context.coordinator.scroll(to: scrollRequest)
         context.coordinator.printPreview(printRequest)
     }
@@ -51,8 +54,9 @@ struct PreviewView: NSViewRepresentable {
     }
 
     /// Queues renders until the renderer page has loaded, then runs them one at a time. Only the newest waiting
-    /// request is kept, so a burst of text changes costs at most one render after the current one. A scroll or print
-    /// waits until no render is running or waiting, so it finds the element it names or prints the current text.
+    /// request is kept, so a burst of text changes costs at most one render after the current one. A debounced
+    /// request also waits until no newer one has arrived for its delay. A scroll or print waits until no render is
+    /// running or waiting, so it finds the element it names or prints the current text.
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate {
         private static let logger = Logger(subsystem: "com.mlg87.unmark", category: "PreviewView")
@@ -61,13 +65,15 @@ struct PreviewView: NSViewRepresentable {
         private static let signposter = OSSignposter(subsystem: "com.mlg87.unmark", category: .pointsOfInterest)
 
         weak var webView: WKWebView?
-        var didRender: @MainActor () -> Void = {}
+        var didRender: @MainActor (String) -> Void = { _ in }
         var linkActivated: @MainActor (URL) -> Void = { _ in }
 
         /// Set by `makeNSView` when the pool hands over a web view whose page already loaded.
         var pageLoaded = false
         private var isRendering = false
         private var waiting: RenderRequest?
+        /// Holds `waiting` back until the debounce delay passes with no newer request.
+        private var debounce: Task<Void, Never>?
         /// The last request handed to the renderer, so SwiftUI updates that don't change the text don't re-render.
         private var latest: RenderRequest?
         private var pendingScroll: ScrollRequest?
@@ -80,10 +86,20 @@ struct PreviewView: NSViewRepresentable {
         /// under the first one's print panel.
         private var isPrinting = false
 
-        func render(_ request: RenderRequest) {
+        func render(_ request: RenderRequest, after delay: Duration) {
             guard request != latest else { return }
             latest = request
             waiting = request
+            debounce?.cancel()
+            debounce = nil
+            if delay > .zero {
+                debounce = Task { [weak self] in
+                    try? await Task.sleep(for: delay)
+                    guard !Task.isCancelled, let self else { return }
+                    debounce = nil
+                    renderNextIfReady()
+                }
+            }
             renderNextIfReady()
         }
 
@@ -127,7 +143,7 @@ struct PreviewView: NSViewRepresentable {
         }
 
         private func renderNextIfReady() {
-            guard pageLoaded, !isRendering, let webView else { return }
+            guard pageLoaded, !isRendering, debounce == nil, let webView else { return }
             guard let request = waiting else {
                 scrollToPendingElement(in: webView)
                 printPendingRequest(in: webView)
@@ -154,7 +170,7 @@ struct PreviewView: NSViewRepresentable {
                             "documentBaseURL": request.documentBaseURL.absoluteString,
                         ],
                         contentWorld: .page)
-                    didRender()
+                    didRender(request.markdown)
                 } catch {
                     // The description carries WebKit's WKJavaScriptExceptionMessage, which names the cause.
                     Self.logger.error("Render failed: \(String(describing: error), privacy: .public)")
