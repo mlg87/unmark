@@ -1,3 +1,11 @@
+# Generated from project.yml by `make project`.
+*.xcodeproj
+DerivedData/
+build/
+# SwiftPM build output from `make test`.
+.build/
+.swiftpm/
+Brewfile.lock.json
 node_modules/
 # Renderer bundle output, rebuilt by `pnpm --dir renderer build` (#14).
 App/Resources/Renderer/
