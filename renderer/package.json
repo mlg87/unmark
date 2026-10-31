@@ -26,6 +26,7 @@
     "markdown-it-anchor": "^10.0.0",
     "markdown-it-footnote": "^4.0.0",
     "markdown-it-front-matter": "^0.2.4",
+    "mermaid": "^12.2.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {

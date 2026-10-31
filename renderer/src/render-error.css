@@ -1,0 +1,17 @@
+/*
+ * The error box shown in place of content the renderer couldn't draw: TeX that KaTeX
+ * can't parse (unmark-1793451433078-17-487f189f) and Mermaid diagrams with a syntax
+ * error (#19). Both follow github.com: the message in a bordered box, then the source
+ * as a code block. github-markdown-css's danger colors make it follow light and dark
+ * mode. Loaded with the page, not with the lazy chunks: it is a few hundred bytes.
+ */
+
+.markdown-body .math-error,
+.markdown-body .mermaid-error {
+  margin-bottom: var(--base-size-8);
+  padding: var(--base-size-8) var(--base-size-16);
+  color: var(--fgColor-danger);
+  background-color: var(--bgColor-danger-muted);
+  border: 1px solid var(--borderColor-danger-emphasis);
+  border-radius: 6px;
+}

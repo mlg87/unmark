@@ -55,6 +55,18 @@ $$
 
 TeX KaTeX can't parse shows its error: $\frac{1}{$
 
+## Diagrams
+
+```mermaid
+graph TD; A-->B
+```
+
+A broken diagram shows an error box with its source:
+
+```mermaid
+graph TD; A-->
+```
+
 ## Quotes and lists
 
 > A plain blockquote.

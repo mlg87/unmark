@@ -50,8 +50,15 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   // Captured after parsing, right before the swap, so a reload keeps the reader's place (#24).
   const anchor = captureScrollAnchor(article);
   article.replaceChildren(content);
-  if (anchor) restoreScrollAnchor(article, anchor);
-
+  // Drawn in the DOM because Mermaid measures text as it lays out (#19). The import stays
+  // behind this check so documents without diagrams never load Mermaid's chunk.
+  if (article.querySelector("pre[data-mermaid]")) {
+    const { renderDiagrams } = await import("./diagrams.ts");
+    await renderDiagrams(article);
+  }
+  // After the diagrams, whose height and text the anchor was captured with. A reload
+  // that swapped in newer content while they drew restores its own anchor.
+  if (anchor && renderId === latestRender) restoreScrollAnchor(article, anchor);
   return { headings: env.headings };
 }
 

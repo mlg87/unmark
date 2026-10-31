@@ -6,6 +6,11 @@
 // https://github.com/gjtorikian/html-pipeline/blob/5470e4ebeba1cd44e12c4ac4df8217c291eba14a/lib/html_pipeline/sanitization_filter.rb
 // Its `a[href]` protocols are Selma's VALID_PROTOCOLS (http, https, mailto, relative):
 // https://github.com/gjtorikian/selma/blob/7c87013d89dec5814a53326a6701ecb40603646a/lib/selma/sanitizer/config/default.rb
+//
+// One exception: Mermaid diagrams (#19). The sanitizer sees only their escaped source
+// in <pre data-mermaid>. diagrams.ts later replaces that with Mermaid's <svg>, which
+// this allowlist would drop, so the SVG is inserted after sanitizing. Mermaid's
+// securityLevel 'strict' escapes the labels and disables click handlers instead.
 
 import createDOMPurify, { type Config, type DOMPurify } from "dompurify";
 
