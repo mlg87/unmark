@@ -1,12 +1,8 @@
+import type { Heading, RenderEnv } from "./headings.ts";
 import { createMarkdown } from "./markdown.ts";
 import { sanitize } from "./sanitize.ts";
 
-/** Document outline entry. The heading-anchors issue (#16) fills these in. */
-export interface Heading {
-  level: number;
-  text: string;
-  id: string;
-}
+export type { Heading };
 
 export interface RenderOptions {
   /** URL of the document's directory; relative links and images resolve against it. */
@@ -36,10 +32,11 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   // Set before inserting content so relative <img> URLs resolve against the document,
   // not the renderer bundle (#22).
   setDocumentBase(documentBaseURL);
+  const env: RenderEnv = { headings: [] };
   // Documents are untrusted: nothing markdown-it emits reaches the DOM unsanitized (#15).
-  article.replaceChildren(sanitize(md.render(markdown)));
+  article.replaceChildren(sanitize(md.render(markdown, env)));
 
-  return { headings: [] };
+  return { headings: env.headings };
 }
 
 function setDocumentBase(href: string): void {

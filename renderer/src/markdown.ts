@@ -2,8 +2,13 @@
 // same 36 languages, but esbuild minifies lib/common to 160 KB, over #17's 150 KB
 // entry budget (build.mjs), while the prebuilt bundle adds about 126 KB.
 import hljs from "@highlightjs/cdn-assets/es/highlight.min.js";
+import { alert } from "@mdit/plugin-alert";
+import { fullEmoji } from "@mdit/plugin-emoji";
 import { tasklist } from "@mdit/plugin-tasklist";
 import markdownit, { type MarkdownIt } from "markdown-it";
+import { footnotes } from "./footnotes.ts";
+import { frontMatter } from "./front-matter.ts";
+import { headingAnchors } from "./headings.ts";
 import { extendAllowlist } from "./sanitize.ts";
 
 export function createMarkdown(): MarkdownIt {
@@ -49,6 +54,13 @@ export function createMarkdown(): MarkdownIt {
   // title.class adds suffix classes ("hljs-title class_"), which the themes also select.
   extendAllowlist({ classes: { span: [/^hljs-[a-z_-]+$/, /^[a-z]+_+$/] } });
 
+  frontMatter(md);
+  footnotes(md);
+  githubAlerts(md);
+  // Plain emoji characters: github.com's <g-emoji> wrapper isn't on its own allowlist.
+  md.use(fullEmoji);
+  headingAnchors(md);
+
   return md;
 }
 
@@ -59,6 +71,31 @@ export function createMarkdown(): MarkdownIt {
 function highlightFencedCode(code: string, language: string): string {
   if (!language || !hljs.getLanguage(language)) return "";
   return hljs.highlight(code, { language, ignoreIllegals: true }).value;
+}
+
+// The five alert types github.com supports, in its markup and classes, which
+// github-markdown-css styles (https://github.com/orgs/community/discussions/16925).
+function githubAlerts(md: MarkdownIt): void {
+  md.use(alert, {
+    // github.com titles every alert "Note", "Tip", … however `[!NOTE]` is cased.
+    titleRenderer: (tokens, idx) => {
+      const name = tokens[idx]?.markup ?? "";
+      return `<p class="markdown-alert-title">${name.charAt(0).toUpperCase()}${name.slice(1)}</p>\n`;
+    },
+  });
+  extendAllowlist({
+    classes: {
+      div: [
+        "markdown-alert",
+        "markdown-alert-note",
+        "markdown-alert-tip",
+        "markdown-alert-important",
+        "markdown-alert-warning",
+        "markdown-alert-caution",
+      ],
+      p: ["markdown-alert-title"],
+    },
+  });
 }
 
 // GFM's extended autolinks recognize scheme-less links only when they start with
