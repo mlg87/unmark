@@ -1,9 +1,10 @@
 import { tasklist } from "@mdit/plugin-tasklist";
 import markdownit, { type MarkdownIt } from "markdown-it";
+import { extendAllowlist } from "./sanitize.ts";
 
 export function createMarkdown(): MarkdownIt {
   const md = markdownit("default", {
-    // GitHub renders raw HTML; the DOMPurify step (#15) strips what GitHub's allowlist does.
+    // GitHub renders raw HTML; sanitize.ts strips what GitHub's allowlist does (#15).
     html: true,
     linkify: true,
   });
@@ -26,6 +27,17 @@ export function createMarkdown(): MarkdownIt {
     containerClass: "contains-task-list",
     itemClass: "task-list-item",
     checkboxClass: "task-list-item-checkbox",
+  });
+  // github.com adds task-list markup after sanitizing; here it passes through the
+  // sanitizer, so it needs these exact additions.
+  extendAllowlist({
+    elements: { input: ["type", "checked", "disabled"] },
+    classes: {
+      ul: ["contains-task-list"],
+      ol: ["contains-task-list"],
+      li: ["task-list-item"],
+      input: ["task-list-item-checkbox"],
+    },
   });
 
   return md;
