@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   ci:
-    # macos-14 runners are unsupported from 2026-11-02; macos-15 ships Xcode 16.4 and SwiftLint.
+    # macos-14 runners are unsupported from 2026-11-02; macos-15 ships Xcode 16.4.
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -39,8 +39,10 @@ jobs:
       - name: Install renderer dependencies
         run: pnpm --dir renderer install --frozen-lockfile
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      # Despite the runner-image docs, macos-15 has no swiftlint on PATH, so install both
+      # tools from the Brewfile rather than relying on preinstalled software.
+      - name: Install XcodeGen and SwiftLint
+        run: make bootstrap
 
       - name: Generate Xcode project
         run: make project
