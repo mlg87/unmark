@@ -44,6 +44,7 @@ assess_epic() {
 
   # Edit/Write are withheld so the verifier can't "fix" the repo into passing. Bash stays, because
   # running the criteria's commands is the point; it is denied the commands that change shared state.
+  # --strict-mcp-config drops the user's global MCP servers: slow to start, and tools the check must not have.
   # shellcheck disable=SC2016 # The backticks are literal markdown code fences.
   raw="$(
     printf '%s\n\n## Epic\n\n```json\n%s\n```\n\n## Children\n\n```json\n%s\n```\n' \
@@ -51,6 +52,7 @@ assess_epic() {
       (cd "$check_dir" && claude -p --output-format json \
         --json-schema "$(jq -c . "$here/verdict.schema.json")" \
         --model "${EPIC_VERIFIER_MODEL:-opus}" --max-turns "${EPIC_VERIFIER_MAX_TURNS:-100}" \
+        --strict-mcp-config \
         --allowedTools "Bash,Read,Grep,Glob" \
         --disallowedTools "Edit,Write,NotebookEdit,Bash(bd:*),Bash(git push:*),Bash(gh issue:*),Bash(gh pr merge:*),Bash(gh pr close:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Bash(gh workflow:*),Bash(gh run rerun:*)")
   )" || true
