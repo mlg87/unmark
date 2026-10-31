@@ -45,6 +45,24 @@ Hidden **markdown** ${n}.
 `;
 const longDocument = Array.from({ length: 60 }, (_, n) => section(n)).join("\n");
 
+// What depends on document order: footnote numbers (including a reference inside another
+// footnote and an inline footnote), heading ids repeated in a footnote, and a link
+// reference defined after its use.
+const orderSensitiveDocument = `[^b]: Defined first, citing [^a] and [later].
+
+# Notes
+
+Uses [^a], then [^b], and ^[an inline note with :tada:].
+
+[^a]: A footnote with a heading:
+
+    # Notes
+
+# Notes
+
+[later]: https://example.com/later
+`;
+
 let article: Element;
 
 beforeAll(() => {
@@ -79,17 +97,21 @@ test.each([
     ),
   ),
   ["a long document", longDocument],
-])("the blocks of %s add up to the whole document's HTML", (_name, markdown) => {
+  ["an order-sensitive document", orderSensitiveDocument],
+])("the blocks of %s add up to the whole document's HTML and outline", (_name, markdown) => {
   const env = { headings: [] };
-  const blocks = [...htmlBlocks(md, md.parse(markdown, env), env)];
-  expect(blocks.join("")).toBe(md.render(markdown, { headings: [] }));
+  const blocks = [...htmlBlocks(md, markdown, env)];
+  const parsedEnv = { headings: [] };
+  expect(blocks.join("")).toBe(
+    md.renderer.render(md.parse(markdown, parsedEnv), md.options, parsedEnv),
+  );
+  expect(env.headings).toEqual(parsedEnv.headings);
 });
 
 test("a raw HTML element around markdown blocks comes as one block", () => {
   const markdown =
     "Before\n\n<details>\n<summary>S</summary>\n\nInside\n\n- item\n\n</details>\n\nAfter";
-  const env = { headings: [] };
-  const blocks = [...htmlBlocks(md, md.parse(markdown, env), env)];
+  const blocks = [...htmlBlocks(md, markdown, { headings: [] })];
   expect(blocks).toHaveLength(3);
   expect(blocks[1]).toMatch(/^<details>[\s\S]*<li>item<\/li>[\s\S]*<\/details>\n$/);
 });
@@ -97,12 +119,22 @@ test("a raw HTML element around markdown blocks comes as one block", () => {
 test("the render resolves with the first chunk and the rest follows", async () => {
   vi.useFakeTimers();
   tallBlocks();
-  const { headings } = await render(longDocument);
-  expect(headings).toHaveLength(60);
+  await render(longDocument);
   const expected = renderedAllAtOnce(longDocument);
   expect(article.innerHTML.length).toBeLessThan(expected.length);
   await vi.runAllTimersAsync();
   expect(article.innerHTML).toBe(expected);
+});
+
+test("outline() waits for the blocks parsed in the background", async () => {
+  vi.useFakeTimers();
+  tallBlocks();
+  await render(longDocument);
+  const outline = window.unmark.outline();
+  await vi.runAllTimersAsync();
+  expect((await outline).map(({ id }) => id)).toEqual(
+    Array.from({ length: 60 }, (_, n) => `part-${n}`),
+  );
 });
 
 test("a newer render stops the previous one's background chunks", async () => {

@@ -11,16 +11,15 @@ export interface RenderOptions {
   documentBaseURL: string;
 }
 
-export interface RenderResult {
-  headings: Heading[];
-}
-
 export interface UnmarkRenderer {
   /**
    * Resolves once the part of the document that fills the viewport is on the page; the rest
-   * follows in background tasks (q47). A later call stops an earlier one's background work.
+   * is parsed and inserted in background tasks (q47). A later call stops an earlier one's
+   * background work.
    */
-  render(markdown: string, opts: RenderOptions): Promise<RenderResult>;
+  render(markdown: string, opts: RenderOptions): Promise<void>;
+  /** The rendered document's headings, in document order, once all of it is parsed. */
+  outline(): Promise<Heading[]>;
   /** Scrolls the element with `id` into view, once the background tasks have inserted it. */
   scrollToElement(id: string): Promise<void>;
 }
@@ -37,16 +36,19 @@ declare global {
 const FIRST_SCREEN_CHUNK = 4 * 1024;
 // Larger chunks after that, so per-chunk overhead stays small across a long document.
 const BACKGROUND_CHUNK = 32 * 1024;
-// How long each background task inserts chunks before yielding, so scrolling and input
-// stay responsive while a long document finishes rendering.
+// How long each background task parses and inserts chunks before yielding, so scrolling
+// and input stay responsive while a long document finishes rendering.
 const BACKGROUND_TASK_MS = 30;
 
 const md = createMarkdown();
 let latestRender = 0;
-/** Settles when the latest render has inserted every block, or a newer render stopped it. */
-let backgroundAppend: Promise<void> = Promise.resolve();
+/** The document on the page: its outline so far, and when its background work settles. */
+let rendered: { headings: Heading[]; background: Promise<void> } = {
+  headings: [],
+  background: Promise.resolve(),
+};
 
-async function render(markdown: string, { documentBaseURL }: RenderOptions): Promise<RenderResult> {
+async function render(markdown: string, { documentBaseURL }: RenderOptions): Promise<void> {
   const article = document.querySelector("article.markdown-body");
   if (!article) throw new Error('index.html has no <article class="markdown-body">');
   const renderId = ++latestRender;
@@ -56,14 +58,11 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   // not the renderer bundle (#22).
   setDocumentBase(documentBaseURL);
   const env: RenderEnv = { headings: [] };
-  // The whole document is parsed up front: reference links, footnotes, and the outline
-  // depend on all of it. Only sanitizing, inserting, and laying out are incremental.
-  const chunks = new Fragments(htmlBlocks(md, md.parse(markdown, env), env));
-  const result = { headings: env.headings };
+  const chunks = new Fragments(htmlBlocks(md, markdown, env));
 
   const content = (await chunks.next(FIRST_SCREEN_CHUNK)) ?? document.createDocumentFragment();
   for (;;) {
-    if (!isCurrent()) return result;
+    if (!isCurrent()) return;
     // Captured right before the swap, so a reload keeps the reader's place (#24).
     const anchor = captureScrollAnchor(article);
     if (!anchor || chunks.done) {
@@ -84,14 +83,27 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   // reports the render (open-to-preview, q47). Each check lays out only what's inserted.
   while (!chunks.done && article.getBoundingClientRect().bottom < window.innerHeight) {
     const next = await chunks.next(FIRST_SCREEN_CHUNK);
-    if (!isCurrent()) return result;
+    if (!isCurrent()) return;
     if (next) article.append(next);
     await drawDiagrams(article);
   }
-  backgroundAppend = chunks.done
-    ? Promise.resolve()
-    : appendInBackground(article, chunks, isCurrent);
-  return result;
+  rendered = {
+    headings: env.headings,
+    background: chunks.done ? Promise.resolve() : appendInBackground(article, chunks, isCurrent),
+  };
+}
+
+/** Waits for the background work of the document on the page, even if a render replaces it. */
+async function whenRendered(): Promise<void> {
+  for (let current = rendered; ; current = rendered) {
+    await current.background;
+    if (current === rendered) return;
+  }
+}
+
+async function outline(): Promise<Heading[]> {
+  await whenRendered();
+  return rendered.headings;
 }
 
 async function appendInBackground(
@@ -125,7 +137,7 @@ async function drawDiagrams(article: Element): Promise<void> {
 }
 
 async function scrollToElement(id: string): Promise<void> {
-  if (!document.getElementById(id)) await backgroundAppend;
+  if (!document.getElementById(id)) await whenRendered();
   document.getElementById(id)?.scrollIntoView();
 }
 
@@ -172,4 +184,4 @@ function setDocumentBase(href: string): void {
   base.href = href;
 }
 
-window.unmark = { render, scrollToElement };
+window.unmark = { render, outline, scrollToElement };

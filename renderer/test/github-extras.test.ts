@@ -6,7 +6,6 @@
 
 import { beforeAll, describe, expect, test } from "vitest";
 import "../src/index.ts";
-import type { RenderResult } from "../src/index.ts";
 
 let article: Element;
 
@@ -15,12 +14,8 @@ beforeAll(() => {
   article = document.querySelector("article.markdown-body") as Element;
 });
 
-async function renderResult(markdown: string): Promise<RenderResult> {
-  return window.unmark.render(markdown, { documentBaseURL: "file:///docs/" });
-}
-
 async function render(markdown: string): Promise<string> {
-  await renderResult(markdown);
+  await window.unmark.render(markdown, { documentBaseURL: "file:///docs/" });
   return article.innerHTML.trim();
 }
 
@@ -92,11 +87,9 @@ describe("heading anchors", () => {
     expect(await render("# A")).toContain('<h1 id="a">');
   });
 
-  test("render() returns the outline in document order", async () => {
-    const { headings } = await renderResult(
-      "# Getting Started\n\nIntro.\n\n## Install `unmark`\n\n### Getting Started",
-    );
-    expect(headings).toEqual([
+  test("outline() returns the headings in document order", async () => {
+    await render("# Getting Started\n\nIntro.\n\n## Install `unmark`\n\n### Getting Started");
+    expect(await window.unmark.outline()).toEqual([
       { level: 1, text: "Getting Started", id: "getting-started" },
       { level: 2, text: "Install unmark", id: "install-unmark" },
       { level: 3, text: "Getting Started", id: "getting-started-1" },
