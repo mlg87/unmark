@@ -68,13 +68,40 @@ jobs:
             -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData \
             build CODE_SIGN_IDENTITY=-
 
-      - name: Check universal binary
+      - name: Check universal binaries
         run: |
-          archs="$(lipo -archs build/DerivedData/Build/Products/Release/Unmark.app/Contents/MacOS/Unmark)"
-          echo "$archs"
-          for arch in x86_64 arm64; do
-            if [[ " $archs " != *" $arch "* ]]; then
-              echo "::error::Unmark binary is missing $arch (got: $archs)"
+          app=build/DerivedData/Build/Products/Release/Unmark.app
+          for binary in "$app/Contents/MacOS/Unmark" "$app/Contents/Helpers/unmark"; do
+            archs="$(lipo -archs "$binary")"
+            echo "$binary: $archs"
+            for arch in x86_64 arm64; do
+              if [[ " $archs " != *" $arch "* ]]; then
+                echo "::error::$binary is missing $arch (got: $archs)"
+                exit 1
+              fi
+            done
+          done
+
+      # Only paths that open nothing, so the check never launches the app on the runner.
+      - name: Check CLI exit statuses
+        run: |
+          app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
+          cli="$app/Contents/Helpers/unmark"
+          ln -sf "$cli" "$RUNNER_TEMP/unmark"
+          expect_status() {
+            local expected=$1; shift
+            local status=0
+            "$@" || status=$?
+            if [[ $status != "$expected" ]]; then
+              echo "::error::'$*' exited $status, expected $expected"
               exit 1
             fi
-          done
+          }
+          expect_status 2 "$cli"
+          expect_status 2 "$cli" --bogus a.md
+          expect_status 0 "$cli" --help
+          expect_status 1 "$cli" missing.md
+          [[ "$("$cli" missing.md 2>&1)" == "unmark: missing.md: No such file or directory" ]]
+          # Through a symlink, the tool still finds the app it's inside and reads its version.
+          version="$(defaults read "$app/Contents/Info" CFBundleShortVersionString)"
+          [[ "$("$RUNNER_TEMP/unmark" --version)" == "unmark $version" ]]

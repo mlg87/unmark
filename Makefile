@@ -18,7 +18,7 @@ build: project
 test:
 	swift test --package-path Packages/UnmarkCore
 
-SWIFT_SOURCES := App Packages
+SWIFT_SOURCES := App CLI Packages
 
 # One entry point for every linter, run after each change (AGENTS.md conventions).
 # Warnings fail the build in every tool (-s, --strict, --error-on-warnings) so they can't pile up.
