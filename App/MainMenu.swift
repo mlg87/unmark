@@ -65,6 +65,14 @@ enum MainMenu {
         menu.addItem(.separator())
 
         menu.addItem(
+            withTitle: String(localized: "Export as PDF…"), action: #selector(NSDocument.saveToPDF(_:)),
+            keyEquivalent: "")
+        menu.addItem(.separator())
+
+        menu.addItem(
+            withTitle: String(localized: "Page Setup…"), action: #selector(NSDocument.runPageLayout(_:)),
+            keyEquivalent: "P")
+        menu.addItem(
             withTitle: String(localized: "Print…"), action: #selector(NSDocument.printDocument(_:)), keyEquivalent: "p")
         return menu
     }

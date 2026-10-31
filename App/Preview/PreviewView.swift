@@ -184,20 +184,39 @@ struct PreviewView: NSViewRepresentable {
         }
 
         /// Prints in print output, GitHub's light theme in either appearance (q61), and switches back to screen
-        /// output once the print panel closes, whether it printed or was cancelled.
+        /// output once the print panel or the PDF export closes, whether it printed or was cancelled.
         private func printPendingRequest(in webView: WKWebView) {
-            guard latest != nil, pendingPrint != nil else { return }
+            guard latest != nil, let request = pendingPrint else { return }
             pendingPrint = nil
             guard !isPrinting, let window = webView.window else { return }
             isPrinting = true
             Task {
                 await setOutputMode(.print, in: webView)
-                let operation = webView.printOperation(with: NSPrintInfo.shared)
+                let operation = printOperation(for: request.destination, in: webView)
                 // WKWebView hands back a print view with a zero frame, which prints blank pages.
                 operation.view?.frame = webView.bounds
                 operation.runModal(
                     for: window, delegate: self, didRun: #selector(printOperationDidRun(_:success:contextInfo:)),
                     contextInfo: nil)
+            }
+        }
+
+        /// Both destinations use the paper size from Page Setup, which edits `NSPrintInfo.shared`.
+        private func printOperation(for destination: PrintRequest.Destination, in webView: WKWebView)
+            -> NSPrintOperation
+        {
+            switch destination {
+            case .printPanel:
+                return webView.printOperation(with: NSPrintInfo.shared)
+            case .pdf(let url):
+                // A copy, so the save disposition doesn't leak into the next Print….
+                let printInfo = NSPrintInfo.shared.copy() as? NSPrintInfo ?? NSPrintInfo()
+                printInfo.jobDisposition = .save
+                printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = url
+                let operation = webView.printOperation(with: printInfo)
+                operation.showsPrintPanel = false
+                operation.showsProgressPanel = true
+                return operation
             }
         }
 

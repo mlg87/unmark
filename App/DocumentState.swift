@@ -17,7 +17,7 @@ final class DocumentState {
     var scrollRequest: ScrollRequest?
     /// A clicked link named a file that doesn't exist (#23). The window shows it briefly.
     var missingLinkTarget: MissingLinkTarget?
-    /// File → Print… was chosen; the Preview prints itself next (#34).
+    /// File → Print… or Export as PDF… was chosen; the Preview prints itself next (#34).
     var printRequest: PrintRequest?
 
     /// Where the document's relative images and links resolve; see `PreviewURL.documentBaseURL(forDocumentAt:)`.
@@ -37,9 +37,22 @@ struct ScrollRequest: Equatable {
     }
 }
 
-/// Each request is distinct, so choosing Print… again prints again.
+/// Each request is distinct, so choosing Print… or Export as PDF… again prints again.
 struct PrintRequest: Equatable {
+    /// Export as PDF… runs the same print operation as Print…, so its PDF is paginated identically (q54).
+    enum Destination: Equatable {
+        /// The print panel, where the user picks a printer.
+        case printPanel
+        /// A PDF file at this URL, written without a print panel.
+        case pdf(URL)
+    }
+
+    let destination: Destination
     private let id = UUID()
+
+    init(destination: Destination) {
+        self.destination = destination
+    }
 }
 
 /// Each notice is distinct, so a second click on the same broken link restarts the notice's timer.
