@@ -1,0 +1,77 @@
+# XcodeGen spec. Unmark.xcodeproj is generated from this file by `make project`
+# and never committed, so the project file can't produce merge conflicts.
+# Spec reference: https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md
+name: Unmark
+
+options:
+  bundleIdPrefix: com.mlg87
+  developmentLanguage: en
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.4"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+packages:
+  UnmarkCore:
+    path: Packages/UnmarkCore
+
+targets:
+  Unmark:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+        # The renderer bundle is build output from `pnpm --dir renderer build`. Globbing
+        # it here would flatten its files into the bundle root, so the WKWebView
+        # Preview work adds it as a folder reference instead.
+        excludes:
+          - Resources/Renderer
+    dependencies:
+      - package: UnmarkCore
+    settings:
+      base:
+        PRODUCT_NAME: Unmark
+        PRODUCT_BUNDLE_IDENTIFIER: com.mlg87.unmark
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: Unmark
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © 2026 Mason Goetz. MIT License.
+        # Notarization requires the hardened runtime (ADR-0002: distributed outside the App Store).
+        ENABLE_HARDENED_RUNTIME: true
+        # Sign to Run Locally until the Developer ID signing work supplies a team.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+        LOCALIZATION_PREFERS_STRING_CATALOGS: true
+        SWIFT_EMIT_LOC_STRINGS: true
+      configs:
+        Debug:
+          ONLY_ACTIVE_ARCH: true
+        Release:
+          # Standard Architectures: one universal binary for Apple silicon and Intel.
+          ONLY_ACTIVE_ARCH: false
+          ARCHS: $(ARCHS_STANDARD)
+
+schemes:
+  Unmark:
+    build:
+      targets:
+        Unmark: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: UnmarkCore/UnmarkCoreTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
