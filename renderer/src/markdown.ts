@@ -75,25 +75,34 @@ function highlightFencedCode(code: string, language: string): string {
 
 // The five alert types github.com supports, in its markup and classes, which
 // github-markdown-css styles (https://github.com/orgs/community/discussions/16925).
+// Each title's icon is the octicon github.com puts there as an inline <svg>.
+const ALERT_OCTICONS: Record<string, string> = {
+  note: "info",
+  tip: "light-bulb",
+  important: "report",
+  warning: "alert",
+  caution: "stop",
+};
+
 function githubAlerts(md: MarkdownIt): void {
   md.use(alert, {
     // github.com titles every alert "Note", "Tip", … however `[!NOTE]` is cased.
+    // The sanitizer drops <svg>, so the octicon is an empty <span> that alerts.css
+    // draws with a CSS mask, like github-markdown-css's heading link icon.
     titleRenderer: (tokens, idx) => {
       const name = tokens[idx]?.markup ?? "";
-      return `<p class="markdown-alert-title">${name.charAt(0).toUpperCase()}${name.slice(1)}</p>\n`;
+      const icon = `<span class="octicon octicon-${ALERT_OCTICONS[name]}" aria-hidden="true"></span>`;
+      return `<p class="markdown-alert-title">${icon}${name.charAt(0).toUpperCase()}${name.slice(1)}</p>\n`;
     },
   });
   extendAllowlist({
     classes: {
       div: [
         "markdown-alert",
-        "markdown-alert-note",
-        "markdown-alert-tip",
-        "markdown-alert-important",
-        "markdown-alert-warning",
-        "markdown-alert-caution",
+        ...Object.keys(ALERT_OCTICONS).map((name) => `markdown-alert-${name}`),
       ],
       p: ["markdown-alert-title"],
+      span: ["octicon", ...Object.values(ALERT_OCTICONS).map((icon) => `octicon-${icon}`)],
     },
   });
 }

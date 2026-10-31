@@ -28,20 +28,20 @@ const ANCHOR_ICON = '<span class="octicon octicon-link"></span>';
 
 describe("alerts", () => {
   test.each([
-    ["NOTE", "note", "Note"],
-    ["TIP", "tip", "Tip"],
-    ["IMPORTANT", "important", "Important"],
-    ["WARNING", "warning", "Warning"],
-    ["CAUTION", "caution", "Caution"],
-  ])("[!%s]", async (marker, type, title) => {
+    ["NOTE", "note", "Note", "info"],
+    ["TIP", "tip", "Tip", "light-bulb"],
+    ["IMPORTANT", "important", "Important", "report"],
+    ["WARNING", "warning", "Warning", "alert"],
+    ["CAUTION", "caution", "Caution", "stop"],
+  ])("[!%s]", async (marker, type, title, octicon) => {
     expect(await render(`> [!${marker}]\n> Body text.`)).toBe(
-      `<div class="markdown-alert markdown-alert-${type}">\n<p class="markdown-alert-title">${title}</p>\n<p>Body text.</p>\n</div>`,
+      `<div class="markdown-alert markdown-alert-${type}">\n<p class="markdown-alert-title"><span class="octicon octicon-${octicon}" aria-hidden="true"></span>${title}</p>\n<p>Body text.</p>\n</div>`,
     );
   });
 
   test("the title doesn't depend on how the marker is cased", async () => {
     expect(await render("> [!warning]\n> x")).toContain(
-      '<p class="markdown-alert-title">Warning</p>',
+      '<p class="markdown-alert-title"><span class="octicon octicon-alert" aria-hidden="true"></span>Warning</p>',
     );
   });
 
