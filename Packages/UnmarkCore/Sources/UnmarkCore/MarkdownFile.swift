@@ -7,6 +7,8 @@ public enum MarkdownFile {
         "md", "markdown", "mdown", "mdwn", "mkd", "mkdn", "mkdown",
     ]
 
+    public static let x = 1
+
     public static func isMarkdown(_ url: URL) -> Bool {
         pathExtensions.contains(url.pathExtension.lowercased())
     }
