@@ -41,6 +41,20 @@ print(base.absoluteString)
 > [!NOTE]
 > Alerts render with GitHub's octicons.
 
+## Math
+
+Inline $a_b + \frac{1}{2}$ next to prices like $5 and $10, then display math:
+
+$$
+\sum_{i=1}^n i = \frac{n(n+1)}{2}
+$$
+
+```math
+\int_0^1 x\,dx
+```
+
+TeX KaTeX can't parse shows its error: $\frac{1}{$
+
 ## Quotes and lists
 
 > A plain blockquote.

@@ -53,7 +53,8 @@ jobs:
       - name: Renderer tests
         run: pnpm --dir renderer test
 
-      # Fails when a dependency exceeds its entry-chunk size budget in build.mjs (#17).
+      # Fails when a dependency exceeds its entry-chunk size budget in build.mjs (#17), or
+      # when KaTeX leaves its lazy chunk (unmark-1793451433078-17-487f189f).
       - name: Renderer build
         run: pnpm --dir renderer build
 
