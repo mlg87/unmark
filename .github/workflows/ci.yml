@@ -1,0 +1,75 @@
+# The `ci` job is the required status check for `main` (see README "Continuous integration").
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Superseded PR runs are cancelled; every push to main still gets its own green/red result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    # macos-14 runners are unsupported from 2026-11-02; macos-15 ships Xcode 16.4.
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode 16.4
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      # Vitest needs Node >= 22.12.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: renderer/package.json
+          cache: true
+          cache_dependency_path: renderer/pnpm-lock.yaml
+
+      - name: Install renderer dependencies
+        run: pnpm --dir renderer install --frozen-lockfile
+
+      # Despite the runner-image docs, macos-15 has no swiftlint on PATH, so install both
+      # tools from the Brewfile rather than relying on preinstalled software.
+      - name: Install XcodeGen and SwiftLint
+        run: make bootstrap
+
+      - name: Generate Xcode project
+        run: make project
+
+      - name: Lint
+        run: make lint
+
+      - name: Renderer tests
+        run: pnpm --dir renderer test
+
+      - name: Swift tests
+        run: make test
+
+      # Ad-hoc signed so the build needs no secrets.
+      - name: Universal Release build
+        run: |
+          xcodebuild -project Unmark.xcodeproj -scheme Unmark -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData \
+            build CODE_SIGN_IDENTITY=-
+
+      - name: Check universal binary
+        run: |
+          archs="$(lipo -archs build/DerivedData/Build/Products/Release/Unmark.app/Contents/MacOS/Unmark)"
+          echo "$archs"
+          for arch in x86_64 arm64; do
+            if [[ " $archs " != *" $arch "* ]]; then
+              echo "::error::Unmark binary is missing $arch (got: $archs)"
+              exit 1
+            fi
+          done
