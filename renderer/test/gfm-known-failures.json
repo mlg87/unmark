@@ -1,0 +1,9 @@
+{
+  "spec.txt#625": "linkify-it ends a URL at the first unbalanced ')'; GFM only trims unbalanced trailing parens, so www.google.com/search?q=(business))+ok is cut after '(business)'.",
+  "spec.txt#626": "GFM trims an entity-like suffix ('&hl;') from autolinks; linkify-it keeps '&hl' in the URL and only drops the ';'.",
+  "spec.txt#630": "linkify-it accepts '+' in an email domain (hello@mail+xyz.example); GFM only allows it in the local part.",
+  "extensions.txt#17": "markdown-it's strikethrough needs '~~'; github.com also accepts single '~text~'.",
+  "extensions.txt#18": "Same single-tilde gap as extensions.txt#17, and markdown-it pairs runs of 3+ tildes into nested <del> where GFM leaves them literal.",
+  "extensions.txt#19": "linkify-it diverges on several autolink edge cases in this one example: no xmpp: scheme, no email after '/' or after 'mmmmailto:'/'at:', different '_' host rules, a '.' kept before ')', and punycode instead of percent-encoded hrefs for non-ASCII hosts.",
+  "extensions.txt#26": "markdown-it's inline linkify swallows the closing '~~' into a scheme URL (http://google.com~~), and a www link directly inside '~~' isn't linked."
+}
