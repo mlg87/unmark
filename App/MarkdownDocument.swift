@@ -8,7 +8,8 @@ import os
 /// names this class for the `net.daringfireball.markdown` document type.
 final class MarkdownDocument: NSDocument {
     nonisolated private static let logger = Logger(subsystem: "com.mlg87.unmark", category: "MarkdownDocument")
-    /// Points of Interest, so Instruments shows `open-to-preview` without extra setup (q47: under 1 s for 1 MB).
+    /// Points of Interest, so Instruments shows `open-to-preview` (q47: under 1 s for 1 MB) and
+    /// `keystroke-to-preview` (q47: under 250 ms for 1 MB) without extra setup.
     nonisolated private static let signposter = OSSignposter(subsystem: "com.mlg87.unmark", category: .pointsOfInterest)
 
     /// Where the next window's top-left corner goes, so windows cascade instead of stacking exactly.
@@ -23,6 +24,8 @@ final class MarkdownDocument: NSDocument {
 
     /// From the start of reading the file to the first render reaching the Preview.
     private var openToPreview: OSSignpostIntervalState?
+    /// From the earliest Source edit the Preview doesn't show yet to the render that shows every edit.
+    private var keystrokeToPreview: OSSignpostIntervalState?
 
     // Changes reach disk only through an explicit Save (q13, ADR-0003).
     override static var autosavesInPlace: Bool { false }
@@ -54,19 +57,40 @@ final class MarkdownDocument: NSDocument {
         MainActor.assumeIsolated { MarkdownText.encode(state.text) }
     }
 
+    override func save(
+        to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType,
+        completionHandler: @escaping (Error?) -> Void
+    ) {
+        MainActor.assumeIsolated {
+            for case let windowController as DocumentWindowController in windowControllers {
+                windowController.breakUndoCoalescing()
+            }
+        }
+        super.save(to: url, ofType: typeName, for: saveOperation, completionHandler: completionHandler)
+    }
+
+    /// The Source's undo actions name ranges of the text a revert replaces, so they go with it.
+    override func revert(toContentsOf url: URL, ofType typeName: String) throws {
+        try super.revert(toContentsOf: url, ofType: typeName)
+        MainActor.assumeIsolated { undoManager?.removeAllActions() }
+    }
+
     override func makeWindowControllers() {
         MainActor.assumeIsolated {
             // Every document is opened from a file (there are no untitled ones, q21), so `fileURL` is set.
             state.fileURL = fileURL
             let content = DocumentWindow(
                 state: state,
-                didRender: { [weak self] in self?.endOpenToPreview() },
+                willEdit: { [weak self] in self?.beginKeystrokeToPreview() },
+                didRender: { [weak self] markdown in self?.previewDidRender(markdown) },
                 linkActivated: { [weak self] url in self?.followLink(to: url) })
-            let window = NSWindow(contentViewController: NSHostingController(rootView: content))
-            window.setContentSize(NSSize(width: 720, height: 800))
-            window.center()
-            Self.nextWindowTopLeft = window.cascadeTopLeft(from: Self.nextWindowTopLeft)
-            addWindowController(NSWindowController(window: window))
+            let windowController = DocumentWindowController(state: state, content: content)
+            if let window = windowController.window {
+                window.setContentSize(NSSize(width: 720, height: 800))
+                window.center()
+                Self.nextWindowTopLeft = window.cascadeTopLeft(from: Self.nextWindowTopLeft)
+            }
+            addWindowController(windowController)
             if let fileURL {
                 externalChanges.watch(fileURL)
             }
@@ -178,9 +202,25 @@ final class MarkdownDocument: NSDocument {
         }
     }
 
-    @MainActor private func endOpenToPreview() {
-        guard let openToPreview else { return }
-        Self.signposter.endInterval("open-to-preview", openToPreview)
-        self.openToPreview = nil
+    @MainActor private func previewDidRender(_ markdown: String) {
+        if let openToPreview {
+            Self.signposter.endInterval("open-to-preview", openToPreview)
+            self.openToPreview = nil
+        }
+        // A render that started before the latest edits leaves the interval open for the render that has them. The
+        // Preview renders the very String the Source produced, so the usual equal case compares one storage with
+        // itself.
+        if let keystrokeToPreview, markdown == state.text {
+            Self.signposter.endInterval("keystroke-to-preview", keystrokeToPreview)
+            self.keystrokeToPreview = nil
+        }
+    }
+
+    /// Only the earliest edit the Preview doesn't show yet starts an interval, so each interval is the longest wait
+    /// among the edits one render covers.
+    @MainActor private func beginKeystrokeToPreview() {
+        guard keystrokeToPreview == nil else { return }
+        keystrokeToPreview = Self.signposter.beginInterval(
+            "keystroke-to-preview", id: Self.signposter.makeSignpostID())
     }
 }

@@ -1,10 +1,20 @@
 import SwiftUI
 
-/// A document window's content. Every window opens in Preview mode (q15).
+/// A document window's content: the Preview, with the Source beside it in Split mode. Every window opens in Preview
+/// mode (q15).
 struct DocumentWindow: View {
-    let state: DocumentState
-    let didRender: @MainActor () -> Void
+    /// Narrow enough to read and edit in, and wide enough that two panes fit the window's 480 pt minimum.
+    private static let paneMinWidth: CGFloat = 240
+    /// How long the Preview waits after an edit for the next one before rendering, so a burst of keystrokes renders
+    /// once. Short, because q47 gives keystroke-to-preview only 250 ms for a 1 MB file and the render needs most of it.
+    private static let editRenderDebounce = Duration.milliseconds(40)
+
+    @Bindable var state: DocumentState
+    let willEdit: @MainActor () -> Void
+    let didRender: @MainActor (String) -> Void
     let linkActivated: @MainActor (URL) -> Void
+
+    @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,9 +22,22 @@ struct DocumentWindow: View {
                 FileDeletedBanner()
                 Divider()
             }
-            PreviewView(
-                markdown: state.text, documentBaseURL: state.documentBaseURL, scrollRequest: state.scrollRequest,
-                printRequest: state.printRequest, didRender: didRender, linkActivated: linkActivated)
+            // One split view in both modes, so toggling adds or removes the Source and keeps the Preview's web view
+            // and its scroll position.
+            HSplitView {
+                if state.isSourceVisible {
+                    SourceTextView(text: $state.text, fontSize: sourceFontSize, willEdit: willEdit)
+                        .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
+                }
+                PreviewView(
+                    markdown: state.text, documentBaseURL: state.documentBaseURL, scrollRequest: state.scrollRequest,
+                    printRequest: state.printRequest,
+                    // In Preview mode text changes come only from disk, which ExternalChangeMonitor already debounces.
+                    renderDebounce: state.isSourceVisible ? Self.editRenderDebounce : .zero,
+                    didRender: didRender, linkActivated: linkActivated
+                )
+                .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
+            }
         }
         .overlay(alignment: .bottom) {
             if let missing = state.missingLinkTarget {

@@ -25,10 +25,28 @@
     "File" : {
 
     },
+    "Find" : {
+
+    },
+    "Find Next" : {
+
+    },
+    "Find Previous" : {
+
+    },
+    "Find…" : {
+
+    },
     "Hide %@" : {
 
     },
     "Hide Others" : {
+
+    },
+    "Hide Source" : {
+
+    },
+    "Hide Source (⇧⌘E)" : {
 
     },
     "Minimize" : {
@@ -52,6 +70,12 @@
     "Redo" : {
 
     },
+    "Revert to Saved" : {
+
+    },
+    "Save" : {
+
+    },
     "Select All" : {
 
     },
@@ -61,7 +85,19 @@
     "Show All" : {
 
     },
+    "Show Source" : {
+
+    },
+    "Show Source (⇧⌘E)" : {
+
+    },
     "Undo" : {
+
+    },
+    "Use Selection for Find" : {
+
+    },
+    "View" : {
 
     },
     "Window" : {

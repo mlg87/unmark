@@ -19,6 +19,9 @@ final class DocumentState {
     var missingLinkTarget: MissingLinkTarget?
     /// File → Print… or Export as PDF… was chosen; the Preview prints itself next (#34).
     var printRequest: PrintRequest?
+    /// Split mode shows the Source beside the Preview. Per window and never saved, so every window opens in Preview
+    /// mode (q15).
+    var isSourceVisible = false
 
     /// Where the document's relative images and links resolve; see `PreviewURL.documentBaseURL(forDocumentAt:)`.
     /// Without a file, relative paths resolve inside the renderer bundle and match nothing.
