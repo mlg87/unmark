@@ -1,0 +1,4 @@
+{
+  // Prose docs (glossary, ADRs) keep one paragraph per line; hard-wrapping at 80 columns makes every edit reflow and bloats diffs.
+  "MD013": false
+}
