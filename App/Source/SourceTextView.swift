@@ -112,7 +112,11 @@ struct SourceTextView: NSViewRepresentable {
                 // Line 0 is the top of the pane, inset included, as it's the top of the Preview's page.
                 top = 0
             } else {
-                layoutManager.ensureLayout(for: NSTextRange(location: location))
+                // The whole line, so its fragment is laid out rather than estimated, even far from what's on screen.
+                let lineEnd = contentManager.location(
+                    contentManager.documentRange.location, offsetBy: sourceLines.start(ofLine: Int(line) + 1))
+                layoutManager.ensureLayout(
+                    for: NSTextRange(location: location, end: lineEnd) ?? NSTextRange(location: location))
                 // The empty line after a final line break has no fragment: it's the end of the text.
                 let frame = layoutManager.textLayoutFragment(for: location)?.layoutFragmentFrame
                 top =
