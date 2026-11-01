@@ -107,3 +107,38 @@ jobs:
           # Through a symlink, the tool still finds the app it's inside and reads its version.
           version="$(defaults read "$app/Contents/Info" CFBundleShortVersionString)"
           [[ "$("$RUNNER_TEMP/unmark" --version)" == "unmark $version" ]]
+
+      # The one step that launches the app (epic #8: "`unmark a.md b.md` opens both and exits 0 immediately",
+      # unmark-1793451428486-7-de60d292.1). Exiting 0 within seconds while both documents are still open afterwards
+      # shows the tool returned without waiting on their windows.
+      - name: Check CLI opens two files and returns
+        timeout-minutes: 5
+        run: |
+          app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
+          cli="$app/Contents/Helpers/unmark"
+          query="$PWD/scripts/ci/open-documents.swift"
+          dir="$RUNNER_TEMP/open-two"
+          mkdir -p "$dir"
+          printf '# a\n' > "$dir/a.md"
+          printf '# b\n' > "$dir/b.md"
+          cd "$dir"
+          start=$(date +%s)
+          status=0
+          "$cli" a.md b.md || status=$?
+          elapsed=$(( $(date +%s) - start ))
+          echo "unmark a.md b.md exited $status after ${elapsed}s"
+          if [[ $status != 0 ]]; then
+            echo "::error::'unmark a.md b.md' exited $status, expected 0"
+            exit 1
+          fi
+          # Generous for a cold launch on a runner; a tool that waited on the windows would never get here.
+          if (( elapsed > 10 )); then
+            echo "::error::'unmark a.md b.md' took ${elapsed}s to return"
+            exit 1
+          fi
+          pid="$(pgrep -nf "^$app/Contents/MacOS/Unmark")" || {
+            echo "::error::Unmark isn't running after 'unmark a.md b.md'"
+            exit 1
+          }
+          swift "$query" "$pid" "$dir/a.md" "$dir/b.md"
+          kill "$pid"
