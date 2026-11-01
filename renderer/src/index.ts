@@ -39,6 +39,11 @@ export interface UnmarkRenderer {
    */
   scrollToSourceLine(line: number): Promise<void>;
   /**
+   * The 0-based source line at the viewport's top, fractional between the blocks around it.
+   * Split mode starts the Source on it when it shows the Source.
+   */
+  lineAtTop(): number;
+  /**
    * Switches the page's styling and diagrams to `mode`. `print` resolves once the whole
    * document is on the page in the light theme, so a print operation started then captures
    * all of it.
@@ -213,6 +218,11 @@ async function scrollToSourceLine(line: number): Promise<void> {
   markOwnScroll();
 }
 
+function lineAtTop(): number {
+  const article = document.querySelector("article.markdown-body");
+  return article ? sourceLineMap(article).lineAtTop() : 0;
+}
+
 /** The line map of the document on the page; it ends at the document's end once that's on the page. */
 function sourceLineMap(article: Element): SourceLineMap {
   const complete = rendered.pending?.done ?? true;
@@ -308,11 +318,8 @@ function setDocumentBase(href: string): void {
   base.href = href;
 }
 
-window.unmark = { render, outline, scrollToElement, scrollToSourceLine, setOutputMode };
+window.unmark = { render, outline, scrollToElement, scrollToSourceLine, lineAtTop, setOutputMode };
 
-reportScrolls(() => {
-  const article = document.querySelector("article.markdown-body");
-  return article ? sourceLineMap(article).lineAtTop() : 0;
-});
+reportScrolls(lineAtTop);
 
 reportTaskToggles();
