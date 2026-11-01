@@ -36,6 +36,8 @@ struct SourceTextView: NSViewRepresentable {
         textView.isAutomaticTextReplacementEnabled = false
         textView.textContainerInset = NSSize(width: 8, height: 8)
         textView.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        // Set before the text, so the first edit colors the whole document.
+        textView.textStorage?.delegate = context.coordinator.highlighting
         textView.string = text
         // Opens at the top, like the Preview, rather than with the caret at the end of the file.
         textView.setSelectedRange(NSRange(location: 0, length: 0))
@@ -91,6 +93,8 @@ struct SourceTextView: NSViewRepresentable {
         var isReplacingText = false
         weak var textView: NSTextView?
         var scrollSync: ScrollSync?
+        /// Owned here because the text storage holds its delegate weakly.
+        let highlighting = SourceHighlighting()
         /// Built from `lastText` on the first scroll after it changes, not on every keystroke.
         private var cachedLines: SourceLines?
 
