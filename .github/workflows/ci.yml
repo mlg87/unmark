@@ -108,9 +108,9 @@ jobs:
           version="$(defaults read "$app/Contents/Info" CFBundleShortVersionString)"
           [[ "$("$RUNNER_TEMP/unmark" --version)" == "unmark $version" ]]
 
-      # The one step that launches the app (epic #8: "`unmark a.md b.md` opens both and exits 0 immediately",
-      # unmark-1793451428486-7-de60d292.1). Exiting 0 within seconds while both documents are still open afterwards
-      # shows the tool returned without waiting on their windows.
+      # Epic #8: "`unmark a.md b.md` opens both and exits 0 immediately" (unmark-1793451428486-7-de60d292.1). Exiting
+      # 0 within seconds while both documents are still open afterwards shows the tool returned without waiting on
+      # their windows.
       - name: Check CLI opens two files and returns
         timeout-minutes: 5
         run: |
@@ -141,4 +141,71 @@ jobs:
             exit 1
           }
           swift "$query" "$pid" "$dir/a.md" "$dir/b.md"
+          kill "$pid"
+
+      # Epic #8: "`GIT_EDITOR="unmark --wait" git commit` blocks until the window closes"
+      # (unmark-1793451428486-7-de60d292.2). git must still be running seconds after the app reports COMMIT_EDITMSG
+      # open, and must commit the message once the window's close button is clicked. The runner image grants
+      # /usr/bin/osascript Accessibility and Automation of System Events, so it can click that button.
+      - name: Check git commit waits for the editor window
+        timeout-minutes: 5
+        run: |
+          app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
+          query="$PWD/scripts/ci/open-documents.swift"
+          dir="$RUNNER_TEMP/git-editor"
+          bin="$RUNNER_TEMP/bin"
+          log="$RUNNER_TEMP/git-commit.log"
+          message="ci: commit through unmark --wait"
+          mkdir -p "$dir" "$bin"
+          ln -sf "$app/Contents/Helpers/unmark" "$bin/unmark"
+          export PATH="$bin:$PATH"
+          # The previous step's app may still be quitting; a fresh launch keeps its pid unambiguous.
+          for _ in {1..20}; do
+            pgrep -f "^$app/Contents/MacOS/Unmark" > /dev/null || break
+            sleep 0.5
+          done
+          cd "$dir"
+          git -c init.defaultBranch=main init -q
+          git config user.name CI
+          git config user.email ci@example.com
+          printf 'x\n' > file.txt
+          git add file.txt
+          GIT_EDITOR="unmark --wait" git commit > "$log" 2>&1 &
+          git_pid=$!
+          fail() {
+            echo "::error::$1"
+            cat "$log"
+            exit 1
+          }
+          pid=""
+          for _ in {1..60}; do
+            pid="$(pgrep -nf "^$app/Contents/MacOS/Unmark")" && break
+            sleep 0.5
+          done
+          [[ -n $pid ]] || fail "Unmark isn't running after 'GIT_EDITOR=\"unmark --wait\" git commit'"
+          swift "$query" "$pid" "$dir/.git/COMMIT_EDITMSG" || fail "Unmark never reported COMMIT_EDITMSG open"
+          sleep 5
+          kill -0 "$git_pid" 2> /dev/null || fail "git commit returned while COMMIT_EDITMSG was still open"
+          echo "git commit still blocked 5 s after COMMIT_EDITMSG opened"
+          # Stands in for the user typing the message and saving; the unedited document reloads it without asking.
+          printf '%s\n' "$message" > "$dir/.git/COMMIT_EDITMSG"
+          sleep 1
+          osascript <<EOF
+          tell application "System Events"
+            tell (first process whose unix id is $pid)
+              click (first button of (first window whose name is "COMMIT_EDITMSG") whose subrole is "AXCloseButton")
+            end tell
+          end tell
+          EOF
+          for _ in {1..20}; do
+            kill -0 "$git_pid" 2> /dev/null || break
+            sleep 0.5
+          done
+          kill -0 "$git_pid" 2> /dev/null && fail "git commit still blocked 10 s after the window closed"
+          status=0
+          wait "$git_pid" || status=$?
+          cat "$log"
+          [[ $status == 0 ]] || fail "git commit exited $status after the window closed"
+          subject="$(git log -1 --format=%s)"
+          [[ $subject == "$message" ]] || fail "git committed '$subject', expected '$message'"
           kill "$pid"

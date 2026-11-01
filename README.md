@@ -75,10 +75,13 @@ renderer tests, the renderer build (which fails if a dependency exceeds its
 entry-chunk size budget in `renderer/build.mjs`), `make test`, and an ad-hoc signed
 universal Release build. It then fails unless `lipo -archs` reports both `x86_64`
 and `arm64` for the app and the embedded `unmark` tool, and checks the tool's exit
-statuses for usage errors and missing files. Last, it launches the app with
+statuses for usage errors and missing files. Then it launches the app with
 `unmark a.md b.md` and fails unless the tool exits 0 within 10 s and the app then
 reports both files open, asked over `com.mlg87.unmark.queryOpen` by
-`scripts/ci/open-documents.swift`.
+`scripts/ci/open-documents.swift`. Last, it runs `GIT_EDITOR="unmark --wait" git
+commit` in a scratch repo and fails unless git is still running 5 s after the app
+reports `COMMIT_EDITMSG` open, then commits the message once `osascript` clicks the
+window's close button.
 
 The `main: baseline` ruleset requires the `ci` check (pinned to the GitHub
 Actions app) before a pull request can merge, so red builds can't land on
