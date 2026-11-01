@@ -54,6 +54,11 @@ public enum MarkdownHighlighter {
     public struct LineStates: Equatable, Sendable {
         public let range: NSRange
         public let state: BlockState
+
+        public init(range: NSRange, state: BlockState) {
+            self.range = range
+            self.state = state
+        }
     }
 
     public struct Highlight: Equatable, Sendable {
