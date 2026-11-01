@@ -20,6 +20,8 @@ struct PreviewView: NSViewRepresentable {
     /// Called with a clicked link's URL, resolved against `documentBaseURL`. The Preview itself never navigates
     /// away from the renderer page (#23).
     let linkActivated: @MainActor (URL) -> Void
+    /// Keeps the Preview and, in Split mode, the Source on the same source line.
+    let scrollSync: ScrollSync
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -30,12 +32,22 @@ struct PreviewView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
         context.coordinator.pageLoaded = pageLoaded
+        // The renderer posts `previewScrolled` to this handler as the user scrolls. WebKit looks handlers up when the
+        // page posts, so one added after the pool loaded the page still receives them. The content controller keeps
+        // the coordinator alive only as long as the web view, which is its own.
+        webView.configuration.userContentController.add(context.coordinator, name: PreviewMessage.handlerName)
+        scrollSync.scrollPreview = { [weak coordinator = context.coordinator] line in
+            coordinator?.scrollToSourceLine(line)
+        }
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.didRender = didRender
         context.coordinator.linkActivated = linkActivated
+        context.coordinator.previewScrolled = { [scrollSync] line in
+            scrollSync.paneDidScroll(.preview, toLine: line)
+        }
         // After `render`, so a request that arrives with new text waits for that text to render.
         context.coordinator.render(
             RenderRequest(markdown: markdown, documentBaseURL: documentBaseURL), after: renderDebounce)
@@ -58,7 +70,7 @@ struct PreviewView: NSViewRepresentable {
     /// request also waits until no newer one has arrived for its delay. A scroll or print waits until no render is
     /// running or waiting, so it finds the element it names or prints the current text.
     @MainActor
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private static let logger = Logger(subsystem: "com.mlg87.unmark", category: "PreviewView")
         /// One `render` interval per render in Points of Interest, so Instruments counts the renders a burst of
         /// file changes costs (#24).
@@ -67,6 +79,8 @@ struct PreviewView: NSViewRepresentable {
         weak var webView: WKWebView?
         var didRender: @MainActor (String) -> Void = { _ in }
         var linkActivated: @MainActor (URL) -> Void = { _ in }
+        /// Called with the 0-based source line at the Preview's top as the user scrolls it.
+        var previewScrolled: @MainActor (Double) -> Void = { _ in }
 
         /// Set by `makeNSView` when the pool hands over a web view whose page already loaded.
         var pageLoaded = false
@@ -85,6 +99,9 @@ struct PreviewView: NSViewRepresentable {
         /// Set from the switch to print output until the switch back, so a second Print… can't restore screen output
         /// under the first one's print panel.
         private var isPrinting = false
+        /// The newest source line the Preview should follow the Source to, while an earlier one is still scrolling.
+        private var pendingSourceLine: Double?
+        private var isScrollingToSourceLine = false
 
         func render(_ request: RenderRequest, after delay: Duration) {
             guard request != latest else { return }
@@ -115,6 +132,35 @@ struct PreviewView: NSViewRepresentable {
             latestPrint = request
             pendingPrint = request
             renderNextIfReady()
+        }
+
+        /// Follows the Source to 0-based source `line`. Calls run one at a time and only the newest waiting line is
+        /// kept, so a fast Source scroll never queues up behind the page.
+        func scrollToSourceLine(_ line: Double) {
+            pendingSourceLine = line
+            guard pageLoaded, latest != nil, !isScrollingToSourceLine, let webView else { return }
+            isScrollingToSourceLine = true
+            Task {
+                while let line = pendingSourceLine {
+                    pendingSourceLine = nil
+                    do {
+                        // `window.unmark` is undefined until the first render has imported the renderer module.
+                        _ = try await webView.callAsyncJavaScript(
+                            "await window.unmark?.scrollToSourceLine(line);", arguments: ["line": line],
+                            contentWorld: .page)
+                    } catch {
+                        Self.logger.error("Following the Source failed: \(String(describing: error), privacy: .public)")
+                    }
+                }
+                isScrollingToSourceLine = false
+            }
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController, didReceive message: WKScriptMessage
+        ) {
+            guard case .previewScrolled(let line) = PreviewMessage(body: message.body) else { return }
+            previewScrolled(line)
         }
 
         /// Cancels every link click, so the page never leaves the renderer, and hands the URL to `linkActivated`.

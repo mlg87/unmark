@@ -3,6 +3,7 @@
 // that contain math, so every other document skips KaTeX's code, CSS, and fonts (epic #3).
 
 import katex from "katex";
+import { carrySourceLine } from "./source-lines.ts";
 
 // build.mjs copies KaTeX's stylesheet next to the chunks, with its fonts beside it. The
 // error box's style is render-error.css, which the page loads. Resolved against this
@@ -17,6 +18,7 @@ export function renderMath(root: ParentNode): void {
   for (const placeholder of root.querySelectorAll<HTMLElement>(".math")) {
     const source = placeholder.textContent ?? "";
     const output = document.createElement(placeholder.localName);
+    carrySourceLine(placeholder, output);
     try {
       katex.render(source, output, {
         displayMode: placeholder.dataset.display === "true",
@@ -25,7 +27,9 @@ export function renderMath(root: ParentNode): void {
       placeholder.replaceWith(output);
     } catch (error) {
       if (!(error instanceof katex.ParseError)) throw error;
-      placeholder.replaceWith(...parseErrorBox(error.message, source));
+      const [box, code] = parseErrorBox(error.message, source);
+      carrySourceLine(placeholder, box);
+      placeholder.replaceWith(box, code);
     }
   }
 }

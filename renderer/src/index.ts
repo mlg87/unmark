@@ -3,6 +3,8 @@ import type { Heading, RenderEnv } from "./headings.ts";
 import { createMarkdown } from "./markdown.ts";
 import { sanitize } from "./sanitize.ts";
 import { captureScrollAnchor, restoreScrollAnchor } from "./scroll-anchor.ts";
+import { markOwnScroll, reportScrolls, SourceLineMap } from "./scroll-sync.ts";
+import { SOURCE_LINE } from "./source-lines.ts";
 
 export type { Heading };
 
@@ -28,6 +30,13 @@ export interface UnmarkRenderer {
   outline(): Promise<Heading[]>;
   /** Scrolls the element with `id` into view, rendering the document up to it first if needed. */
   scrollToElement(id: string): Promise<void>;
+  /**
+   * Scrolls the block that starts on 0-based source `line` to the viewport's top, rendering
+   * the document up to it first if needed. A fractional line lands between the blocks around
+   * it, in proportion. Split mode calls it as the Source scrolls; the page posts
+   * `{ type: "previewScrolled", line }` to the app's `unmark` message handler as it scrolls.
+   */
+  scrollToSourceLine(line: number): Promise<void>;
   /**
    * Switches the page's styling and diagrams to `mode`. `print` resolves once the whole
    * document is on the page in the light theme, so a print operation started then captures
@@ -56,11 +65,17 @@ const md = createMarkdown();
 let latestRender = 0;
 let outputMode: OutputMode = "screen";
 /**
- * The document on the page: its outline so far, the chunks not yet appended, and when its
- * background work settles.
+ * The document on the page: its outline so far, its line count, the chunks not yet appended,
+ * and when its background work settles.
  */
-let rendered: { headings: Heading[]; pending?: PendingChunks; background: Promise<void> } = {
+let rendered: {
+  headings: Heading[];
+  lineCount: number;
+  pending?: PendingChunks;
+  background: Promise<void>;
+} = {
   headings: [],
+  lineCount: 0,
   background: Promise.resolve(),
 };
 
@@ -86,7 +101,10 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
       await drawDiagrams(article);
       // After the diagrams, whose height and text the anchor was captured with. A reload
       // that swapped in newer content while they drew restores its own anchor.
-      if (anchor && isCurrent()) restoreScrollAnchor(article, anchor);
+      if (anchor && isCurrent()) {
+        restoreScrollAnchor(article, anchor);
+        markOwnScroll();
+      }
       break;
     }
     // The anchor's block may be anywhere in the new content, so a reload while scrolled
@@ -104,7 +122,14 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
     await drawDiagrams(article);
   }
   const pending = new PendingChunks(article, chunks, isCurrent);
-  rendered = { headings: env.headings, pending, background: appendInBackground(pending) };
+  // markdown-it splits lines at the same breaks.
+  const lineCount = (markdown.match(/\r\n?|\n/g)?.length ?? 0) + 1;
+  rendered = {
+    headings: env.headings,
+    lineCount,
+    pending,
+    background: appendInBackground(pending),
+  };
 }
 
 /** Waits for the background work of the document on the page, even if a render replaces it. */
@@ -170,9 +195,32 @@ async function scrollToElement(id: string): Promise<void> {
   document.getElementById(id)?.scrollIntoView();
 }
 
+async function scrollToSourceLine(line: number): Promise<void> {
+  const article = document.querySelector("article.markdown-body");
+  if (!article) return;
+  // Like scrollToElement, pulls chunks only until a block after the line is on the page, so
+  // following the Source to a late line doesn't wait for the whole document.
+  if (!(sourceLineMap(article).lastMarkedLine > line)) {
+    await rendered.pending?.appendUntil((batch) => {
+      const marked = batch.querySelectorAll(`[${SOURCE_LINE}]`);
+      const lastInBatch = Number(marked[marked.length - 1]?.getAttribute(SOURCE_LINE));
+      return sourceLineMap(article).lastMarkedLine > line || lastInBatch > line;
+    });
+  }
+  window.scrollBy(0, sourceLineMap(article).offsetOf(line));
+  // So following the Source isn't reported back to it as the reader's own scroll.
+  markOwnScroll();
+}
+
+/** The line map of the document on the page; it ends at the document's end once that's on the page. */
+function sourceLineMap(article: Element): SourceLineMap {
+  const complete = rendered.pending?.done ?? true;
+  return new SourceLineMap(article, complete ? rendered.lineCount : undefined);
+}
+
 /**
- * A rendered document's chunks not yet on the page. The background tasks and
- * scrollToElement both append them, one call at a time so the chunks land in order.
+ * A rendered document's chunks not yet on the page. The background tasks, scrollToElement,
+ * and scrollToSourceLine all append them, one call at a time so the chunks land in order.
  */
 class PendingChunks {
   readonly #article: Element;
@@ -259,4 +307,9 @@ function setDocumentBase(href: string): void {
   base.href = href;
 }
 
-window.unmark = { render, outline, scrollToElement, setOutputMode };
+window.unmark = { render, outline, scrollToElement, scrollToSourceLine, setOutputMode };
+
+reportScrolls(() => {
+  const article = document.querySelector("article.markdown-body");
+  return article ? sourceLineMap(article).lineAtTop() : 0;
+});

@@ -5,6 +5,7 @@
 
 import { beforeAll, expect, test, vi } from "vitest";
 import "../src/index.ts";
+import { withoutSourceLines } from "./without-source-lines.ts";
 
 // Counts evaluations of the lazily imported KaTeX module: a document without math must
 // never trigger the dynamic import.
@@ -75,5 +76,5 @@ test("a reload while KaTeX renders keeps the newer content", async () => {
   const older = render("$x$ older");
   await render("newer");
   await older;
-  expect(article.innerHTML.trim()).toBe("<p>newer</p>");
+  expect(withoutSourceLines(article.innerHTML.trim())).toBe("<p>newer</p>");
 });

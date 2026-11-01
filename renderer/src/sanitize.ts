@@ -73,9 +73,12 @@ export interface AllowlistExtension {
    * generated families such as highlight.js's scopes. Every other class is removed.
    */
   classes?: Record<string, readonly (string | RegExp)[]>;
+  /** Attributes any allowed element may carry, like GitHub's global ones. */
+  attributes?: readonly string[];
 }
 
 const allowedElements = new Set(GITHUB_ELEMENTS);
+const globalAttributes = new Set(GITHUB_GLOBAL_ATTRIBUTES);
 const elementAttributes = new Map(
   Object.entries(GITHUB_ELEMENT_ATTRIBUTES).map(([tag, names]) => [tag, new Set(names)]),
 );
@@ -86,7 +89,11 @@ const elementClasses = new Map<string, Set<string | RegExp>>();
  * next to their `md.use()` so every addition to GitHub's allowlist is explicit and
  * reviewable in one place. Raw HTML in a document gets the same additions.
  */
-export function extendAllowlist({ elements = {}, classes = {} }: AllowlistExtension): void {
+export function extendAllowlist({
+  elements = {},
+  classes = {},
+  attributes = [],
+}: AllowlistExtension): void {
   for (const [tag, names] of Object.entries(elements)) {
     allowedElements.add(tag);
     addAll(elementAttributes, tag, names);
@@ -94,6 +101,7 @@ export function extendAllowlist({ elements = {}, classes = {} }: AllowlistExtens
   for (const [tag, names] of Object.entries(classes)) {
     addAll(elementClasses, tag, names);
   }
+  for (const name of attributes) globalAttributes.add(name);
 }
 
 function addAll<T>(map: Map<string, Set<T>>, key: string, values: readonly T[]): void {
@@ -122,7 +130,7 @@ function purifier(): DOMPurify {
 }
 
 function purifyConfig(): Config & { RETURN_DOM_FRAGMENT: true } {
-  const attributes = new Set(GITHUB_GLOBAL_ATTRIBUTES);
+  const attributes = new Set(globalAttributes);
   for (const names of elementAttributes.values()) for (const name of names) attributes.add(name);
   if (elementClasses.size > 0) attributes.add("class");
   const urlAttributes = new Set(Object.values(URL_PATTERNS).flatMap(Object.keys));
@@ -156,7 +164,7 @@ function keepAttribute(tag: string, name: string, event: { attrValue: string }):
     event.attrValue = kept.join(" ");
     return kept.length > 0;
   }
-  if (!GITHUB_GLOBAL_ATTRIBUTES.includes(name) && !elementAttributes.get(tag)?.has(name)) {
+  if (!globalAttributes.has(name) && !elementAttributes.get(tag)?.has(name)) {
     return false;
   }
   const pattern = URL_PATTERNS[tag]?.[name];

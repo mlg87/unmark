@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { beforeAll, describe, expect, test } from "vitest";
 import "../src/index.ts";
 import { parseSpecExamples } from "./spec-examples.ts";
+import { withoutSourceLines } from "./without-source-lines.ts";
 
 let article: Element;
 
@@ -18,7 +19,7 @@ beforeAll(() => {
 
 async function render(markdown: string): Promise<string> {
   await window.unmark.render(markdown, { documentBaseURL: "file:///docs/" });
-  return article.innerHTML.trim();
+  return withoutSourceLines(article.innerHTML.trim());
 }
 
 describe("removes what GitHub's allowlist doesn't allow", () => {
@@ -149,7 +150,9 @@ describe("escapes GFM tagfilter tags as github.com does", () => {
       `<${tag}>\nblock\n</${tag}>\n\ninline <${tag}>x</${tag}> and <${tag.toUpperCase()}>\n\n*after*`,
     );
     expect(article.querySelector(TAGFILTER_TAGS.join(","))).toBeNull();
-    expect(article.lastElementChild?.outerHTML).toBe("<p><em>after</em></p>");
+    expect(withoutSourceLines(article.lastElementChild?.outerHTML ?? "")).toBe(
+      "<p><em>after</em></p>",
+    );
   });
 
   test.each(tagfilterExamples)("%s", async (_id, markdown) => {

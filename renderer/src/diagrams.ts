@@ -8,6 +8,7 @@
 
 import mermaid from "mermaid";
 import type { OutputMode } from "./index.ts";
+import { carrySourceLine } from "./source-lines.ts";
 
 const DIAGRAM_CLASS = "mermaid-diagram";
 
@@ -30,6 +31,7 @@ export function renderDiagrams(root: ParentNode, mode: OutputMode = "screen"): P
     const container = document.createElement("div");
     container.className = DIAGRAM_CLASS;
     sources.set(container, pre.textContent ?? "");
+    carrySourceLine(pre, container);
     pre.replaceWith(container);
     return container;
   });
