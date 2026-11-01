@@ -69,10 +69,27 @@ final class MarkdownDocument: NSDocument {
         super.save(to: url, ofType: typeName, for: saveOperation, completionHandler: completionHandler)
     }
 
-    /// The Source's undo actions name ranges of the text a revert replaces, so they go with it.
+    /// ⌘S, and Save in the close prompt. While the changed-on-disk banner shows, saving overwrites the disk version
+    /// and dismisses the banner, without NSDocument's "changed by another application" alert (#28).
+    override func save(
+        withDelegate delegate: Any?, didSave didSaveSelector: Selector?, contextInfo: UnsafeMutableRawPointer?
+    ) {
+        MainActor.assumeIsolated {
+            if state.fileChangedOnDisk {
+                keepChanges()
+            }
+        }
+        super.save(withDelegate: delegate, didSave: didSaveSelector, contextInfo: contextInfo)
+    }
+
+    /// The Source's undo actions name ranges of the text a revert replaces, so they go with it. A revert also
+    /// answers the changed-on-disk banner, since the text is the disk version again.
     override func revert(toContentsOf url: URL, ofType typeName: String) throws {
         try super.revert(toContentsOf: url, ofType: typeName)
-        MainActor.assumeIsolated { undoManager?.removeAllActions() }
+        MainActor.assumeIsolated {
+            undoManager?.removeAllActions()
+            state.fileChangedOnDisk = false
+        }
     }
 
     override func makeWindowControllers() {
@@ -84,7 +101,9 @@ final class MarkdownDocument: NSDocument {
                 willEdit: { [weak self] in self?.beginKeystrokeToPreview() },
                 didRender: { [weak self] markdown in self?.previewDidRender(markdown) },
                 linkActivated: { [weak self] url in self?.followLink(to: url) },
-                taskToggled: { [weak self] line, checked in self?.toggleTask(onLine: line, checked: checked) })
+                taskToggled: { [weak self] line, checked in self?.toggleTask(onLine: line, checked: checked) },
+                reloadFromDisk: { [weak self] in self?.reloadFromDisk() },
+                keepChanges: { [weak self] in self?.keepChanges() })
             let windowController = DocumentWindowController(state: state, content: content)
             if let window = windowController.window {
                 window.setContentSize(NSSize(width: 720, height: 800))
@@ -242,23 +261,50 @@ final class MarkdownDocument: NSDocument {
         }
     }
 
-    /// Replaces the text with the file's when another app changed it (#24, ADR-0003).
+    /// Replaces the text with the file's when another app changed it (#24, ADR-0003). With unsaved edits, shows the
+    /// changed-on-disk banner instead (#28). Another change while it shows keeps the one banner, and its Reload from
+    /// Disk reads whatever the file holds when clicked.
     @MainActor private func reloadIfChangedOnDisk() {
-        // `state.fileURL` already follows a move that `fileURL` hasn't caught up with yet.
-        guard var url = state.fileURL, let fileType else { return }
-        // URL caches resource values per instance, and this one may have read the date before the change.
-        url.removeAllCachedResourceValues()
-        guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-        else { return }
+        guard let url = state.fileURL, let fileType, let modified = diskModificationDate(of: url) else { return }
         // The presenter's late duplicate of a change the vnode source already reloaded.
         guard modified != fileModificationDate else { return }
-        // Unsaved edits are never replaced here; the conflict banner (#28) handles them.
-        guard !isDocumentEdited else { return }
+        guard !isDocumentEdited else {
+            state.fileChangedOnDisk = true
+            return
+        }
         do {
             try revert(toContentsOf: url, ofType: fileType)
         } catch {
             Self.logger.error("Reload failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// The banner's Reload from Disk: the disk text replaces the unsaved edits, and `revert` clears the dirty state,
+    /// the undo history, and the banner.
+    @MainActor private func reloadFromDisk() {
+        // `state.fileURL` already follows a move that `fileURL` hasn't caught up with yet.
+        guard let url = state.fileURL, let fileType else { return }
+        do {
+            try revert(toContentsOf: url, ofType: fileType)
+        } catch {
+            presentError(error)
+        }
+    }
+
+    /// The banner's Keep My Changes. Taking the file's current date as the one the document last read or wrote lets
+    /// the next save overwrite the disk version with no "changed by another application" alert (ADR-0003).
+    @MainActor private func keepChanges() {
+        if let url = state.fileURL, let modified = diskModificationDate(of: url) {
+            fileModificationDate = modified
+        }
+        state.fileChangedOnDisk = false
+    }
+
+    @MainActor private func diskModificationDate(of url: URL) -> Date? {
+        var url = url
+        // URL caches resource values per instance, and this one may have read the date before the change.
+        url.removeAllCachedResourceValues()
+        return try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
     }
 
     @MainActor private func previewDidRender(_ markdown: String) {

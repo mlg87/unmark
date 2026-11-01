@@ -15,6 +15,8 @@ struct DocumentWindow: View {
     let didRender: @MainActor (String) -> Void
     let linkActivated: @MainActor (URL) -> Void
     let taskToggled: @MainActor (_ line: Int, _ checked: Bool) -> Void
+    let reloadFromDisk: @MainActor () -> Void
+    let keepChanges: @MainActor () -> Void
 
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
     /// Per window, so each window's panes follow only each other.
@@ -24,6 +26,12 @@ struct DocumentWindow: View {
         VStack(spacing: 0) {
             if state.fileWasDeleted {
                 FileDeletedBanner()
+                Divider()
+            }
+            if state.fileChangedOnDisk {
+                FileChangedOnDiskBanner(
+                    fileName: state.fileURL?.lastPathComponent ?? "", reloadFromDisk: reloadFromDisk,
+                    keepChanges: keepChanges)
                 Divider()
             }
             // One split view in both modes, so toggling adds or removes the Source and keeps the Preview's web view
@@ -72,6 +80,26 @@ private struct FileDeletedBanner: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(.bar)
+    }
+}
+
+/// Shown above both panes when the file changed on disk while the document has unsaved edits (#28, q14, q53). Not a
+/// sheet or alert, so typing in the Source carries on while it's shown.
+private struct FileChangedOnDiskBanner: View {
+    let fileName: String
+    let reloadFromDisk: @MainActor () -> Void
+    let keepChanges: @MainActor () -> Void
+
+    var body: some View {
+        HStack {
+            Text("\(fileName) changed on disk.")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Reload from Disk", action: reloadFromDisk)
+            Button("Keep My Changes", action: keepChanges)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(nsColor: .systemYellow).opacity(0.2))
     }
 }
 
