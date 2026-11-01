@@ -355,6 +355,24 @@ const splices: [string, string, string, boolean][] = [
     `${orderSensitiveDocument}\nMore.\n`,
     false,
   ],
+  [
+    "a paragraph between two indented code blocks deleted, joining them",
+    "    a\n\nx\n\n    b\n",
+    "    a\n\n\n\n    b\n",
+    true,
+  ],
+  [
+    "a table's delimiter row broken under the paragraph it interrupted",
+    "123\n456\n| a | b |\n| --- | --- |\nd | e\n",
+    "123\n456\n| a | b |\n| --- | -x- |\nd | e\n",
+    true,
+  ],
+  [
+    "a link reference definition after the last block broken",
+    "Uses [ref].\n\n[ref]: /uri\n",
+    "Uses [ref].\n\n[ref] /uri\n",
+    false,
+  ],
 ];
 
 test.each(splices)(
@@ -374,6 +392,43 @@ test.each(splices)(
   },
 );
 
+// Random edits, seeded so a failure repeats: what any edit splices into, or renders again in
+// full, must add up to what rendering the edited document afresh gives.
+test("seeded random edits to the spec examples render as the edited documents do", () => {
+  const examples = ["spec.txt", "extensions.txt"].flatMap((file) =>
+    parseSpecExamples(file, readFileSync(join(import.meta.dirname, "fixtures", file), "utf8")),
+  );
+  const insertions = ["x", "\n", "\n\n", "- ", "> ", "```", "---", "===", "| a |", "    ", "[^1]"];
+  let seed = 47;
+  const random = (below: number) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed % below;
+  };
+  for (let first = 0; first < examples.length; first += 8) {
+    const before = examples
+      .slice(first, first + 8)
+      .map(({ markdown }) => markdown)
+      .join("\n");
+    const previous = new Rendering();
+    for (const _block of htmlBlocks(md, before, { headings: [] }, new Map(), previous));
+    for (let edit = 0; edit < 4; edit++) {
+      const at = random(before.length + 1);
+      const after =
+        random(3) === 0
+          ? before.slice(0, at) + before.slice(at + 1 + random(20))
+          : before.slice(0, at) + insertions[random(insertions.length)] + before.slice(at);
+      const env = { headings: [] };
+      const blocks = spliceBlocks(md, after, env, previous)?.blocks ?? [
+        ...htmlBlocks(md, after, env, blockCache(previous.blocks)),
+      ];
+      const parsedEnv = { headings: [] };
+      const expected = md.renderer.render(md.parse(after, parsedEnv), md.options, parsedEnv);
+      expect([after, blocks.map((block) => block.html).join("")]).toEqual([after, expected]);
+      expect(env.headings).toEqual(parsedEnv.headings);
+    }
+  }
+});
+
 test("a splice keeps the pieces before the edit and moves the ones after it", () => {
   const previous = new Rendering();
   for (const _block of htmlBlocks(md, plainDocument, { headings: [] }, new Map(), previous));
@@ -382,9 +437,10 @@ test("a splice keeps the pieces before the edit and moves the ones after it", ()
 
   const edit = previous.blocks.findIndex((block) => block.source.includes(paragraph30));
   expect(blocks).toHaveLength(previous.blocks.length + 1);
-  expect(blocks.slice(0, edit).every((block, index) => block === previous.blocks[index])).toBe(
-    true,
-  );
+  // The heading right above parses again: the line after it, which ended it, changed.
+  const kept = blocks.slice(0, edit - 1);
+  expect(kept.every((block, index) => block === previous.blocks[index])).toBe(true);
+  expect(blocks[edit - 1]?.rendersLike(previous.blocks[edit - 1] as Block)).toBe(true);
   const after = blocks.slice(edit + 1);
   expect(
     after.every((block, index) => block.rendersLike(previous.blocks[edit + index] as Block)),
