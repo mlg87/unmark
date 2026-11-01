@@ -10,22 +10,30 @@ final class DocumentWaiter {
     private static let queryInterval: TimeInterval = 2
 
     private let app: NSRunningApplication
+    /// Each file's canonical path and the path as typed, in command-line order, for error messages.
+    private let files: [(path: String, argument: String)]
     private var pending: PendingDocuments
+    private var anyFailedToOpen = false
     private var continuation: CheckedContinuation<Void, Never>?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var queryTimer: Timer?
 
-    init(app: NSRunningApplication, fileURLs: [URL]) {
+    /// `files` pairs each path as typed with the file URL the app was asked to open. Create the waiter right after
+    /// the open call returns: its grace period for files the app fails to open starts here.
+    init(app: NSRunningApplication, files: [(argument: String, url: URL)]) {
         self.app = app
-        pending = PendingDocuments(paths: fileURLs.map(DocumentWaitMessage.canonicalPath))
+        self.files = files.map { (DocumentWaitMessage.canonicalPath(of: $0.url), $0.argument) }
+        pending = PendingDocuments(paths: self.files.map(\.path), openedAt: .now)
     }
 
-    /// Returns once every document's window has closed, saved or not (q44).
-    func wait() async {
+    /// Returns once every document's window has closed, saved or not (q44). Returns `false` if the app failed to
+    /// open any of them, after reporting each on standard error as it's found.
+    func wait() async -> Bool {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
             start()
         }
+        return !anyFailedToOpen
     }
 
     private func start() {
@@ -40,7 +48,8 @@ final class DocumentWaiter {
         observe(DocumentWaitMessage.openPaths, on: distributed) {
             DocumentWaitMessage.openPaths(in: $0, from: pid)
         } handle: { waiter, openPaths in
-            waiter.pending.reconcile(openPaths: openPaths, at: .now)
+            let failed = waiter.pending.reconcile(openPaths: openPaths, at: .now)
+            waiter.reportFailedToOpen(failed)
             waiter.finishIfDone()
         }
         observe(NSWorkspace.didTerminateApplicationNotification, on: NSWorkspace.shared.notificationCenter) {
@@ -76,6 +85,14 @@ final class DocumentWaiter {
         guard !app.isTerminated else { return finish() }
         DistributedNotificationCenter.default().postNotificationName(
             DocumentWaitMessage.queryOpen, object: nil, userInfo: nil, deliverImmediately: true)
+    }
+
+    private func reportFailedToOpen(_ paths: Set<String>) {
+        guard !paths.isEmpty else { return }
+        anyFailedToOpen = true
+        for file in files where paths.contains(file.path) {
+            printError("unmark: \(file.argument): could not be opened")
+        }
     }
 
     private func finishIfDone() {

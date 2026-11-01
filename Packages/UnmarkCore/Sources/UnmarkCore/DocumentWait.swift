@@ -51,18 +51,25 @@ public enum DocumentWaitMessage {
 
 /// The documents an `unmark --wait` run is still waiting on (#37).
 public struct PendingDocuments: Sendable {
-    /// How long the app may keep answering `queryOpen` without listing a path before the tool stops waiting on it.
-    /// The open request and the first query race, so a path missing from early replies may still be opening; one
-    /// missing for this long failed to open, and its window will never close.
+    /// How long after the open call a path may go unlisted in `openPaths` replies before the tool reports it as
+    /// failed to open. The open request and the first query race, so a path missing from early replies may still be
+    /// opening; one missing for this long failed to open, and its window will never close.
     public static let openGracePeriod: Duration = .seconds(10)
+    /// How long after the app's first reply a path may go unlisted. While the app shows a modal, such as the alert
+    /// for a file it couldn't open, it answers no queries, and documents queued behind the alert may still be opening
+    /// when it's dismissed. Two of the tool's 2 s query rounds fit in this, so one late reply alone can't fail a path.
+    public static let firstReplyGracePeriod: Duration = .seconds(4)
 
     public private(set) var paths: Set<String>
     /// Paths some reply has listed. Only these are dropped when a later reply leaves them out.
     private var confirmedOpen: Set<String> = []
+    private let openedAt: ContinuousClock.Instant
     private var firstReply: ContinuousClock.Instant?
 
-    public init(paths: some Sequence<String>) {
+    /// `openedAt` is when the app accepted the open request.
+    public init(paths: some Sequence<String>, openedAt: ContinuousClock.Instant) {
         self.paths = Set(paths)
+        self.openedAt = openedAt
     }
 
     public var isEmpty: Bool { paths.isEmpty }
@@ -72,14 +79,18 @@ public struct PendingDocuments: Sendable {
     }
 
     /// Applies an `openPaths` reply received at `now`, which recovers `documentClosed` notifications that were
-    /// dropped.
-    public mutating func reconcile(openPaths: Set<String>, at now: ContinuousClock.Instant) {
+    /// dropped. Returns the paths it stopped waiting on because the app failed to open them.
+    public mutating func reconcile(openPaths: Set<String>, at now: ContinuousClock.Instant) -> Set<String> {
         let firstReply = self.firstReply ?? now
         self.firstReply = firstReply
         confirmedOpen.formUnion(paths.intersection(openPaths))
-        let graceExpired = now - firstReply >= Self.openGracePeriod
-        paths = paths.filter { path in
-            openPaths.contains(path) || (!confirmedOpen.contains(path) && !graceExpired)
+        let neverOpened = paths.subtracting(confirmedOpen)
+        let deadline = max(openedAt + Self.openGracePeriod, firstReply + Self.firstReplyGracePeriod)
+        guard now >= deadline else {
+            paths = paths.intersection(openPaths).union(neverOpened)
+            return []
         }
+        paths.formIntersection(openPaths)
+        return neverOpened
     }
 }
