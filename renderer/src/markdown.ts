@@ -12,6 +12,7 @@ import { footnotes } from "./footnotes.ts";
 import { frontMatter } from "./front-matter.ts";
 import { headingAnchors } from "./headings.ts";
 import { extendAllowlist } from "./sanitize.ts";
+import { sourceLineMarkers } from "./source-lines.ts";
 
 export function createMarkdown(): MarkdownIt {
   const md = markdownit("default", {
@@ -63,6 +64,8 @@ export function createMarkdown(): MarkdownIt {
   githubEmoji(md);
   githubMath(md);
   headingAnchors(md);
+  // Last: it marks the output of the render rules the plugins above replace.
+  sourceLineMarkers(md);
 
   return md;
 }

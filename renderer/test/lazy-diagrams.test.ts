@@ -37,7 +37,7 @@ test("a mermaid block survives sanitizing as escaped source, then is handed to d
   expect(diagrams.imported).toBe(true);
   expect(diagrams.renderDiagrams).toHaveBeenCalledWith(article, "screen");
   expect(article.innerHTML.trim()).toBe(
-    '<pre class="mermaid-source" data-mermaid="">graph TD; A--&gt;B&lt;script&gt;\n</pre>',
+    '<pre data-source-line="0" class="mermaid-source" data-mermaid="">graph TD; A--&gt;B&lt;script&gt;\n</pre>',
   );
 });
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import UnmarkCore
 
 /// A document window's content: the Preview, with the Source beside it in Split mode. Every window opens in Preview
 /// mode (q15).
@@ -15,6 +16,8 @@ struct DocumentWindow: View {
     let linkActivated: @MainActor (URL) -> Void
 
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
+    /// Per window, so each window's panes follow only each other.
+    @State private var scrollSync = ScrollSync()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,15 +29,17 @@ struct DocumentWindow: View {
             // and its scroll position.
             HSplitView {
                 if state.isSourceVisible {
-                    SourceTextView(text: $state.text, fontSize: sourceFontSize, willEdit: willEdit)
-                        .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
+                    SourceTextView(
+                        text: $state.text, fontSize: sourceFontSize, willEdit: willEdit, scrollSync: scrollSync
+                    )
+                    .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
                 }
                 PreviewView(
                     markdown: state.text, documentBaseURL: state.documentBaseURL, scrollRequest: state.scrollRequest,
                     printRequest: state.printRequest,
                     // In Preview mode text changes come only from disk, which ExternalChangeMonitor already debounces.
                     renderDebounce: state.isSourceVisible ? Self.editRenderDebounce : .zero,
-                    didRender: didRender, linkActivated: linkActivated
+                    didRender: didRender, linkActivated: linkActivated, scrollSync: scrollSync
                 )
                 .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
             }

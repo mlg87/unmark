@@ -11,6 +11,7 @@ import { htmlBlocks } from "../src/chunks.ts";
 import { createMarkdown } from "../src/markdown.ts";
 import { sanitize } from "../src/sanitize.ts";
 import { parseSpecExamples } from "./spec-examples.ts";
+import { withoutSourceLines } from "./without-source-lines.ts";
 
 const md = createMarkdown();
 
@@ -113,7 +114,9 @@ test("a raw HTML element around markdown blocks comes as one block", () => {
     "Before\n\n<details>\n<summary>S</summary>\n\nInside\n\n- item\n\n</details>\n\nAfter";
   const blocks = [...htmlBlocks(md, markdown, { headings: [] })];
   expect(blocks).toHaveLength(3);
-  expect(blocks[1]).toMatch(/^<details>[\s\S]*<li>item<\/li>[\s\S]*<\/details>\n$/);
+  expect(withoutSourceLines(blocks[1] ?? "")).toMatch(
+    /^<details>[\s\S]*<li>item<\/li>[\s\S]*<\/details>\n$/,
+  );
 });
 
 test("the render resolves with the first chunk and the rest follows", async () => {
@@ -186,6 +189,17 @@ test("a scroll whose element arrives while it waits its turn renders no further"
     window.unmark.scrollToElement("part-30"),
     window.unmark.scrollToElement("part-20"),
   ]);
+  expect(document.getElementById("part-59")).toBeNull();
+});
+
+test("following the Source to a line in a later chunk renders up to it, not the whole document", async () => {
+  vi.useFakeTimers();
+  tallBlocks();
+  vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+  await render(longDocument);
+  expect(document.getElementById("part-30")).toBeNull();
+  await window.unmark.scrollToSourceLine(longDocument.split("\n").indexOf("## Part 30"));
+  expect(document.getElementById("part-30")).not.toBeNull();
   expect(document.getElementById("part-59")).toBeNull();
 });
 

@@ -5,6 +5,7 @@
 
 import { beforeAll, expect, test } from "vitest";
 import "../src/index.ts";
+import { withoutSourceLines } from "./without-source-lines.ts";
 
 let article: Element;
 
@@ -15,7 +16,7 @@ beforeAll(() => {
 
 async function render(markdown: string): Promise<string> {
   await window.unmark.render(markdown, { documentBaseURL: "file:///docs/" });
-  return article.innerHTML.trim();
+  return withoutSourceLines(article.innerHTML.trim());
 }
 
 test("highlights a fence by its declared language", async () => {
