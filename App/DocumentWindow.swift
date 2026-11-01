@@ -12,6 +12,7 @@ struct DocumentWindow: View {
 
     @Bindable var state: DocumentState
     let willEdit: @MainActor () -> Void
+    let didEdit: @MainActor (TextEdit) -> Void
     let didRender: @MainActor (String) -> Void
     let linkActivated: @MainActor (URL) -> Void
     let taskToggled: @MainActor (_ line: Int, _ checked: Bool) -> Void
@@ -39,7 +40,8 @@ struct DocumentWindow: View {
             HSplitView {
                 if state.isSourceVisible {
                     SourceTextView(
-                        text: $state.text, fontSize: sourceFontSize, willEdit: willEdit, scrollSync: scrollSync
+                        text: $state.text, fontSize: sourceFontSize, willEdit: willEdit, didEdit: didEdit,
+                        scrollSync: scrollSync
                     )
                     .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
                 }

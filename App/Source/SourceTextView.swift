@@ -2,18 +2,21 @@ import AppKit
 import SwiftUI
 import UnmarkCore
 
-/// The editable Source: a plain-text NSTextView (q12). Its edits register with the window's undo manager, which is
-/// the document's, so NSDocument tracks the dirty state, the close prompt, and undo back to clean (ADR-0003).
+/// The editable Source: a plain-text NSTextView (q12). It registers no undo steps of its own: it reports each edit to
+/// the document, which registers the undo step (unmark-1793451427066-4-97884ee7.3). An undo step the text view
+/// registered would message that text view, which is gone once Split mode hides the Source.
 struct SourceTextView: NSViewRepresentable {
     @Binding var text: String
     let fontSize: Double
     /// Called before the text view applies an edit, to start the `keystroke-to-preview` interval (q47).
     let willEdit: @MainActor () -> Void
+    /// Called after each edit to the Source's characters, with what the edit replaced, so the document can undo it.
+    let didEdit: @MainActor (TextEdit) -> Void
     /// Keeps the Source and the Preview on the same source line.
     let scrollSync: ScrollSync
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        Coordinator(text: $text, didEdit: didEdit)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -24,7 +27,7 @@ struct SourceTextView: NSViewRepresentable {
         // `scrollableTextView()` already soft-wraps to the pane width.
         textView.isRichText = false
         textView.importsGraphics = false
-        textView.allowsUndo = true
+        textView.allowsUndo = false
         textView.usesFindBar = true
         textView.isIncrementalSearchingEnabled = true
         // Markdown is code-like: typographic substitutions would change what the file says.
@@ -80,6 +83,7 @@ struct SourceTextView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject {
         private let text: Binding<String>
+        private let didEdit: @MainActor (TextEdit) -> Void
         var lastText = "" {
             didSet { cachedLines = nil }
         }
@@ -90,20 +94,27 @@ struct SourceTextView: NSViewRepresentable {
         /// Built from `lastText` on the first scroll after it changes, not on every keystroke.
         private var cachedLines: SourceLines?
 
-        init(text: Binding<String>) {
+        init(text: Binding<String>, didEdit: @escaping @MainActor (TextEdit) -> Void) {
             self.text = text
+            self.didEdit = didEdit
         }
 
-        /// Every change to the Source's characters, typed or not. Under TextKit 2, undoing typing that came before
-        /// another change to the text, such as a task toggled from the Preview, edits the text storage without reaching
-        /// `textDidChange`, so the binding follows the storage instead.
+        /// Every change to the Source's characters, typed or not. The text storage reports where each one is, which
+        /// `textDidChange` doesn't.
         @objc func sourceTextDidChange(_ notification: Notification) {
             guard !isReplacingText, let textStorage = notification.object as? NSTextStorage,
                 textStorage.editedMask.contains(.editedCharacters)
             else { return }
+            // `lastText` is the text before this edit. The edited range is where the edit's text is now. It spans every
+            // change one round of editing made, and can take in text around them that stayed the same.
+            let edited = textStorage.editedRange
+            let replaced = (lastText as NSString).substring(
+                with: NSRange(location: edited.location, length: edited.length - textStorage.changeInLength))
+            let replacement = textStorage.mutableString.substring(with: edited)
             let newText = textStorage.string
             lastText = newText
             text.wrappedValue = newText
+            didEdit(TextEdit(at: edited.location, replacing: replaced, with: replacement))
         }
 
         @objc func sourceDidScroll(_ notification: Notification) {
