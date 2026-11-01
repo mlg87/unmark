@@ -115,6 +115,35 @@ export function sanitize(html: string): DocumentFragment {
   return purifier().sanitize(html, purifyConfig());
 }
 
+// Separates the pieces sanitizeEach() parses together. Random per page, so a document can't
+// write one to split a piece where the Preview didn't.
+const SPLIT = `unmark-split-${[...crypto.getRandomValues(new Uint32Array(2))].map((n) => n.toString(36)).join("")}`;
+
+/**
+ * Sanitizes each of `htmls` as `sanitize()` does, in one pass. Each pass parses a new document,
+ * which costs more than parsing a small piece, and the Preview keeps a fragment per piece to
+ * replace one piece's DOM after an edit (unmark-1793451427066-4-97884ee7.1). When the HTML
+ * parser didn't keep the pieces apart, as when raw HTML left an element open across them, each
+ * piece is sanitized on its own instead.
+ */
+export function sanitizeEach(htmls: readonly string[]): DocumentFragment[] {
+  if (htmls.length === 1) return [sanitize(htmls[0] as string)];
+  const whole = purifier().sanitize(htmls.join(`<${SPLIT}></${SPLIT}>`), purifyConfig([SPLIT]));
+  const splits = whole.querySelectorAll(SPLIT);
+  if (
+    splits.length !== htmls.length - 1 ||
+    [...splits].some((split) => split.parentNode !== whole)
+  ) {
+    return htmls.map(sanitize);
+  }
+  const fragments = [document.createDocumentFragment()];
+  for (const node of [...whole.childNodes]) {
+    if (node.nodeName.toLowerCase() === SPLIT) fragments.push(document.createDocumentFragment());
+    else fragments.at(-1)?.append(node);
+  }
+  return fragments;
+}
+
 let instance: DOMPurify | undefined;
 
 // Created on first use: DOMPurify needs a window, and the markdown-only tests run
@@ -129,14 +158,14 @@ function purifier(): DOMPurify {
   return instance;
 }
 
-function purifyConfig(): Config & { RETURN_DOM_FRAGMENT: true } {
+function purifyConfig(extraElements: string[] = []): Config & { RETURN_DOM_FRAGMENT: true } {
   const attributes = new Set(globalAttributes);
   for (const names of elementAttributes.values()) for (const name of names) attributes.add(name);
   if (elementClasses.size > 0) attributes.add("class");
   const urlAttributes = new Set(Object.values(URL_PATTERNS).flatMap(Object.keys));
 
   return {
-    ALLOWED_TAGS: [...allowedElements],
+    ALLOWED_TAGS: [...allowedElements, ...extraElements],
     // DOMPurify's attribute allowlist is global; keepAttribute() narrows it per element.
     ALLOWED_ATTR: [...attributes],
     // The widest of URL_PATTERNS; keepAttribute() narrows it per element.

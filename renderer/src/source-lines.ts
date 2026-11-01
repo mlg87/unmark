@@ -46,7 +46,7 @@ export function sourceLineMarkers(md: MarkdownIt): void {
   extendAllowlist({ attributes: [SOURCE_LINE] });
 }
 
-/** Moves the marker to the element that replaces a marked block, such as a drawn diagram. */
+/** Moves the marker to the element that replaces a marked block, such as rendered math. */
 export function carrySourceLine(from: Element, to: Element): void {
   const line = from.getAttribute(SOURCE_LINE);
   if (line !== null) to.setAttribute(SOURCE_LINE, line);

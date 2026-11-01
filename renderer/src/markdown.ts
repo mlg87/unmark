@@ -55,7 +55,9 @@ export function createMarkdown(): MarkdownIt {
 // Mermaid diagrams (#19) render after sanitizing, in diagrams.ts, which index.ts loads
 // only when a document has one: Mermaid is several MB (epic #3, q3, q38, q55). Until
 // then the block is its escaped source, so a document reads fine before the diagram
-// draws or if it can't.
+// draws or if it can't. The source comes in the container the diagram replaces it in, so
+// drawing never replaces a block the Preview keeps across edits
+// (unmark-1793451427066-4-97884ee7.1).
 function mermaidFences(md: MarkdownIt): void {
   const renderFence = md.renderer.rules.fence;
   if (!renderFence) throw new Error("markdown-it no longer has a default fence rule");
@@ -64,11 +66,13 @@ function mermaidFences(md: MarkdownIt): void {
     if (token?.info.trim().split(/\s+/)[0] !== "mermaid") {
       return renderFence(tokens, idx, options, env, self);
     }
-    return `<pre class="mermaid-source" data-mermaid>${md.utils.escapeHtml(token.content)}</pre>\n`;
+    const source = md.utils.escapeHtml(token.content);
+    // diagrams.ts draws into each `.mermaid-diagram`.
+    return `<div class="mermaid-diagram"><pre class="mermaid-source" data-mermaid>${source}</pre></div>\n`;
   };
   extendAllowlist({
     elements: { pre: ["data-mermaid"] },
-    classes: { pre: ["mermaid-source"] },
+    classes: { div: ["mermaid-diagram"], pre: ["mermaid-source"] },
   });
 }
 

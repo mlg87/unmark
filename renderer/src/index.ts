@@ -1,10 +1,9 @@
-import { htmlBlocks } from "./chunks.ts";
+import { type Block, blockCache, htmlBlocks, Rendering, spliceBlocks } from "./chunks.ts";
 import type { Heading, RenderEnv } from "./headings.ts";
 import { createMarkdown } from "./markdown.ts";
-import { sanitize } from "./sanitize.ts";
-import { captureScrollAnchor, restoreScrollAnchor } from "./scroll-anchor.ts";
+import { BlockMerge } from "./merge.ts";
+import { captureScrollAnchor, restoreScrollAnchor, type ScrollAnchor } from "./scroll-anchor.ts";
 import { markOwnScroll, reportScrolls, SourceLineMap } from "./scroll-sync.ts";
-import { SOURCE_LINE } from "./source-lines.ts";
 import { reportTaskToggles } from "./task-toggle.ts";
 
 export type { Heading };
@@ -58,21 +57,22 @@ declare global {
 const FIRST_SCREEN_CHUNK = 4 * 1024;
 // Larger chunks after that, so per-chunk overhead stays small across a long document.
 const BACKGROUND_CHUNK = 32 * 1024;
-// How long each background task parses and inserts chunks before yielding, so scrolling
-// and input stay responsive while a long document finishes rendering.
+// How long each background task renders pieces before yielding, so scrolling and input stay
+// responsive while a long document finishes rendering.
 const BACKGROUND_TASK_MS = 30;
 
 const md = createMarkdown();
 let latestRender = 0;
 let outputMode: OutputMode = "screen";
 /**
- * The document on the page: its outline so far, its line count, the chunks not yet appended,
- * and when its background work settles.
+ * The document on the page: its outline so far, its line count, its pieces, the merge putting
+ * them on the page, and when that merge's background work settles.
  */
 let rendered: {
   headings: Heading[];
   lineCount: number;
-  pending?: PendingChunks;
+  rendering?: Rendering;
+  merge?: BlockMerge;
   background: Promise<void>;
 } = {
   headings: [],
@@ -90,47 +90,101 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   // not the renderer bundle (#22).
   setDocumentBase(documentBaseURL);
   const env: RenderEnv = { headings: [] };
-  const chunks = new Fragments(htmlBlocks(md, markdown, env));
-
-  const content = (await chunks.next(FIRST_SCREEN_CHUNK)) ?? document.createDocumentFragment();
-  for (;;) {
-    if (!isCurrent()) return;
-    // Captured right before the swap, so a reload keeps the reader's place (#24).
-    const anchor = captureScrollAnchor(article);
-    if (!anchor || chunks.done) {
-      article.replaceChildren(content);
-      await drawDiagrams(article);
-      // After the diagrams, whose height and text the anchor was captured with. A reload
-      // that swapped in newer content while they drew restores its own anchor.
-      if (anchor && isCurrent()) {
-        restoreScrollAnchor(article, anchor);
-        markOwnScroll();
-      }
-      break;
-    }
-    // The anchor's block may be anywhere in the new content, so a reload while scrolled
-    // renders everything before the swap. The loop captures the anchor again after the await.
-    const rest = await chunks.next(Number.POSITIVE_INFINITY);
-    if (rest) content.append(rest);
-  }
-
-  // Fills the viewport before resolving, so the first screen is complete when the Preview
-  // reports the render (open-to-preview, q47). Each check lays out only what's inserted.
-  while (!chunks.done && article.getBoundingClientRect().bottom < window.innerHeight) {
-    const next = await chunks.next(FIRST_SCREEN_CHUNK);
-    if (!isCurrent()) return;
-    if (next) article.append(next);
-    await drawDiagrams(article);
-  }
-  const pending = new PendingChunks(article, chunks, isCurrent);
+  // An edit block-parses and renders only what it may have changed when it can, and otherwise
+  // the whole document, reusing the rendering of every piece the render before it rendered or
+  // the page shows. Either way the merge keeps the DOM of the pieces that render the same
+  // (unmark-1793451427066-4-97884ee7.1).
+  const onPage = rendered.merge?.onPage() ?? [];
+  const previous = rendered.rendering;
+  const spliced = previous && spliceBlocks(md, markdown, env, previous);
+  const rendering = spliced ?? new Rendering();
+  const rest = spliced
+    ? undefined
+    : htmlBlocks(
+        md,
+        markdown,
+        env,
+        blockCache([...(previous?.blocks ?? []), ...onPage.map(({ block }) => block)]),
+        rendering,
+      );
+  const merge = new BlockMerge(article, onPage, piecesOf(rendering, rest), isCurrent, drawDiagrams);
+  // Captured before the merge changes the page, so a reload keeps the reader's place (#24).
+  const anchor = captureScrollAnchor(article);
+  const firstScreen = showFirstScreen(article, merge, anchor, isCurrent);
   // markdown-it splits lines at the same breaks.
   const lineCount = (markdown.match(/\r\n?|\n/g)?.length ?? 0) + 1;
+  // Set before the merge's first step, so a render that starts meanwhile merges from this one.
   rendered = {
     headings: env.headings,
     lineCount,
-    pending,
-    background: appendInBackground(pending),
+    rendering,
+    merge,
+    // A render that failed has nothing left to do in the background; its caller gets the error.
+    background: firstScreen.then(
+      async () => {
+        // An open builds the DOM as it renders, so a reader scrolling down soon sees more. An
+        // edit renders the rest first, so the next keystroke can splice into it sooner.
+        if (!previous) {
+          await Promise.all([
+            mergeInBackground(merge),
+            rest && renderInBackground(rest, isCurrent),
+          ]);
+          return;
+        }
+        if (rest) await renderInBackground(rest, isCurrent);
+        await mergeInBackground(merge);
+      },
+      () => {},
+    ),
   };
+  await firstScreen;
+}
+
+/** The rendering's pieces in order, rendering more of them from `rest` as they're needed. */
+function* piecesOf(rendering: Rendering, rest: Iterator<Block> | undefined): Generator<Block> {
+  for (let index = 0; ; index++) {
+    while (index >= rendering.blocks.length) {
+      if (!rest || rest.next().done) return;
+    }
+    yield rendering.blocks[index] as Block;
+  }
+}
+
+/**
+ * Renders the rest of the document ahead of the merge, which also builds and lays out each
+ * piece's DOM, so the next edit can splice into this rendering (chunks.ts). With keystrokes a
+ * second apart soon after a 1 MB document opens, each render would otherwise be replaced
+ * before its last piece rendered, and the next one render the whole document again.
+ */
+async function renderInBackground(rest: Iterator<Block>, isCurrent: () => boolean): Promise<void> {
+  for (let done = false; !done && isCurrent(); ) {
+    await new Promise((resolve) => setTimeout(resolve));
+    const deadline = performance.now() + BACKGROUND_TASK_MS;
+    while (!done && performance.now() < deadline) done = rest.next().done ?? true;
+  }
+}
+
+/**
+ * Merges until the pieces in the viewport are the new render's, so the Preview reports the
+ * render with the viewport complete (open-to-preview and keystroke-to-preview, q47), and keeps
+ * the reader's place. Each check lays out only what changed.
+ */
+async function showFirstScreen(
+  article: Element,
+  merge: BlockMerge,
+  anchor: ScrollAnchor | null,
+  isCurrent: () => boolean,
+): Promise<void> {
+  do {
+    await merge.advanceUntil(() => merge.coversViewport(), FIRST_SCREEN_CHUNK);
+    if (!isCurrent()) return;
+    // After the diagrams the merge drew, whose height the anchor was captured with. Bringing the
+    // anchor's block back may bring old pieces into view, which the next pass merges.
+    if (anchor) {
+      restoreScrollAnchor(article, anchor);
+      markOwnScroll();
+    }
+  } while (!merge.done && !merge.coversViewport());
 }
 
 /** Waits for the background work of the document on the page, even if a render replaces it. */
@@ -146,21 +200,24 @@ async function outline(): Promise<Heading[]> {
   return rendered.headings;
 }
 
-async function appendInBackground(pending: PendingChunks): Promise<void> {
-  while (!pending.done) {
+/**
+ * Merges a step per task. Each task's new DOM is laid out before the next task runs, keystrokes
+ * included: with several steps per task, a keystroke soon after a 1 MB document opened waited up
+ * to 300 ms for that layout (unmark-1793451427066-4-97884ee7.1).
+ */
+async function mergeInBackground(merge: BlockMerge): Promise<void> {
+  while (!merge.done) {
     await new Promise((resolve) => setTimeout(resolve));
-    const deadline = performance.now() + BACKGROUND_TASK_MS;
-    await pending.appendUntil(() => performance.now() >= deadline);
+    let steps = 0;
+    await merge.advanceUntil(() => steps++ > 0, BACKGROUND_CHUNK);
   }
 }
 
-// Drawn in the DOM because Mermaid measures text as it lays out (#19). The import stays
-// behind this check so documents without diagrams never load Mermaid's chunk. Drawing
-// replaces each `pre[data-mermaid]`, so a call draws only blocks inserted since the last.
-async function drawDiagrams(article: Element): Promise<void> {
-  if (!article.querySelector("pre[data-mermaid]")) return;
+// Drawn in the DOM because Mermaid measures text as it lays out (#19). The merge calls this only
+// for new diagram containers, so documents without diagrams never load Mermaid's chunk.
+async function drawDiagrams(containers: Element[]): Promise<void> {
   const { renderDiagrams } = await import("./diagrams.ts");
-  await renderDiagrams(article, outputMode);
+  await renderDiagrams(containers, outputMode);
 }
 
 async function setOutputMode(mode: OutputMode): Promise<void> {
@@ -176,38 +233,33 @@ async function setOutputMode(mode: OutputMode): Promise<void> {
   if (!article) return;
   // Printing captures only what's on the page, so the background chunks must land first.
   if (mode === "print") await whenRendered();
-  // Redraws the diagrams already drawn, unlike drawDiagrams, which draws only new blocks.
-  if (outputMode !== mode || !article.querySelector(".mermaid-diagram, pre[data-mermaid]")) return;
+  // Redraws the diagrams already on the page, unlike drawDiagrams, which draws new ones.
+  if (outputMode !== mode || !article.querySelector(".mermaid-diagram")) return;
   // Dynamic, like drawDiagrams: Mermaid stays a lazy chunk for documents without diagrams.
   const { renderDiagrams } = await import("./diagrams.ts");
-  await renderDiagrams(article, mode);
+  await renderDiagrams([], mode);
 }
 
 async function scrollToElement(id: string): Promise<void> {
-  // Pulls chunks only up to the target rather than waiting for the background tasks to
+  // Merges pieces only up to the target rather than waiting for the background tasks to
   // reach it, so an anchor to a late heading doesn't wait for the whole document
-  // (unmark-1793451426597-3-58814491.9).
-  // Checks the page too: an append queued before this call's turn may bring the element in.
-  if (!document.getElementById(id)) {
-    await rendered.pending?.appendUntil(
-      (batch) => document.getElementById(id) !== null || batch.getElementById(id) !== null,
-    );
-  }
+  // (unmark-1793451426597-3-58814491.9). An old piece the merge hasn't reached yet may have
+  // the id too; a merged one comes first in the document, so getElementById finds it first.
+  const merge = rendered.merge;
+  await merge?.advanceUntil(() => {
+    const target = document.getElementById(id);
+    return target !== null && merge.isMerged(target);
+  }, BACKGROUND_CHUNK);
   document.getElementById(id)?.scrollIntoView();
 }
 
 async function scrollToSourceLine(line: number): Promise<void> {
   const article = document.querySelector("article.markdown-body");
   if (!article) return;
-  // Like scrollToElement, pulls chunks only until a block after the line is on the page, so
+  // Like scrollToElement, merges only until a piece after the line is on the page, so
   // following the Source to a late line doesn't wait for the whole document.
-  if (!(sourceLineMap(article).lastMarkedLine > line)) {
-    await rendered.pending?.appendUntil((batch) => {
-      const marked = batch.querySelectorAll(`[${SOURCE_LINE}]`);
-      const lastInBatch = Number(marked[marked.length - 1]?.getAttribute(SOURCE_LINE));
-      return sourceLineMap(article).lastMarkedLine > line || lastInBatch > line;
-    });
-  }
+  const merge = rendered.merge;
+  await merge?.advanceUntil(() => merge.mergedLine > line, BACKGROUND_CHUNK);
   window.scrollBy(0, sourceLineMap(article).offsetOf(line));
   // So following the Source isn't reported back to it as the reader's own scroll.
   markOwnScroll();
@@ -215,88 +267,8 @@ async function scrollToSourceLine(line: number): Promise<void> {
 
 /** The line map of the document on the page; it ends at the document's end once that's on the page. */
 function sourceLineMap(article: Element): SourceLineMap {
-  const complete = rendered.pending?.done ?? true;
+  const complete = rendered.merge?.done ?? true;
   return new SourceLineMap(article, complete ? rendered.lineCount : undefined);
-}
-
-/**
- * A rendered document's chunks not yet on the page. The background tasks, scrollToElement,
- * and scrollToSourceLine all append them, one call at a time so the chunks land in order.
- */
-class PendingChunks {
-  readonly #article: Element;
-  readonly #chunks: Fragments;
-  readonly #isCurrent: () => boolean;
-  #lastCall: Promise<void> = Promise.resolve();
-
-  constructor(article: Element, chunks: Fragments, isCurrent: () => boolean) {
-    this.#article = article;
-    this.#chunks = chunks;
-    this.#isCurrent = isCurrent;
-  }
-
-  /** True once every chunk is on the page, or a newer render replaced the document. */
-  get done(): boolean {
-    return this.#chunks.done || !this.#isCurrent();
-  }
-
-  /**
-   * Appends the next chunks as one batch, pulling until `enough(batch)` holds or the
-   * document ends. `enough` is asked first, when this call's turn comes, since earlier calls
-   * may have appended what it needed. The pull never yields to other tasks, so callers that
-   * must keep the page responsive pull in small steps.
-   */
-  appendUntil(enough: (batch: DocumentFragment) => boolean): Promise<void> {
-    const call = this.#lastCall.then(async () => {
-      if (this.done) return;
-      const batch = document.createDocumentFragment();
-      while (!this.#chunks.done && !enough(batch)) {
-        const next = await this.#chunks.next(BACKGROUND_CHUNK);
-        if (next) batch.append(next);
-      }
-      // A newer render may have started while KaTeX loaded.
-      if (!this.#isCurrent()) return;
-      this.#article.append(batch);
-      await drawDiagrams(this.#article);
-    });
-    // A call that failed (a lazy chunk that didn't load) mustn't block the ones after it.
-    this.#lastCall = call.catch(() => {});
-    return call;
-  }
-}
-
-/** Sanitized, ready-to-insert fragments of the document, in order. */
-class Fragments {
-  /** True once every block has been returned. */
-  done = false;
-  readonly #blocks: Iterator<string>;
-
-  constructor(blocks: Iterator<string>) {
-    this.#blocks = blocks;
-  }
-
-  /** The next blocks, at least `minLength` characters of HTML unless they're the last. */
-  async next(minLength: number): Promise<DocumentFragment | undefined> {
-    let html = "";
-    while (html.length < minLength) {
-      const block = this.#blocks.next();
-      if (block.done) {
-        this.done = true;
-        break;
-      }
-      html += block.value;
-    }
-    if (!html) return undefined;
-    // Documents are untrusted: nothing markdown-it emits reaches the DOM unsanitized (#15).
-    const fragment = sanitize(html);
-    // KaTeX is a lazy chunk only documents with math load (unmark-1793451433078-17-487f189f).
-    // Its output is built after sanitizing, from TeX that was sanitized as text.
-    if (fragment.querySelector(".math")) {
-      const { renderMath } = await import("./math.ts");
-      renderMath(fragment);
-    }
-    return fragment;
-  }
 }
 
 function setDocumentBase(href: string): void {

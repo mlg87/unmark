@@ -38,9 +38,16 @@ beforeEach(() => {
 
 function articleWith(...sources: string[]): Element {
   document.body.innerHTML = `<article>${sources
-    .map((source) => `<pre class="mermaid-source" data-mermaid="">${source}</pre>`)
+    .map(
+      (source) =>
+        `<div class="mermaid-diagram"><pre class="mermaid-source" data-mermaid="">${source}</pre></div>`,
+    )
     .join("")}</article>`;
   return document.querySelector("article") as Element;
+}
+
+function diagramsIn(article: Element): Element[] {
+  return [...article.querySelectorAll(".mermaid-diagram")];
 }
 
 test("draws each block as Mermaid's SVG in strict mode, light theme", async () => {
@@ -49,7 +56,7 @@ test("draws each block as Mermaid's SVG in strict mode, light theme", async () =
   }));
   const article = articleWith("graph TD; A--&gt;B", "graph LR; C--&gt;D");
 
-  await renderDiagrams(article);
+  await renderDiagrams(diagramsIn(article));
 
   expect(mermaid.initialize).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -74,7 +81,7 @@ test("a parse error shows the error box with the source below it", async () => {
   mermaid.render.mockRejectedValue(new Error("Parse error on line 1:\ngraph TD; A-->\n"));
   const article = articleWith("graph TD; A--&gt;");
 
-  await renderDiagrams(article);
+  await renderDiagrams(diagramsIn(article));
 
   const diagram = article.querySelector(".mermaid-diagram");
   expect(diagram?.children[0]?.className).toBe("mermaid-error");
@@ -88,12 +95,12 @@ test("switching to dark mode redraws every diagram on the page in the dark theme
     svg: `<svg data-theme="${mermaid.initialize.mock.lastCall?.[0].theme}"></svg>`,
   }));
   const article = articleWith("graph TD; A--&gt;B");
-  await renderDiagrams(article);
+  await renderDiagrams(diagramsIn(article));
   expect(article.querySelector("svg")?.getAttribute("data-theme")).toBe("default");
 
   colorScheme.switchTo(true);
   // The redraw is queued behind any pass in flight; an empty pass waits it out.
-  await renderDiagrams(document.createElement("div"));
+  await renderDiagrams([]);
 
   expect(mermaid.initialize).toHaveBeenLastCalledWith(
     expect.objectContaining({ theme: "dark", darkMode: true }),
@@ -108,27 +115,39 @@ test("print output redraws diagrams light in dark mode, and screen output redraw
   }));
   colorScheme.dark = true;
   const article = articleWith("graph TD; A--&gt;B");
-  await renderDiagrams(article);
+  await renderDiagrams(diagramsIn(article));
   expect(article.querySelector("svg")?.getAttribute("data-theme")).toBe("dark");
 
-  await renderDiagrams(article, "print");
+  await renderDiagrams([], "print");
   expect(mermaid.initialize).toHaveBeenLastCalledWith(
     expect.objectContaining({ theme: "default", darkMode: false }),
   );
   expect(article.querySelector("svg")?.getAttribute("data-theme")).toBe("default");
 
-  await renderDiagrams(article, "screen");
+  await renderDiagrams([], "screen");
   expect(article.querySelector("svg")?.getAttribute("data-theme")).toBe("dark");
 });
 
 test("a reload's diagrams replace the old ones as the ones a theme change redraws", async () => {
   mermaid.render.mockResolvedValue({ svg: "<svg></svg>" });
-  await renderDiagrams(articleWith("graph TD; old"));
-  await renderDiagrams(articleWith("graph TD; new"));
+  await renderDiagrams(diagramsIn(articleWith("graph TD; old")));
+  await renderDiagrams(diagramsIn(articleWith("graph TD; new")));
   mermaid.render.mockClear();
 
   colorScheme.switchTo(true);
-  await renderDiagrams(document.createElement("div"));
+  await renderDiagrams([]);
 
   expect(mermaid.render.mock.calls.map(([, source]) => source)).toEqual(["graph TD; new"]);
+});
+
+test("a diagram removed before its turn to draw isn't drawn", async () => {
+  mermaid.render.mockResolvedValue({ svg: "<svg></svg>" });
+  const article = articleWith("graph TD; first", "graph TD; replaced");
+  const [first, replaced] = diagramsIn(article);
+  const drawing = renderDiagrams([first as Element]);
+  const queued = renderDiagrams([replaced as Element]);
+  replaced?.remove();
+  await Promise.all([drawing, queued]);
+
+  expect(mermaid.render.mock.calls.map(([, source]) => source)).toEqual(["graph TD; first"]);
 });
