@@ -4,7 +4,6 @@
 import hljs from "@highlightjs/cdn-assets/es/highlight.min.js";
 import { alert } from "@mdit/plugin-alert";
 import { fullEmoji } from "@mdit/plugin-emoji";
-import { tasklist } from "@mdit/plugin-tasklist";
 import { tex } from "@mdit/plugin-tex";
 import { LinkifyIt } from "linkify-it";
 import markdownit, { type MarkdownIt } from "markdown-it";
@@ -13,6 +12,7 @@ import { frontMatter } from "./front-matter.ts";
 import { headingAnchors } from "./headings.ts";
 import { extendAllowlist } from "./sanitize.ts";
 import { sourceLineMarkers } from "./source-lines.ts";
+import { taskLists } from "./task-toggle.ts";
 
 export function createMarkdown(): MarkdownIt {
   const md = markdownit("default", {
@@ -34,25 +34,7 @@ export function createMarkdown(): MarkdownIt {
   md.renderer.rules.s_open = () => "<del>";
   md.renderer.rules.s_close = () => "</del>";
 
-  // Class names match github.com's task-list markup, which github-markdown-css styles.
-  // No <label> wrapper: github.com doesn't emit one for read-only task lists.
-  md.use(tasklist, {
-    label: false,
-    containerClass: "contains-task-list",
-    itemClass: "task-list-item",
-    checkboxClass: "task-list-item-checkbox",
-  });
-  // github.com adds task-list markup after sanitizing; here it passes through the
-  // sanitizer, so it needs these exact additions.
-  extendAllowlist({
-    elements: { input: ["type", "checked", "disabled"] },
-    classes: {
-      ul: ["contains-task-list"],
-      ol: ["contains-task-list"],
-      li: ["task-list-item"],
-      input: ["task-list-item-checkbox"],
-    },
-  });
+  taskLists(md);
   // highlight.js wraps tokens in <span class="hljs-…">. A dotted scope such as
   // title.class adds suffix classes ("hljs-title class_"), which the themes also select.
   extendAllowlist({ classes: { span: [/^hljs-[a-z_-]+$/, /^[a-z]+_+$/] } });

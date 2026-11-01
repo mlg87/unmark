@@ -20,6 +20,9 @@ struct PreviewView: NSViewRepresentable {
     /// Called with a clicked link's URL, resolved against `documentBaseURL`. The Preview itself never navigates
     /// away from the renderer page (#23).
     let linkActivated: @MainActor (URL) -> Void
+    /// Called when the user clicks the checkbox of the task-list item on 0-based source `line`, asking for it to be
+    /// `checked`. The Preview shows the change only once the edited text renders.
+    let taskToggled: @MainActor (_ line: Int, _ checked: Bool) -> Void
     /// Keeps the Preview and, in Split mode, the Source on the same source line.
     let scrollSync: ScrollSync
 
@@ -32,9 +35,9 @@ struct PreviewView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
         context.coordinator.pageLoaded = pageLoaded
-        // The renderer posts `previewScrolled` to this handler as the user scrolls. WebKit looks handlers up when the
-        // page posts, so one added after the pool loaded the page still receives them. The content controller keeps
-        // the coordinator alive only as long as the web view, which is its own.
+        // The renderer posts `previewScrolled` and `taskToggled` to this handler as the user scrolls and clicks. WebKit
+        // looks handlers up when the page posts, so one added after the pool loaded the page still receives them. The
+        // content controller keeps the coordinator alive only as long as the web view, which is its own.
         webView.configuration.userContentController.add(context.coordinator, name: PreviewMessage.handlerName)
         scrollSync.scrollPreview = { [weak coordinator = context.coordinator] line in
             coordinator?.scrollToSourceLine(line)
@@ -45,6 +48,7 @@ struct PreviewView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.didRender = didRender
         context.coordinator.linkActivated = linkActivated
+        context.coordinator.taskToggled = taskToggled
         context.coordinator.previewScrolled = { [scrollSync] line in
             scrollSync.paneDidScroll(.preview, toLine: line)
         }
@@ -81,6 +85,7 @@ struct PreviewView: NSViewRepresentable {
         var linkActivated: @MainActor (URL) -> Void = { _ in }
         /// Called with the 0-based source line at the Preview's top as the user scrolls it.
         var previewScrolled: @MainActor (Double) -> Void = { _ in }
+        var taskToggled: @MainActor (_ line: Int, _ checked: Bool) -> Void = { _, _ in }
 
         /// Set by `makeNSView` when the pool hands over a web view whose page already loaded.
         var pageLoaded = false
@@ -159,8 +164,14 @@ struct PreviewView: NSViewRepresentable {
         func userContentController(
             _ userContentController: WKUserContentController, didReceive message: WKScriptMessage
         ) {
-            guard case .previewScrolled(let line) = PreviewMessage(body: message.body) else { return }
-            previewScrolled(line)
+            switch PreviewMessage(body: message.body) {
+            case .previewScrolled(let line):
+                previewScrolled(line)
+            case .taskToggled(let line, let checked):
+                taskToggled(line, checked)
+            case nil:
+                break
+            }
         }
 
         /// Cancels every link click, so the page never leaves the renderer, and hands the URL to `linkActivated`.

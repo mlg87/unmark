@@ -45,14 +45,19 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     /// Ends the Source's current typing undo step, so undoing typing done after a save stops at the saved text
     /// instead of also undoing the typing before it.
     func breakUndoCoalescing() {
+        sourceTextView?.breakUndoCoalescing()
+    }
+
+    /// The Source's text view, while Split mode shows it.
+    var sourceTextView: SourceNSTextView? {
         var views = window?.contentView.map { [$0] } ?? []
         while let view = views.popLast() {
             if let textView = view as? SourceNSTextView {
-                textView.breakUndoCoalescing()
-                return
+                return textView
             }
             views.append(contentsOf: view.subviews)
         }
+        return nil
     }
 
     private static func toggleSourceToolTip(sourceVisible: Bool) -> String {
