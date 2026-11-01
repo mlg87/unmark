@@ -22,6 +22,8 @@ public final class ScrollSync {
     public var scrollSource: (Double) -> Void = { _ in }
     /// Scrolls the Preview so the given line, fractional between the blocks around it, is at its top.
     public var scrollPreview: (Double) -> Void = { _ in }
+    /// The 0-based source line at the Preview's top, or nil if the Preview can't tell yet.
+    public var previewLineAtTop: @MainActor () async -> Double? = { nil }
 
     private let now: () -> ContinuousClock.Instant
     private var owner: SplitPane?
@@ -42,5 +44,14 @@ public final class ScrollSync {
         case .source: scrollPreview(line)
         case .preview: scrollSource(line)
         }
+    }
+
+    /// Split mode showed the Source. Scroll sync moves a pane only after the other one scrolls, so the Source would
+    /// start at the top wherever the Preview is; it follows the Preview's line at once instead
+    /// (unmark-1793451427066-4-97884ee7.2). Going through `paneDidScroll` makes the Source's own scroll an echo, and a
+    /// scroll the user starts in the Source before the Preview answers still wins.
+    public func sourceDidAppear() async {
+        guard let line = await previewLineAtTop() else { return }
+        paneDidScroll(.preview, toLine: line)
     }
 }

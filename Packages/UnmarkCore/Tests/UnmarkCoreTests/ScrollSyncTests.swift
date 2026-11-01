@@ -78,6 +78,23 @@ struct ScrollSyncTests {
         #expect(follows.last?.line == line)
         #expect(follows.allSatisfy { $0.at <= lastInput })
     }
+
+    @Test func theSourceStartsOnThePreviewsLineWhenItAppears() async {
+        let time = start
+        let sync = ScrollSync(now: { time })
+        var source: [Double] = []
+        var preview: [Double] = []
+        sync.scrollSource = { source.append($0) }
+        sync.scrollPreview = { preview.append($0) }
+        sync.previewLineAtTop = { 126.6 }
+
+        await sync.sourceDidAppear()
+        // The Source reports the scroll it just made, a little off as layout rounds it.
+        sync.paneDidScroll(.source, toLine: 126.61)
+
+        #expect(source == [126.6])
+        #expect(preview.isEmpty)
+    }
 }
 
 struct SourceLinesTests {

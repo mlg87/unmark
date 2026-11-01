@@ -55,6 +55,9 @@ struct SourceTextView: NSViewRepresentable {
         scrollSync.scrollSource = { [weak coordinator = context.coordinator] line in
             coordinator?.scroll(toLine: line)
         }
+        textView.didAppear = { [scrollSync] in
+            Task { await scrollSync.sourceDidAppear() }
+        }
         return scrollView
     }
 
@@ -181,9 +184,11 @@ struct SourceTextView: NSViewRepresentable {
 }
 
 /// Starts the `keystroke-to-preview` interval where the text system accepts an edit. When Split mode shows the
-/// Source, it takes focus so typing can start right away, and splits the window 50/50.
+/// Source, it takes focus so typing can start right away, splits the window 50/50, and then calls `didAppear`.
 final class SourceNSTextView: NSTextView {
     var willEdit: @MainActor () -> Void = {}
+    /// Called once the Source has its 50/50 width, so its lines wrap as they will stay.
+    var didAppear: @MainActor () -> Void = {}
 
     override func shouldChangeText(inRanges affectedRanges: [NSValue], replacementStrings: [String]?) -> Bool {
         let allowed = super.shouldChangeText(inRanges: affectedRanges, replacementStrings: replacementStrings)
@@ -200,9 +205,10 @@ final class SourceNSTextView: NSTextView {
         // SwiftUI's HSplitView, an NSSplitView, inserts a new pane at its minimum width and has no API for the
         // divider, so the Source centers it once the split view has laid out with both panes.
         DispatchQueue.main.async { [weak self] in
-            guard let splitView = self?.enclosingSplitView else { return }
+            guard let self, let splitView = enclosingSplitView else { return }
             splitView.layoutSubtreeIfNeeded()
             splitView.setPosition((splitView.bounds.width - splitView.dividerThickness) / 2, ofDividerAt: 0)
+            didAppear()
         }
     }
 

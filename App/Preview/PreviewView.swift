@@ -42,6 +42,9 @@ struct PreviewView: NSViewRepresentable {
         scrollSync.scrollPreview = { [weak coordinator = context.coordinator] line in
             coordinator?.scrollToSourceLine(line)
         }
+        scrollSync.previewLineAtTop = { [weak coordinator = context.coordinator] in
+            await coordinator?.lineAtTop()
+        }
         return webView
     }
 
@@ -158,6 +161,19 @@ struct PreviewView: NSViewRepresentable {
                     }
                 }
                 isScrollingToSourceLine = false
+            }
+        }
+
+        /// The 0-based source line at the Preview's top, or nil before the first render.
+        func lineAtTop() async -> Double? {
+            guard pageLoaded, latest != nil, let webView else { return nil }
+            do {
+                // `window.unmark` is undefined until the first render has imported the renderer module.
+                return try await webView.callAsyncJavaScript(
+                    "return window.unmark?.lineAtTop() ?? null;", contentWorld: .page) as? Double
+            } catch {
+                Self.logger.error("Reading the Preview's line failed: \(String(describing: error), privacy: .public)")
+                return nil
             }
         }
 
