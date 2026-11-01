@@ -317,8 +317,16 @@ export function spliceBlocks(
   }
   const blocks = previous.blocksAboveFootnotes;
   const firstChange = lineAt(previous.lineStarts, prefix);
-  // A piece that ended before the changed line read only lines before it.
-  const first = firstBlockEndingAtOrAfter(blocks, firstChange);
+  // A piece's parse read its own lines, then the next line with text, which ended it: an
+  // indented code block or a list reads on past blank lines. That line can end it by starting a
+  // table, which takes the delimiter row after it too. A piece that read only lines before the
+  // changed one is the same.
+  let first = firstBlockEndingAtOrAfter(blocks, firstChange);
+  while (first > 0) {
+    const ended = textLineFrom(old, previous.lineStarts, (blocks[first - 1] as Block).end);
+    if (ended + 1 < firstChange) break;
+    first--;
+  }
   const start = blocks[first]?.line ?? blocks.at(-1)?.end ?? 0;
   // The edit is in a footnote definition between two pieces.
   if (start > firstChange) return undefined;
@@ -345,8 +353,11 @@ export function spliceBlocks(
       break;
     }
   }
+  // The old lines the edit replaced, with any after the last piece: a definition there may
+  // have been one that kept pieces look up.
+  const replaced = old.slice(previous.lineStarts[start], previous.lineStarts[resumed]);
   if (
-    blocks.slice(first, next).some((block) => DEFINITION.test(block.source)) ||
+    DEFINITION.test(replaced) ||
     tokens.some(({ type }) => type === "reference_definition" || type === "footnote_reference_open")
   ) {
     return undefined;
@@ -400,7 +411,7 @@ export function spliceBlocks(
 
 // A link reference or footnote definition's label, possibly inside a block quote or list, or
 // text that only looks like one: a splice gives up on either.
-const DEFINITION = /\[[^\]\n]*\]:/;
+const DEFINITION = /\]:/;
 
 /** The core rules around the block and inline parses, which htmlBlocks runs apart. */
 interface CoreRules {
@@ -456,6 +467,17 @@ function parseBlock(md: MarkdownIt, state: StateBlock, line: number): number {
     }
   }
   throw new Error("none of the block rules matched");
+}
+
+/**
+ * The first line at or after `line` with text on it, or the line count. Whitespace markdown-it
+ * counts as text (a no-break space) counts as blank here, which only reads on further.
+ */
+function textLineFrom(src: string, lineStarts: readonly number[], line: number): number {
+  for (; line < lineStarts.length; line++) {
+    if (src.slice(lineStarts[line], lineStarts[line + 1]).trim() !== "") return line;
+  }
+  return lineStarts.length;
 }
 
 /** The line `offset` is on. */
