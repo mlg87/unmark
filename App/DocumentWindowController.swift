@@ -42,12 +42,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         return true
     }
 
-    /// Ends the Source's current typing undo step, so undoing typing done after a save stops at the saved text
-    /// instead of also undoing the typing before it.
-    func breakUndoCoalescing() {
-        sourceTextView?.breakUndoCoalescing()
-    }
-
     /// The Source's text view, while Split mode shows it.
     var sourceTextView: SourceNSTextView? {
         var views = window?.contentView.map { [$0] } ?? []
@@ -66,8 +60,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
 
     // MARK: NSWindowDelegate
 
-    /// The Source's text view registers its edits with the window's undo manager. Handing it the document's lets
-    /// NSDocument track the dirty state from them, including undoing back to the saved text (ADR-0003).
+    /// Edit → Undo and Redo use the window's undo manager. Handing them the document's, where the document registers
+    /// every edit, lets NSDocument track the dirty state from them, including undoing back to the saved text
+    /// (ADR-0003).
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? {
         document?.undoManager
     }
