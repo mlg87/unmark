@@ -36,8 +36,10 @@ struct SourceTextView: NSViewRepresentable {
         textView.string = text
         // Opens at the top, like the Preview, rather than with the caret at the end of the file.
         textView.setSelectedRange(NSRange(location: 0, length: 0))
-        textView.delegate = context.coordinator
         context.coordinator.lastText = text
+        NotificationCenter.default.addObserver(
+            context.coordinator, selector: #selector(Coordinator.sourceTextDidChange(_:)),
+            name: NSTextStorage.didProcessEditingNotification, object: textView.textStorage)
         context.coordinator.textView = textView
         context.coordinator.scrollSync = scrollSync
         // The clip view's bounds move whenever the Source scrolls, by the user or to follow the Preview.
@@ -65,7 +67,9 @@ struct SourceTextView: NSViewRepresentable {
         // The text changed underneath the Source, from a reload or Revert. The document clears the undo stack then,
         // since its actions name ranges of the old text.
         let selection = textView.selectedRange()
+        context.coordinator.isReplacingText = true
         textView.string = text
+        context.coordinator.isReplacingText = false
         let length = (text as NSString).length
         let location = min(selection.location, length)
         textView.setSelectedRange(NSRange(location: location, length: min(selection.length, length - location)))
@@ -74,11 +78,13 @@ struct SourceTextView: NSViewRepresentable {
     /// Maps the Source's scroll position to and from 0-based source lines with TextKit 2, which lays out a text
     /// layout fragment per paragraph, so per source line.
     @MainActor
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    final class Coordinator: NSObject {
         private let text: Binding<String>
         var lastText = "" {
             didSet { cachedLines = nil }
         }
+        /// Set while `updateNSView` puts text that came from the binding into the text view.
+        var isReplacingText = false
         weak var textView: NSTextView?
         var scrollSync: ScrollSync?
         /// Built from `lastText` on the first scroll after it changes, not on every keystroke.
@@ -88,9 +94,14 @@ struct SourceTextView: NSViewRepresentable {
             self.text = text
         }
 
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            let newText = textView.string
+        /// Every change to the Source's characters, typed or not. Under TextKit 2, undoing typing that came before
+        /// another change to the text, such as a task toggled from the Preview, edits the text storage without reaching
+        /// `textDidChange`, so the binding follows the storage instead.
+        @objc func sourceTextDidChange(_ notification: Notification) {
+            guard !isReplacingText, let textStorage = notification.object as? NSTextStorage,
+                textStorage.editedMask.contains(.editedCharacters)
+            else { return }
+            let newText = textStorage.string
             lastText = newText
             text.wrappedValue = newText
         }

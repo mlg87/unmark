@@ -12,8 +12,13 @@ declare global {
   }
 }
 
-/** What the Preview tells the app. `line` is the 0-based source line at the viewport's top. */
-export type PreviewMessage = { type: "previewScrolled"; line: number };
+/**
+ * What the Preview tells the app. `previewScrolled`'s `line` is the 0-based source line at the
+ * viewport's top; task-toggle.ts posts `taskToggled`.
+ */
+export type PreviewMessage =
+  | { type: "previewScrolled"; line: number }
+  | { type: "taskToggled"; line: number; checked: boolean };
 
 interface Marker {
   line: number;

@@ -14,6 +14,7 @@ struct DocumentWindow: View {
     let willEdit: @MainActor () -> Void
     let didRender: @MainActor (String) -> Void
     let linkActivated: @MainActor (URL) -> Void
+    let taskToggled: @MainActor (_ line: Int, _ checked: Bool) -> Void
 
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
     /// Per window, so each window's panes follow only each other.
@@ -37,9 +38,11 @@ struct DocumentWindow: View {
                 PreviewView(
                     markdown: state.text, documentBaseURL: state.documentBaseURL, scrollRequest: state.scrollRequest,
                     printRequest: state.printRequest,
-                    // In Preview mode text changes come only from disk, which ExternalChangeMonitor already debounces.
+                    // In Preview mode text changes come only from disk, which ExternalChangeMonitor already debounces,
+                    // and from task toggles, one per click.
                     renderDebounce: state.isSourceVisible ? Self.editRenderDebounce : .zero,
-                    didRender: didRender, linkActivated: linkActivated, scrollSync: scrollSync
+                    didRender: didRender, linkActivated: linkActivated, taskToggled: taskToggled,
+                    scrollSync: scrollSync
                 )
                 .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
             }

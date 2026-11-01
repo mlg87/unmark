@@ -83,7 +83,8 @@ final class MarkdownDocument: NSDocument {
                 state: state,
                 willEdit: { [weak self] in self?.beginKeystrokeToPreview() },
                 didRender: { [weak self] markdown in self?.previewDidRender(markdown) },
-                linkActivated: { [weak self] url in self?.followLink(to: url) })
+                linkActivated: { [weak self] url in self?.followLink(to: url) },
+                taskToggled: { [weak self] line, checked in self?.toggleTask(onLine: line, checked: checked) })
             let windowController = DocumentWindowController(state: state, content: content)
             if let window = windowController.window {
                 window.setContentSize(NSSize(width: 720, height: 800))
@@ -121,6 +122,64 @@ final class MarkdownDocument: NSDocument {
             NSSound.beep()
             state.missingLinkTarget = MissingLinkTarget(fileName: target.lastPathComponent)
         }
+    }
+
+    /// Ticks or unticks a task whose checkbox was clicked in the Preview (unmark-1793451438253-28-4df62a6e, q25), as an
+    /// edit of the text in either mode, so it marks the document dirty and ⌘Z reverts it.
+    @MainActor private func toggleTask(onLine line: Int, checked: Bool) {
+        // A Preview that hasn't caught up with the latest edits can name a line that no longer holds the task, or one
+        // whose task already has the state the click asked for. The marker is found in the text the edit applies to.
+        guard let undoManager,
+            let marker = TaskToggle.marker(text: sourceTextView?.string ?? state.text, line: line),
+            marker.isChecked != checked
+        else { return }
+        // The click arrives as a script message, outside any event. AppKit closes the undo group it opens for a
+        // registration only after the next event, and NSDocument marks itself dirty only then, so the toggle closes a
+        // group of its own.
+        let groupsByEvent = undoManager.groupsByEvent
+        if undoManager.groupingLevel == 0 {
+            undoManager.groupsByEvent = false
+        }
+        undoManager.beginUndoGrouping()
+        replaceText(
+            in: NSRange(location: marker.utf16Offset, length: 1), with: marker.flipped,
+            actionName: String(localized: "Toggle Task"))
+        undoManager.endUndoGrouping()
+        undoManager.groupsByEvent = groupsByEvent
+    }
+
+    /// Replaces `range` of the text, in UTF-16 code units, as one change on the document's undo manager, which
+    /// NSDocument counts toward the dirty state. The document registers the undo step itself in both modes: an undo
+    /// step the Source's text view registers messages that text view, which is gone once Split mode hides the Source.
+    @MainActor private func replaceText(in range: NSRange, with replacement: String, actionName: String) {
+        let sourceTextView = self.sourceTextView
+        let text = (sourceTextView?.string ?? state.text) as NSString
+        guard NSMaxRange(range) <= text.length else { return }
+        let replaced = text.substring(with: range)
+        let changedRange = NSRange(location: range.location, length: (replacement as NSString).length)
+        if let sourceTextView {
+            // Through the text view, as typing goes, so it keeps the selection and its own earlier undo steps in step
+            // with its text. Ends the current typing undo step first, so ⌘Z undoes this change alone.
+            sourceTextView.breakUndoCoalescing()
+            sourceTextView.allowsUndo = false
+            defer { sourceTextView.allowsUndo = true }
+            guard sourceTextView.shouldChangeText(in: range, replacementString: replacement) else { return }
+            sourceTextView.textStorage?.replaceCharacters(in: range, with: replacement)
+            sourceTextView.didChangeText()
+        } else {
+            state.text = text.replacingCharacters(in: range, with: replacement)
+        }
+        undoManager?.registerUndo(withTarget: self) { document in
+            MainActor.assumeIsolated {
+                document.replaceText(in: changedRange, with: replaced, actionName: actionName)
+            }
+        }
+        undoManager?.setActionName(actionName)
+    }
+
+    /// The Source's text view, while Split mode shows it.
+    @MainActor private var sourceTextView: SourceNSTextView? {
+        windowControllers.lazy.compactMap { ($0 as? DocumentWindowController)?.sourceTextView }.first
     }
 
     /// The paper size from File → Page Setup…, which Print… and Export as PDF… use. App-wide rather than NSDocument's

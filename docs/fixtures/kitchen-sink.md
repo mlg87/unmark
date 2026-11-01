@@ -16,7 +16,7 @@ file and a remote badge. Text has **bold**, *italic*, ~~strikethrough~~, `inline
 | Feature | Status | Notes |
 | :--- | :---: | ---: |
 | Tables | done | aligned left, center, right |
-| Task lists | done | checkboxes are read-only |
+| Task lists | done | clicking a checkbox ticks it in the file |
 | Images | done | relative and remote |
 
 ## Task list

@@ -5,6 +5,7 @@ import { sanitize } from "./sanitize.ts";
 import { captureScrollAnchor, restoreScrollAnchor } from "./scroll-anchor.ts";
 import { markOwnScroll, reportScrolls, SourceLineMap } from "./scroll-sync.ts";
 import { SOURCE_LINE } from "./source-lines.ts";
+import { reportTaskToggles } from "./task-toggle.ts";
 
 export type { Heading };
 
@@ -313,3 +314,5 @@ reportScrolls(() => {
   const article = document.querySelector("article.markdown-body");
   return article ? sourceLineMap(article).lineAtTop() : 0;
 });
+
+reportTaskToggles();

@@ -116,11 +116,20 @@ struct PreviewMessageTests {
         #expect(PreviewMessage(body: wholeLine) == .previewScrolled(line: 3))
     }
 
+    @Test func parsesATaskToggle() {
+        // WebKit hands JavaScript numbers and booleans over as NSNumber.
+        let body: [String: Any] = ["type": "taskToggled", "line": NSNumber(value: 4), "checked": NSNumber(value: true)]
+        #expect(PreviewMessage(body: body) == .taskToggled(line: 4, checked: true))
+    }
+
     @Test func rejectsMalformedBodies() {
         #expect(PreviewMessage(body: "previewScrolled") == nil)
         #expect(PreviewMessage(body: ["type": "other", "line": 1]) == nil)
         #expect(PreviewMessage(body: ["type": "previewScrolled"]) == nil)
         #expect(PreviewMessage(body: ["type": "previewScrolled", "line": "1"]) == nil)
         #expect(PreviewMessage(body: ["type": "previewScrolled", "line": Double.nan]) == nil)
+        #expect(PreviewMessage(body: ["type": "taskToggled", "line": NSNumber(value: 1.5), "checked": true]) == nil)
+        #expect(PreviewMessage(body: ["type": "taskToggled", "line": NSNumber(value: -1), "checked": true]) == nil)
+        #expect(PreviewMessage(body: ["type": "taskToggled", "line": NSNumber(value: 1)]) == nil)
     }
 }

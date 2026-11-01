@@ -82,7 +82,7 @@ describe("keeps what GitHub's allowlist allows", () => {
     [
       "task-list markup the tasklist plugin registered",
       "- [x] done\n- [ ] todo",
-      '<ul class="contains-task-list">\n<li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" id="task-item-0" checked="checked" disabled="disabled"> done</li>\n<li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" id="task-item-1" disabled="disabled"> todo</li>\n</ul>',
+      '<ul class="contains-task-list">\n<li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" id="task-item-0" checked="checked"> done</li>\n<li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" id="task-item-1"> todo</li>\n</ul>',
     ],
   ])("%s", async (_name, markdown, expected) => {
     expect(await render(markdown)).toBe(expected);

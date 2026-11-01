@@ -77,6 +77,8 @@ const BOOLEAN_ATTRIBUTES: Record<string, true> = { checked: true, disabled: true
 // - `class` is dropped: github.com adds styling hooks (e.g. task-list-item) that the
 //   reference renderer omits.
 // - `id` on <input> is dropped: the tasklist plugin numbers checkboxes for <label for>.
+// - `disabled` on <input> is dropped: Unmark's checkboxes tick the task in the Source, which
+//   the spec leaves to implementors.
 // - `data-source-line` is dropped: Unmark marks every block with its source line for Split
 //   mode's scroll sync.
 function normalizeHtml(html: string): string {
@@ -85,7 +87,9 @@ function normalizeHtml(html: string): string {
       .map(([, attr = "", value]) => [attr, value] as const)
       .filter(
         ([attr]) =>
-          attr !== "class" && attr !== "data-source-line" && !(name === "input" && attr === "id"),
+          attr !== "class" &&
+          attr !== "data-source-line" &&
+          !(name === "input" && (attr === "id" || attr === "disabled")),
       )
       .map(([attr, value]) => (BOOLEAN_ATTRIBUTES[attr] ? attr : `${attr}="${value ?? ""}"`))
       .sort();
