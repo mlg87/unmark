@@ -56,7 +56,10 @@ open gets its window brought forward and waited on. Files without a markdown
 extension, like `COMMIT_EDITMSG`, open as markdown. The app announces closed
 windows with the distributed notification `com.mlg87.unmark.documentClosed` and
 answers `com.mlg87.unmark.queryOpen` with `com.mlg87.unmark.openPaths`, which the
-tool polls every 2 s in case a notification was dropped.
+tool polls every 2 s in case a notification was dropped. A file the app hasn't
+listed as open 10 s after the open call, and 4 s after its first answer (it can't
+answer while an alert is up), failed to open: the tool prints
+`unmark: <path>: could not be opened`, stops waiting on it, and exits 1.
 
 The binary is `Unmark.app/Contents/Helpers/unmark`, not `Contents/MacOS/unmark`:
 on a case-insensitive volume that name would replace the app's own `Unmark`

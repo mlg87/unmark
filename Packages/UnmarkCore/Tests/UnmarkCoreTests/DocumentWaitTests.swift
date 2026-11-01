@@ -3,10 +3,10 @@ import Testing
 import UnmarkCore
 
 struct PendingDocumentsTests {
-    private let start = ContinuousClock.now
+    private let openedAt = ContinuousClock.now
 
     @Test func closingEveryPathEmptiesTheSet() {
-        var pending = PendingDocuments(paths: ["/a.md", "/b.md"])
+        var pending = PendingDocuments(paths: ["/a.md", "/b.md"], openedAt: openedAt)
         pending.documentClosed("/a.md")
         #expect(!pending.isEmpty)
         pending.documentClosed("/b.md")
@@ -14,40 +14,56 @@ struct PendingDocumentsTests {
     }
 
     @Test func ignoresClosesOfOtherPaths() {
-        var pending = PendingDocuments(paths: ["/a.md"])
+        var pending = PendingDocuments(paths: ["/a.md"], openedAt: openedAt)
         pending.documentClosed("/other.md")
         #expect(pending.paths == ["/a.md"])
     }
 
     // The query can reach the app before the open request does.
     @Test func keepsAPathNoReplyHasListedYet() {
-        var pending = PendingDocuments(paths: ["/a.md"])
-        pending.reconcile(openPaths: [], at: start)
-        pending.reconcile(openPaths: [], at: start + .seconds(9))
+        var pending = PendingDocuments(paths: ["/a.md"], openedAt: openedAt)
+        #expect(pending.reconcile(openPaths: [], at: openedAt).isEmpty)
+        #expect(pending.reconcile(openPaths: [], at: openedAt + .seconds(9)).isEmpty)
         #expect(pending.paths == ["/a.md"])
     }
 
-    // Recovers a dropped `documentClosed`.
+    // Recovers a dropped `documentClosed`; a closed window isn't a failed open, however late.
     @Test func dropsAPathOnceAReplyThatListedItNoLongerDoes() {
-        var pending = PendingDocuments(paths: ["/a.md", "/b.md"])
-        pending.reconcile(openPaths: ["/a.md", "/b.md"], at: start)
-        pending.reconcile(openPaths: ["/b.md", "/unrelated.md"], at: start + .seconds(2))
+        var pending = PendingDocuments(paths: ["/a.md", "/b.md"], openedAt: openedAt)
+        _ = pending.reconcile(openPaths: ["/a.md", "/b.md"], at: openedAt)
+        let failed = pending.reconcile(openPaths: ["/b.md", "/unrelated.md"], at: openedAt + .seconds(20))
+        #expect(failed.isEmpty)
         #expect(pending.paths == ["/b.md"])
     }
 
     // A file the app failed to open never gets a window to close.
-    @Test func dropsAnUnlistedPathAfterTheGracePeriod() {
-        var pending = PendingDocuments(paths: ["/a.md", "/b.md"])
-        pending.reconcile(openPaths: ["/b.md"], at: start)
-        pending.reconcile(openPaths: ["/b.md"], at: start + PendingDocuments.openGracePeriod)
+    @Test func reportsAnUnlistedPathAsFailedAfterTheOpenGracePeriod() {
+        var pending = PendingDocuments(paths: ["/a.md", "/b.md"], openedAt: openedAt)
+        _ = pending.reconcile(openPaths: ["/b.md"], at: openedAt)
+        let failed = pending.reconcile(openPaths: ["/b.md"], at: openedAt + PendingDocuments.openGracePeriod)
+        #expect(failed == ["/a.md"])
         #expect(pending.paths == ["/b.md"])
     }
 
-    @Test func gracePeriodStartsAtTheFirstReply() {
-        var pending = PendingDocuments(paths: ["/a.md"])
-        let firstReply = start + .seconds(30)
-        pending.reconcile(openPaths: [], at: firstReply)
-        pending.reconcile(openPaths: [], at: firstReply + .seconds(9))
+    // The app answers nothing while its can't-open alert is up, so the grace period can't wait for a first reply.
+    @Test func openGracePeriodStartsAtTheOpenCall() {
+        var pending = PendingDocuments(paths: ["/a.md"], openedAt: openedAt)
+        let alertDismissed = openedAt + .seconds(30)
+        #expect(pending.reconcile(openPaths: [], at: alertDismissed).isEmpty)
+        let failed = pending.reconcile(
+            openPaths: [], at: alertDismissed + PendingDocuments.firstReplyGracePeriod)
+        #expect(failed == ["/a.md"])
+        #expect(pending.isEmpty)
+    }
+
+    // Documents queued behind a modal may still be opening when the app answers again.
+    @Test func keepsAPathMissingOnlyFromTheFirstReplyAfterALateStart() {
+        var pending = PendingDocuments(paths: ["/a.md"], openedAt: openedAt)
+        let alertDismissed = openedAt + .seconds(30)
+        _ = pending.reconcile(openPaths: [], at: alertDismissed)
+        let failed = pending.reconcile(openPaths: [], at: alertDismissed + .seconds(2))
+        #expect(failed.isEmpty)
+        _ = pending.reconcile(openPaths: ["/a.md"], at: alertDismissed + .seconds(4))
         #expect(pending.paths == ["/a.md"])
     }
 }

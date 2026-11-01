@@ -58,34 +58,34 @@ case .version:
     exit(.success)
 
 case .open(let paths, let wait):
-    var fileURLs: [URL] = []
-    var anyMissing = false
+    var files: [(argument: String, url: URL)] = []
+    var anyFailed = false
     for path in paths {
         // Relative paths resolve against the shell's working directory. Following symlinks opens the real file,
         // which is what the app watches for external changes.
         let fileURL = URL(fileURLWithPath: path).resolvingSymlinksInPath()
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            fileURLs.append(fileURL)
+            files.append((path, fileURL))
         } else {
             // Unmark never creates files (q17), so a missing path is reported, not opened.
             printError("unmark: \(path): No such file or directory")
-            anyMissing = true
+            anyFailed = true
         }
     }
 
-    if !fileURLs.isEmpty {
+    if !files.isEmpty {
         let app: NSRunningApplication
         do {
             // One call, so the app receives a single open event and can group the files as tabs.
             app = try await NSWorkspace.shared.open(
-                fileURLs, withApplicationAt: containingApp(), configuration: NSWorkspace.OpenConfiguration())
+                files.map(\.url), withApplicationAt: containingApp(), configuration: NSWorkspace.OpenConfiguration())
         } catch {
             printError("unmark: \(error.localizedDescription)")
             exit(.failure)
         }
-        if wait {
-            await DocumentWaiter(app: app, fileURLs: fileURLs).wait()
+        if wait, await !DocumentWaiter(app: app, files: files).wait() {
+            anyFailed = true
         }
     }
-    exit(anyMissing ? .failure : .success)
+    exit(anyFailed ? .failure : .success)
 }
