@@ -36,7 +36,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `Packages/UnmarkCore/` | Swift package with pure, unit-tested logic (no AppKit or WebKit) |
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
 | `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
-| `scripts/` | Build and release scripts |
+| `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs |
 | `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
 
 ## Command-line tool
@@ -75,7 +75,10 @@ renderer tests, the renderer build (which fails if a dependency exceeds its
 entry-chunk size budget in `renderer/build.mjs`), `make test`, and an ad-hoc signed
 universal Release build. It then fails unless `lipo -archs` reports both `x86_64`
 and `arm64` for the app and the embedded `unmark` tool, and checks the tool's exit
-statuses for usage errors and missing files.
+statuses for usage errors and missing files. Last, it launches the app with
+`unmark a.md b.md` and fails unless the tool exits 0 within 10 s and the app then
+reports both files open, asked over `com.mlg87.unmark.queryOpen` by
+`scripts/ci/open-documents.swift`.
 
 The `main: baseline` ruleset requires the `ci` check (pinned to the GitHub
 Actions app) before a pull request can merge, so red builds can't land on
