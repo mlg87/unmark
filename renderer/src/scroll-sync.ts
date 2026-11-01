@@ -185,3 +185,44 @@ export function reportScrolls(lineAtTop: () => number): void {
     { passive: true },
   );
 }
+
+/**
+ * Keeps the source line at the viewport's top while the viewport's width changes, as when Split
+ * mode opens or closes and halves or doubles the Preview (unmark-1793451427066-4-97884ee7.4).
+ * WebKit keeps `scrollY` while the text reflows, which put the reader several sections back.
+ * `scrollToLine`'s scroll is reported to the app like the reader's, so Split mode's Source
+ * follows the Preview to the line it kept. Returns a function that records the line at the top
+ * again, for changes that move lines without scrolling the page, such as an edit's render.
+ */
+export function keepLineAcrossWidthChanges(
+  lineAtTop: () => number,
+  scrollToLine: (line: number) => Promise<void>,
+): () => void {
+  let width = window.innerWidth;
+  let line = 0;
+  /** Where keeping `line` left the page, until the reader scrolls. */
+  let keptAt: number | undefined;
+  const remember = () => {
+    // Between a width change and its resize event, the line at the top is the reflow's, not the
+    // reader's, and WebKit scrolls the page if the reflow made it too short for `scrollY`.
+    if (window.innerWidth === width) line = lineAtTop();
+  };
+  window.addEventListener(
+    "scroll",
+    () => {
+      // Keeping the line scrolls the page too. The page lands on a whole pixel, so reading the
+      // line back would move the reader a little further on each open and close of Split mode.
+      if (window.scrollY === keptAt) return;
+      keptAt = undefined;
+      remember();
+    },
+    { passive: true },
+  );
+  window.addEventListener("resize", async () => {
+    if (window.innerWidth === width) return;
+    await scrollToLine(line);
+    width = window.innerWidth;
+    keptAt = window.scrollY;
+  });
+  return remember;
+}

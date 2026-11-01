@@ -3,7 +3,12 @@ import type { Heading, RenderEnv } from "./headings.ts";
 import { createMarkdown } from "./markdown.ts";
 import { BlockMerge } from "./merge.ts";
 import { captureScrollAnchor, restoreScrollAnchor, type ScrollAnchor } from "./scroll-anchor.ts";
-import { markOwnScroll, reportScrolls, SourceLineMap } from "./scroll-sync.ts";
+import {
+  keepLineAcrossWidthChanges,
+  markOwnScroll,
+  reportScrolls,
+  SourceLineMap,
+} from "./scroll-sync.ts";
 import { reportTaskToggles } from "./task-toggle.ts";
 
 export type { Heading };
@@ -143,6 +148,8 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
     ),
   };
   await firstScreen;
+  // An edit above the top changes the line there even when the page doesn't scroll.
+  rememberLineAtTop();
 }
 
 /** The rendering's pieces in order, rendering more of them from `rest` as they're needed. */
@@ -259,6 +266,12 @@ async function scrollToElement(id: string): Promise<void> {
 }
 
 async function scrollToSourceLine(line: number): Promise<void> {
+  await scrollLineToTop(line);
+  // So following the Source isn't reported back to it as the reader's own scroll.
+  markOwnScroll();
+}
+
+async function scrollLineToTop(line: number): Promise<void> {
   const article = document.querySelector("article.markdown-body");
   if (!article) return;
   // Like scrollToElement, merges only until a piece after the line is on the page, so
@@ -266,8 +279,6 @@ async function scrollToSourceLine(line: number): Promise<void> {
   const merge = rendered.merge;
   await merge?.advanceUntil(() => merge.mergedLine > line, BACKGROUND_CHUNK);
   window.scrollBy(0, sourceLineMap(article).offsetOf(line));
-  // So following the Source isn't reported back to it as the reader's own scroll.
-  markOwnScroll();
 }
 
 function lineAtTop(): number {
@@ -293,5 +304,6 @@ function setDocumentBase(href: string): void {
 window.unmark = { render, outline, scrollToElement, scrollToSourceLine, lineAtTop, setOutputMode };
 
 reportScrolls(lineAtTop);
+const rememberLineAtTop = keepLineAcrossWidthChanges(lineAtTop, scrollLineToTop);
 
 reportTaskToggles();
