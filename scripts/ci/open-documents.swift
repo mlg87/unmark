@@ -1,5 +1,6 @@
-// Asks a running Unmark which documents it has open, the way `unmark --wait` does, so CI can check that
-// `unmark a.md b.md` left both documents open after the tool exited (unmark-1793451428486-7-de60d292.1).
+// Asks a running Unmark which documents it has open, the way `unmark --wait` does, so CI can check which documents
+// the tool left open: both after `unmark a.md b.md` (unmark-1793451428486-7-de60d292.1), and COMMIT_EDITMSG while
+// `GIT_EDITOR="unmark --wait" git commit` waits (unmark-1793451428486-7-de60d292.2).
 //
 // usage: swift scripts/ci/open-documents.swift <pid> <path>...
 //
