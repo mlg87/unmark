@@ -8,7 +8,6 @@
 
 import mermaid from "mermaid";
 import type { OutputMode } from "./index.ts";
-import { carrySourceLine } from "./source-lines.ts";
 
 const DIAGRAM_CLASS = "mermaid-diagram";
 
@@ -23,17 +22,19 @@ let nextId = 0;
 let queue: Promise<void> = Promise.resolve();
 
 /**
- * Replaces each `<pre data-mermaid>` under `root` with its diagram, or with an error box.
- * When `mode` differs from the last call's, redraws the diagrams already under `root` too.
+ * Draws each `.mermaid-diagram` container in `containers` in place of the
+ * `<pre data-mermaid>` source it holds, or an error box. When `mode` differs from the last
+ * call's, redraws the diagrams already on the page too.
  */
-export function renderDiagrams(root: ParentNode, mode: OutputMode = "screen"): Promise<void> {
-  const containers = [...root.querySelectorAll("pre[data-mermaid]")].map((pre) => {
-    const container = document.createElement("div");
-    container.className = DIAGRAM_CLASS;
+export function renderDiagrams(
+  containers: Iterable<Element>,
+  mode: OutputMode = "screen",
+): Promise<void> {
+  const added = [...containers].filter((container) => {
+    const pre = container.querySelector(":scope > pre[data-mermaid]");
+    if (!pre) return false;
     sources.set(container, pre.textContent ?? "");
-    carrySourceLine(pre, container);
-    pre.replaceWith(container);
-    return container;
+    return true;
   });
   if (!colorScheme) {
     colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -42,9 +43,9 @@ export function renderDiagrams(root: ParentNode, mode: OutputMode = "screen"): P
       void enqueue([...document.querySelectorAll(`.${DIAGRAM_CLASS}`)]);
     });
   }
-  if (mode === outputMode) return enqueue(containers);
+  if (mode === outputMode) return enqueue(added);
   outputMode = mode;
-  return enqueue([...root.querySelectorAll(`.${DIAGRAM_CLASS}`)]);
+  return enqueue([...document.querySelectorAll(`.${DIAGRAM_CLASS}`)]);
 }
 
 function enqueue(containers: Element[]): Promise<void> {
@@ -66,7 +67,8 @@ async function draw(containers: Element[]): Promise<void> {
   });
   for (const container of containers) {
     const source = sources.get(container);
-    if (source === undefined) continue;
+    // An edit or reload may have replaced the container while earlier draws ran.
+    if (source === undefined || !container.isConnected) continue;
     try {
       // Each SVG scopes its <style> to its id, so ids must stay unique across redraws.
       const { svg } = await mermaid.render(`mermaid-${nextId++}`, source);

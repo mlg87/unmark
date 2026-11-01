@@ -35,10 +35,23 @@ test("a document without mermaid blocks never imports diagrams.ts", async () => 
 test("a mermaid block survives sanitizing as escaped source, then is handed to diagrams.ts", async () => {
   await render("```mermaid\ngraph TD; A-->B<script>\n```");
   expect(diagrams.imported).toBe(true);
-  expect(diagrams.renderDiagrams).toHaveBeenCalledWith(article, "screen");
+  const container = article.querySelector(".mermaid-diagram");
+  expect(diagrams.renderDiagrams).toHaveBeenCalledWith([container], "screen");
   expect(article.innerHTML.trim()).toBe(
-    '<pre data-source-line="0" class="mermaid-source" data-mermaid="">graph TD; A--&gt;B&lt;script&gt;\n</pre>',
+    '<div data-source-line="0" class="mermaid-diagram"><pre class="mermaid-source" data-mermaid="">graph TD; A--&gt;B&lt;script&gt;\n</pre></div>',
   );
+});
+
+test("an edit elsewhere in the document doesn't draw an unchanged diagram again", async () => {
+  await render("Intro\n\n```mermaid\ngraph TD; A-->B\n```");
+  const container = article.querySelector(".mermaid-diagram");
+  diagrams.renderDiagrams.mockClear();
+
+  await render("Intro, edited\n\nA new paragraph\n\n```mermaid\ngraph TD; A-->B\n```");
+
+  expect(diagrams.renderDiagrams).not.toHaveBeenCalled();
+  expect(article.querySelector(".mermaid-diagram")).toBe(container);
+  expect(container?.getAttribute("data-source-line")).toBe("4");
 });
 
 test("the sanitizer still drops data-mermaid on elements other than <pre>", async () => {

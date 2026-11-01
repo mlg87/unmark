@@ -19,6 +19,18 @@ export function taskLists(md: MarkdownIt): void {
     itemClass: "task-list-item",
     checkboxClass: CHECKBOX_CLASS,
   });
+  // The plugin ids each checkbox `task-item-N`, numbered across the document, for a <label for>
+  // that `label: false` leaves out. Without them a task list renders the same wherever it is, so
+  // an edit above it reuses its rendering (chunks.ts, unmark-1793451427066-4-97884ee7.1).
+  md.core.ruler.after("task_list", "task_list_ids", (state) => {
+    for (const token of state.tokens) {
+      for (const child of token.children ?? []) {
+        if (child.type === "checkbox_input") {
+          child.attrs = child.attrs?.filter(([name]) => name !== "id") ?? null;
+        }
+      }
+    }
+  });
   // github.com adds task-list markup after sanitizing; here it passes through the
   // sanitizer, so it needs these exact additions.
   extendAllowlist({

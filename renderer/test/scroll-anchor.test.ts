@@ -74,6 +74,21 @@ test("keeps the same point of the top block when blocks above it grow", () => {
   expect(atViewportTop()).toEqual(["c", 50]);
 });
 
+test("keeps to the top block's own element when a re-render kept it", () => {
+  layOut({ a: 100, b: 100, c: 100 });
+  scrollY = 150;
+  const anchor = capture();
+
+  // An edit above added a block with the same text; the render kept the anchor's element.
+  const copy = document.createElement("p");
+  copy.dataset.height = "100";
+  copy.textContent = "b";
+  article.prepend(copy);
+  restoreScrollAnchor(article, anchor);
+  expect(atViewportTop()).toEqual(["b", 50]);
+  expect(article.children[2]?.getBoundingClientRect().top).toBe(-50);
+});
+
 test("follows the top block when blocks are inserted or removed above it", () => {
   layOut({ a: 100, b: 100, c: 100, d: 100 });
   scrollY = 250;

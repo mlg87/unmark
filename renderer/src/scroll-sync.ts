@@ -111,7 +111,8 @@ export class SourceLineMap {
 }
 
 let cached: { article: Element; markers: Marker[] } | undefined;
-// Every insertion, diagram drawn, and <details> opened or closed moves or hides blocks.
+// Every insertion, diagram drawn, and <details> opened or closed moves or hides blocks, and an
+// edit above a block the Preview keeps moves its markers.
 const changes = new MutationObserver(() => {
   cached = undefined;
 });
@@ -143,7 +144,7 @@ function markersOf(article: Element): Marker[] {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["open"],
+    attributeFilter: ["open", SOURCE_LINE],
   });
   cached = { article, markers };
   return markers;

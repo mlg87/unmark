@@ -22,3 +22,9 @@
 .markdown-body .mermaid-diagram pre {
   text-align: left;
 }
+
+/* The source a diagram is drawn from shows until Mermaid draws it, inside the diagram's
+   container, whose margin already spaces it from the next block. */
+.markdown-body .mermaid-diagram > pre[data-mermaid] {
+  margin-bottom: 0;
+}

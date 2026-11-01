@@ -1,6 +1,6 @@
 // GitHub-style heading anchors and the document outline (#16).
 
-import GithubSlugger from "github-slugger";
+import { slug } from "github-slugger";
 import type { MarkdownIt, Token } from "markdown-it";
 import anchor from "markdown-it-anchor";
 import { extendAllowlist } from "./sanitize.ts";
@@ -15,16 +15,64 @@ export interface Heading {
 /** Per-render state. Pass a fresh object to each `md.render()` call to collect its outline. */
 export type RenderEnv = { headings: Heading[] };
 
-// One slugger per render: ids restart at `a`, `a-1` for every document, as on github.com.
-const sluggers = new WeakMap<object, GithubSlugger>();
+// One set of ids per render: ids restart at `a`, `a-1` for every document, as on github.com.
+const headingIds = new WeakMap<object, HeadingIds>();
+
+/**
+ * The heading ids a render has given, made unique as github-slugger and github.com make them:
+ * `a`, then `a-1`, `a-2`. A render reuses an earlier rendering of a heading only when its id
+ * comes out the same (chunks.ts, unmark-1793451427066-4-97884ee7.1), so the ids each rendering
+ * took are recorded to take them again.
+ */
+export class HeadingIds {
+  readonly #taken = new Map<string, number>();
+  #recorded: [string, string][] = [];
+
+  /** Gives a heading whose text slugs to `base` its id. */
+  take(base: string): string {
+    const id = uniqueId(base, this.#taken);
+    this.#recorded.push([base, id]);
+    return id;
+  }
+
+  /** Starts a new record of the ids taken: each slug and the id it got. */
+  record(): readonly (readonly [string, string])[] {
+    this.#recorded = [];
+    return this.#recorded;
+  }
+
+  /** Takes the ids `recorded` again if each comes out the same as then, or else none of them. */
+  retake(recorded: readonly (readonly [string, string])[]): boolean {
+    if (recorded.length === 0) return true;
+    const added = new Map<string, number>();
+    const taken = {
+      has: (id: string) => added.has(id) || this.#taken.has(id),
+      get: (id: string) => added.get(id) ?? this.#taken.get(id),
+      set: (id: string, count: number) => added.set(id, count),
+    };
+    if (!recorded.every(([base, id]) => uniqueId(base, taken) === id)) return false;
+    for (const [id, count] of added) this.#taken.set(id, count);
+    return true;
+  }
+}
+
+/** The heading ids of the render collecting into `env`. */
+export function headingIdsFor(env: object): HeadingIds {
+  let ids = headingIds.get(env);
+  if (!ids) {
+    ids = new HeadingIds();
+    headingIds.set(env, ids);
+  }
+  return ids;
+}
 
 export function headingAnchors(md: MarkdownIt): void {
   md.use(anchor, {
     level: [1, 2, 3, 4, 5, 6],
     getTokensText: headingText,
-    // github-slugger already makes slugs unique the way github.com does (`a`, `a-1`), so
+    // HeadingIds already makes slugs unique the way github.com does (`a`, `a-1`), so
     // markdown-it-anchor's own de-duplication never kicks in.
-    slugifyWithState: (text, state) => sluggerFor(state.env).slug(text),
+    slugifyWithState: (text, state) => headingIdsFor(state.env).take(slug(text)),
     // github.com headings aren't focusable; only their anchor link is.
     tabIndex: false,
     // github-markdown-css draws GitHub's link icon on `.anchor .octicon-link` while the
@@ -57,13 +105,17 @@ export function headingAnchors(md: MarkdownIt): void {
   });
 }
 
-function sluggerFor(env: object): GithubSlugger {
-  let slugger = sluggers.get(env);
-  if (!slugger) {
-    slugger = new GithubSlugger();
-    sluggers.set(env, slugger);
+// github-slugger's de-duplication: a slug taken before gets the next free `-n` suffix, counted
+// per slug.
+function uniqueId(base: string, taken: Pick<Map<string, number>, "has" | "get" | "set">): string {
+  let id = base;
+  while (taken.has(id)) {
+    const count = (taken.get(base) ?? 0) + 1;
+    taken.set(base, count);
+    id = `${base}-${count}`;
   }
-  return slugger;
+  taken.set(id, 0);
+  return id;
 }
 
 // Plain text as github.com slugs it: emoji count as text, link and image markup doesn't.
