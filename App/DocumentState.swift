@@ -13,6 +13,9 @@ final class DocumentState {
     var fileURL: URL?
     /// The file was deleted while open. The window keeps showing the last content.
     var fileWasDeleted = false
+    /// The file changed on disk while the document had unsaved edits (#28). The window asks whether to reload or keep
+    /// the edits, and nothing replaces them until the user answers.
+    var fileChangedOnDisk = false
     /// The element the Preview should scroll to next, from a link click (#23).
     var scrollRequest: ScrollRequest?
     /// A clicked link named a file that doesn't exist (#23). The window shows it briefly.
