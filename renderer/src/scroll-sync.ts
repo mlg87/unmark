@@ -110,43 +110,102 @@ export class SourceLineMap {
   }
 }
 
-let cached: { article: Element; markers: Marker[] } | undefined;
+// The marker list is cached until the article changes, since the sync reads it on every
+// scrolled frame, and so is each top-level block's share of it, so a change rebuilds the list
+// from the blocks it touched alone: an edit's render reads the line at the top once it shows
+// the edit, and querying a 1 MB document's every marked block for it took most of q47's 250 ms
+// from keystroke to Preview (unmark-1793451427066-4-97884ee7.10).
+let observed: Element | undefined;
+let cached: Marker[] | undefined;
+let blockMarkers = new WeakMap<Element, Marker[]>();
 // Every insertion, diagram drawn, and <details> opened or closed moves or hides blocks, and an
 // edit above a block the Preview keeps moves its markers.
-const changes = new MutationObserver(() => {
+const changes = new MutationObserver(forgetChanged);
+
+/**
+ * Drops the list and the cached markers of the blocks `records` changed, and reads the markers
+ * of the blocks they added. Read as they land, in the task that rendered them, so the first edit
+ * after a long document finished rendering doesn't read every block's at once.
+ */
+function forgetChanged(records: MutationRecord[]): void {
+  if (records.length === 0) return;
   cached = undefined;
-});
+  for (const record of records) {
+    if (record.target !== observed) {
+      const block = topLevelBlockOf(record.target);
+      if (block) blockMarkers.delete(block);
+      continue;
+    }
+    for (const node of record.addedNodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE || node.parentNode !== observed) continue;
+      blockMarkers.set(node as Element, ownMarkersOf(node as Element));
+    }
+  }
+}
+
+/** The child of the observed article that `node` is in, or is. */
+function topLevelBlockOf(node: Node): Element | undefined {
+  let block: Node | null = node;
+  while (block && block.parentNode !== observed) block = block.parentNode;
+  return block?.nodeType === Node.ELEMENT_NODE ? (block as Element) : undefined;
+}
 
 /**
  * The marked blocks under `article` that the reader can see, in document order, with lines
  * that only increase: of blocks on the same line, the outermost; and none whose line comes
  * before an earlier block's, such as a footnote rendered at the end but defined at the top.
- * Cached until the article changes, since the sync reads it on every scrolled frame.
  */
 function markersOf(article: Element): Marker[] {
-  if (changes.takeRecords().length > 0) cached = undefined;
-  if (cached?.article === article) return cached.markers;
+  if (article !== observed) {
+    changes.disconnect();
+    changes.observe(article, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["open", SOURCE_LINE],
+    });
+    observed = article;
+    cached = undefined;
+    blockMarkers = new WeakMap();
+  }
+  forgetChanged(changes.takeRecords());
+  if (cached) return cached;
 
-  const hasClosedDetails = article.querySelector("details:not([open])") !== null;
   const markers: Marker[] = [];
   let lastLine = -1;
-  for (const element of article.querySelectorAll(`[${SOURCE_LINE}]`)) {
-    const line = Number(element.getAttribute(SOURCE_LINE));
-    if (!(line > lastLine)) continue;
-    // Blocks in a closed <details> have no box, so they have no position to sync to.
-    if (hasClosedDetails && element.closest("details:not([open])")) continue;
-    markers.push({ line, element });
-    lastLine = line;
+  for (let block = article.firstElementChild; block; block = block.nextElementSibling) {
+    let own = blockMarkers.get(block);
+    if (!own) {
+      own = ownMarkersOf(block);
+      blockMarkers.set(block, own);
+    }
+    for (const marker of own) {
+      if (!(marker.line > lastLine)) continue;
+      markers.push(marker);
+      lastLine = marker.line;
+    }
   }
+  cached = markers;
+  return markers;
+}
 
-  changes.disconnect();
-  changes.observe(article, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["open", SOURCE_LINE],
-  });
-  cached = { article, markers };
+/**
+ * The marked elements of a top-level block, itself included, that the reader can see, in
+ * document order. A walk rather than selector queries: every block of a 1 MB document reads
+ * its own, and three queries a block took four times as long in all as walking them.
+ */
+function ownMarkersOf(block: Element): Marker[] {
+  const markers: Marker[] = [];
+  const visit = (element: Element) => {
+    // Blocks in a closed <details> have no box, so they have no position to sync to.
+    if (element.localName === "details" && !element.hasAttribute("open")) return;
+    const line = element.getAttribute(SOURCE_LINE);
+    if (line !== null) markers.push({ line: Number(line), element });
+    for (let child = element.firstElementChild; child; child = child.nextElementSibling) {
+      visit(child);
+    }
+  };
+  visit(block);
   return markers;
 }
 

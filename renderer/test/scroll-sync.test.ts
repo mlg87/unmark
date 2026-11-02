@@ -169,6 +169,18 @@ test("a footnote rendered at the end but defined at the top doesn't send the rea
   expect(reportedLines()).toEqual([6.375]);
 });
 
+test("an edit above the top moves the line there though the page keeps the blocks below it", async () => {
+  scrollTo(600);
+  expect(window.unmark.lineAtTop()).toBe(12);
+  // One more line between heading A and the paragraph: every block after it keeps its DOM, one
+  // line further down.
+  await window.unmark.render(DOCUMENT.replace("# A\n", "# A\n\n"), {
+    documentBaseURL: "file:///docs/",
+  });
+  expect(scrollY).toBe(600);
+  expect(window.unmark.lineAtTop()).toBe(13);
+});
+
 test("narrowing the page, as opening Split mode does, keeps the line at the top", async () => {
   // Line 8.5 is 390 px down at full width; Split mode inserts the Source narrow, then halves.
   scrollTo(390);
