@@ -97,6 +97,20 @@ export function footnoteUse(env: object, source: string, tokens: Token[]): Footn
   return { labels, refs: made };
 }
 
+/** The labels `env`'s render has defined footnotes for: after its block parse, the document's. */
+export function footnoteLabels(env: object): string[] {
+  return Object.keys((env as FootnoteEnv).footnotes?.refs ?? {}).map((key) => key.slice(1));
+}
+
+/** Defines footnotes for `labels` in `env`'s render, as the block parse of their definitions does. */
+export function defineFootnotes(env: object, labels: readonly string[]): void {
+  if (labels.length === 0) return;
+  const footnoteEnv = env as FootnoteEnv;
+  footnoteEnv.footnotes ??= {};
+  footnoteEnv.footnotes.refs ??= {};
+  for (const label of labels) footnoteEnv.footnotes.refs[`:${label}`] = -1;
+}
+
 /**
  * Makes the references `use` records again, as footnote_ref would, if each label is defined as
  * then and each reference gets the same number and back-reference; otherwise makes none.

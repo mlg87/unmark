@@ -19,10 +19,18 @@
 // blocks before it. A block reuses an earlier rendering of the same lines when its references
 // still resolve and its headings and footnote references still get the same ids and numbers,
 // with its markers moved to the lines it starts on now. When it can, an edit also skips the
-// block parse of the blocks it can't have changed (spliceBlocks).
+// block parse of the blocks it can't have changed (spliceBlocks), even while the rendering it
+// edits is still being rendered: the pieces after the rendered ones then render from the block
+// tokens of that rendering's parse (unmark-1793451427066-4-97884ee7.8).
 
 import type { Env, MarkdownIt, StateBlock, StateCore, Token } from "markdown-it";
-import { type FootnoteUse, footnoteUse, retakeFootnotes } from "./footnotes.ts";
+import {
+  defineFootnotes,
+  type FootnoteUse,
+  footnoteLabels,
+  footnoteUse,
+  retakeFootnotes,
+} from "./footnotes.ts";
 import { type Heading, type HeadingIds, headingIdsFor, type RenderEnv } from "./headings.ts";
 import { SOURCE_LINE } from "./source-lines.ts";
 
@@ -168,6 +176,24 @@ export class Block {
 }
 
 /**
+ * Where a rendering still being rendered carries on from: the block tokens of the pieces after
+ * the ones rendered so far.
+ */
+interface Unrendered {
+  /**
+   * Block tokens from the parse of this document or of one it's an edit of, untouched by any
+   * render from `from` on: a splice renders copies of them (spliceBlocks).
+   */
+  readonly tokens: readonly Token[];
+  /** The index in `tokens` of the first block not rendered yet. */
+  from: number;
+  /** How many lines further down the blocks from `from` on are now than their tokens map them. */
+  readonly delta: number;
+  /** The labels of the document's footnote definitions, the unrendered ones among them. */
+  readonly footnoteLabels: readonly string[];
+}
+
+/**
  * A document's pieces as they're rendered, and what splicing the next edit into them takes
  * (spliceBlocks).
  */
@@ -178,12 +204,20 @@ export class Rendering {
   lineStarts: number[] = [];
   /** The document's link reference definitions. */
   references: Definitions = {};
-  /** The lines of each footnote definition, which render in the footnotes section, not a piece. */
+  /**
+   * The lines of each footnote definition among the pieces rendered so far, which render in the
+   * footnotes section, not a piece.
+   */
   footnotes: [number, number][] = [];
   /** The pieces rendered so far, in order. */
   readonly blocks: Block[] = [];
   /** Whether `blocks` holds the whole document. */
   complete = false;
+  /**
+   * Where rendering carries on from, while it's between two pieces of the document and no
+   * splice has taken the rest over.
+   */
+  unrendered: Unrendered | undefined;
 
   /** The pieces but the footnotes section. */
   get blocksAboveFootnotes(): readonly Block[] {
@@ -191,12 +225,13 @@ export class Rendering {
   }
 
   /**
-   * Whether an edit can be spliced in: every piece is rendered and reusable, their lines run on
-   * from one to the next but for footnote definitions, and no footnote definition references a
-   * footnote, which would number it where the definition is rather than where it renders.
+   * Whether an edit can be spliced in: every piece is rendered, or rendering is between two of
+   * them; the pieces rendered are reusable, their lines run on from one to the next but for
+   * footnote definitions, and no footnote definition among them references a footnote, which
+   * would number it where the definition is rather than where it renders.
    */
   get spliceable(): boolean {
-    if (!this.complete) return false;
+    if (!this.complete && !this.unrendered) return false;
     let line = 0;
     let definition = 0;
     for (const block of this.blocksAboveFootnotes) {
@@ -212,6 +247,13 @@ export class Rendering {
       return source.match(FOOTNOTE_SYNTAX)?.length === 1;
     });
   }
+}
+
+/** An edit spliced into a rendering (spliceBlocks). */
+export interface Splice {
+  readonly rendering: Rendering;
+  /** Renders the pieces after the spliced ones into `rendering`, unless it's complete. */
+  readonly rest: Generator<Block> | undefined;
 }
 
 /** The reusable renderings among `blocks`, for the next render's `htmlBlocks`. */
@@ -254,11 +296,40 @@ export function* htmlBlocks(
   rendering.lineStarts = pieces.lineStarts;
   rendering.references = pieces.references.defined;
   rendering.footnotes = pieces.footnotes;
-  for (const block of pieces.of(state.tokens, 0)) {
+  rendering.unrendered = {
+    tokens: state.tokens,
+    from: 0,
+    delta: 0,
+    footnoteLabels: footnoteLabels(env),
+  };
+  yield* renderPieces(pieces, rendering, 0, state.tokens);
+}
+
+/**
+ * Renders the pieces of `rendering.unrendered`'s tokens into `rendering`, the first on `line`,
+ * and then the footnotes section from the definitions among `section`. With `copy`, the pieces
+ * render from what it makes of each block's tokens.
+ */
+function* renderPieces(
+  pieces: Pieces,
+  rendering: Rendering,
+  line: number,
+  section: Token[],
+  copy?: (block: Token[]) => Token[],
+): Generator<Block> {
+  const unrendered = rendering.unrendered as Unrendered;
+  for (const block of pieces.of(unrendered.tokens, line, unrendered.from, copy)) {
     rendering.blocks.push(block);
+    unrendered.from = pieces.next;
     yield block;
+    // A splice took the rest over (spliceBlocks): rendering it here too would inline-parse the
+    // tokens the splice copies.
+    if (rendering.unrendered !== unrendered) return;
   }
-  const last = pieces.finish(state.tokens);
+  // What's left ends the document: the footnotes section, after any blocks still waiting for a
+  // raw HTML element the document never closes.
+  rendering.unrendered = undefined;
+  const last = pieces.finish(section);
   if (last) {
     rendering.blocks.push(last);
     yield last;
@@ -272,23 +343,34 @@ export function* htmlBlocks(
  * (unmark-1793451427066-4-97884ee7.1). Every piece before the first changed line whose parse
  * stopped before it is the same; the parse resumes at the next one and stops at the first
  * block that ends where an old piece ended after the edit, since every piece after that has
- * the same lines and so the same parse. Returns `undefined` when the edit reaches what the
- * pieces it keeps depend on: a link reference or footnote definition, or the heading ids and
- * footnote numbers after it. Then the whole document needs rendering.
+ * the same lines and so the same parse.
+ *
+ * While `previous` is still being rendered, the edit and the block the parse resumes at must be
+ * among the pieces it has rendered, and `rest` renders the pieces after them from copies of
+ * `previous`'s block tokens, which skips the block parse of all of them
+ * (unmark-1793451427066-4-97884ee7.8). `previous` hands the rest over: it renders no further.
+ *
+ * Returns `undefined` when the edit reaches what the pieces it keeps depend on: a link
+ * reference or footnote definition, or the heading ids and footnote numbers after it. Then the
+ * whole document needs rendering.
  */
 export function spliceBlocks(
   md: MarkdownIt,
   src: string,
   env: Env,
   previous: Rendering,
-): Rendering | undefined {
+): Splice | undefined {
   if (!previous.spliceable) return undefined;
+  const unrendered = previous.unrendered;
   const rules = coreRules(md);
   // Rendered apart from `env` until the splice is sure to succeed.
   const spliceEnv: Partial<RenderEnv> & Env = {
     headings: [],
     references: { ...previous.references },
   };
+  // A whole parse defines every footnote label before it numbers any reference, and the
+  // definitions after the pieces rendered don't parse again. A splice never adds or removes one.
+  if (unrendered) defineFootnotes(spliceEnv, unrendered.footnoteLabels);
   const state = new md.core.State(src, md, spliceEnv);
   for (const rule of rules.beforeBlock) rule(state);
   const old = previous.src;
@@ -327,6 +409,8 @@ export function spliceBlocks(
     if (ended + 1 < firstChange) break;
     first--;
   }
+  // Nothing after the rendered pieces has a rendering to splice into.
+  if (unrendered && first === blocks.length) return undefined;
   const start = blocks[first]?.line ?? blocks.at(-1)?.end ?? 0;
   // The edit is in a footnote definition between two pieces.
   if (start > firstChange) return undefined;
@@ -339,10 +423,12 @@ export function spliceBlocks(
   const resumes = (oldLine: number) =>
     (previous.lineStarts[oldLine] ?? Number.POSITIVE_INFINITY) - 1 >= unchangedFrom;
 
+  // Past the pieces rendered so far, the parse can't resume at one of them.
+  const renderedEnd = unrendered ? (blocks.at(-1) as Block).end : Number.POSITIVE_INFINITY;
   const tokens: Token[] = [];
   const blockState = new md.block.State(edited, md, spliceEnv, tokens);
   let next = blocks.length;
-  let resumed = previous.lineStarts.length;
+  let resumed: number | undefined;
   for (let line = start; line < blockState.lineMax; ) {
     line = parseBlock(md, blockState, line);
     const oldEnd = line - delta;
@@ -352,6 +438,11 @@ export function spliceBlocks(
       resumed = oldEnd;
       break;
     }
+    if (oldEnd >= renderedEnd) return undefined;
+  }
+  if (resumed === undefined) {
+    if (unrendered) return undefined;
+    resumed = previous.lineStarts.length;
   }
   // The old lines the edit replaced, with any after the last piece: a definition there may
   // have been one that kept pieces look up.
@@ -384,8 +475,9 @@ export function spliceBlocks(
   rendering.src = edited;
   rendering.lineStarts = pieces.lineStarts;
   rendering.references = pieces.references.defined;
-  rendering.footnotes = footnotes;
-  rendering.complete = true;
+  // The pieces still to render add theirs.
+  pieces.footnotes.push(...footnotes);
+  rendering.footnotes = pieces.footnotes;
   for (let index = 0; index < first; index++) {
     const block = blocks[index] as Block;
     if (!pieces.reuse(block)) return undefined;
@@ -403,10 +495,28 @@ export function spliceBlocks(
   }
   const definitionTokens = definitions < 0 ? [] : state.tokens.slice(definitions);
   pieces.parseFootnoteDefinitions(definitionTokens);
-  const footnotesSection = pieces.finish(definitionTokens);
-  if (footnotesSection) rendering.blocks.push(footnotesSection);
-  (env as Partial<RenderEnv>).headings?.push(...(spliceEnv.headings ?? []));
-  return rendering;
+  if (!unrendered) {
+    const footnotesSection = pieces.finish(definitionTokens);
+    if (footnotesSection) rendering.blocks.push(footnotesSection);
+    rendering.complete = true;
+  }
+  const headings = (env as Partial<RenderEnv>).headings;
+  headings?.push(...(spliceEnv.headings ?? []));
+  if (!unrendered) return { rendering, rest: undefined };
+
+  // The splice has succeeded, so the rest of the outline goes straight to `env`'s.
+  spliceEnv.headings = headings;
+  rendering.unrendered = { ...unrendered, delta: unrendered.delta + delta };
+  previous.unrendered = undefined;
+  const tokenDelta = rendering.unrendered.delta;
+  // The footnotes section takes the definitions among the copies too.
+  const copy = (block: Token[]) => {
+    const copies = block.map((token) => movedToken(token, tokenDelta));
+    definitionTokens.push(...copies);
+    return copies;
+  };
+  const line = (rendering.blocks.at(-1) as Block).end;
+  return { rendering, rest: renderPieces(pieces, rendering, line, definitionTokens, copy) };
 }
 
 // A link reference or footnote definition's label, possibly inside a block quote or list, or
@@ -514,13 +624,13 @@ class Pieces {
   readonly references: LookupRecorder;
   /** The lines of each footnote definition among the blocks so far. */
   readonly footnotes: [number, number][] = [];
+  /** The index of the token after the last piece `of` yielded. */
+  next = 0;
   readonly #md: MarkdownIt;
   readonly #rules: CoreRules;
   readonly #state: StateCore;
   readonly #cache: BlockCache;
   readonly #ids: HeadingIds;
-  // Absent when a caller (e.g. the GFM spec tests) doesn't collect an outline.
-  readonly #headings: Heading[] | undefined;
   readonly #openElements: string[] = [];
   #parts: BlockPart[] = [];
   #pieceStart = 0;
@@ -538,7 +648,6 @@ class Pieces {
     this.lineStarts = linesOf(state.src);
     this.references = recordLookups(state.env);
     this.#ids = headingIdsFor(state.env);
-    this.#headings = (state.env as Partial<RenderEnv>).headings;
   }
 
   /** Whether the last pieces wait for a raw HTML element to close. */
@@ -546,15 +655,31 @@ class Pieces {
     return this.#parts.length > 0;
   }
 
-  /** Yields the pieces of `tokens`, whose first block's lines start at `line`. */
-  *of(tokens: Token[], line: number): Generator<Block> {
+  // Absent when a caller (e.g. the GFM spec tests) doesn't collect an outline. Read from the
+  // env each time: a splice hands the rest of the outline to the render's own env once it has
+  // succeeded (spliceBlocks).
+  get #headings(): Heading[] | undefined {
+    return (this.#state.env as Partial<RenderEnv>).headings;
+  }
+
+  /**
+   * Yields the pieces of `tokens` from index `from` on, whose first block's lines start at
+   * `line`. With `copy`, each block renders from what it makes of the block's tokens.
+   */
+  *of(
+    tokens: readonly Token[],
+    line: number,
+    from = 0,
+    copy?: (block: Token[]) => Token[],
+  ): Generator<Block> {
     this.#line = line;
     let depth = 0;
-    let start = 0;
-    for (let index = 0; index < tokens.length; index++) {
+    let start = from;
+    for (let index = from; index < tokens.length; index++) {
       depth += (tokens[index] as Token).nesting;
       if (depth !== 0) continue;
-      const blockTokens = tokens.slice(start, index + 1);
+      const block = tokens.slice(start, index + 1);
+      const blockTokens = copy ? copy(block) : block;
       start = index + 1;
       let end = this.#line;
       for (const token of blockTokens) if (token.map && token.map[1] > end) end = token.map[1];
@@ -571,6 +696,7 @@ class Pieces {
       for (const html of part.rawHtml) trackTags(html, this.#openElements);
       this.#parts.push(part);
       if (this.#openElements.length > 0) continue;
+      this.next = start;
       yield this.#parts.length === 1
         ? new Block(part.source, part.line, this.#parts)
         : new Block(this.#sourceOf([this.#pieceStart, this.#line]), this.#pieceStart, this.#parts);
@@ -712,6 +838,24 @@ function recordLookups(env: Env): LookupRecorder {
       });
     },
   };
+}
+
+/**
+ * A copy of `token`, from another rendering's block parse, for its lines `delta` lines further
+ * down. Rendering the copy leaves `token` as it is: the inline parse and the rules after it add
+ * to a token's children and attributes in place.
+ */
+function movedToken(token: Token, delta: number): Token {
+  const copy: Token = Object.assign(Object.create(Object.getPrototypeOf(token) as object), token);
+  copy.map = token.map && [token.map[0] + delta, token.map[1] + delta];
+  // The source_lines rule marked the token as its block parse ended.
+  copy.attrs =
+    token.attrs?.map(([name, value]) => [
+      name,
+      name === SOURCE_LINE ? String(Number(value) + delta) : value,
+    ]) ?? null;
+  copy.children = token.children && [...token.children];
+  return copy;
 }
 
 /** The offset each line of `src` starts at. */

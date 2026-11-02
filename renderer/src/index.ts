@@ -104,16 +104,17 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   // not the renderer bundle (#22).
   setDocumentBase(documentBaseURL);
   const env: RenderEnv = { headings: [] };
-  // An edit block-parses and renders only what it may have changed when it can, and otherwise
-  // the whole document, reusing the rendering of every piece the render before it rendered or
-  // the page shows. Either way the merge keeps the DOM of the pieces that render the same
+  // An edit block-parses and renders only what it may have changed when it can, even while the
+  // render before it is still rendering (unmark-1793451427066-4-97884ee7.8), and otherwise the
+  // whole document, reusing the rendering of every piece the render before it rendered or the
+  // page shows. Either way the merge keeps the DOM of the pieces that render the same
   // (unmark-1793451427066-4-97884ee7.1).
   const onPage = rendered.merge?.onPage() ?? [];
   const previous = rendered.rendering;
   const spliced = previous && spliceBlocks(md, markdown, env, previous);
-  const rendering = spliced ?? new Rendering();
+  const rendering = spliced?.rendering ?? new Rendering();
   const rest = spliced
-    ? undefined
+    ? spliced.rest
     : htmlBlocks(
         md,
         markdown,
@@ -174,9 +175,8 @@ function* piecesOf(rendering: Rendering, rest: Iterator<Block> | undefined): Gen
 
 /**
  * Renders the rest of the document ahead of the merge, which also builds and lays out each
- * piece's DOM, so the next edit can splice into this rendering (chunks.ts). With keystrokes a
- * second apart soon after a 1 MB document opens, each render would otherwise be replaced
- * before its last piece rendered, and the next one render the whole document again.
+ * piece's DOM, so the next edit can splice into more of this rendering (chunks.ts): an edit
+ * past the pieces rendered so far renders the whole document again.
  */
 async function renderInBackground(rest: Iterator<Block>, isCurrent: () => boolean): Promise<void> {
   for (let done = false; !done && isCurrent(); ) {
