@@ -72,17 +72,24 @@ login rather than an API key. It runs after every close-out (step 5), and launch
 runs it hourly as a backstop (`epic-closeout.sh install-schedule`, log in
 `~/Library/Logs/unmark-epic-closeout.log`).
 
-Each run finds open epics whose children are all closed. For each one, a
-headless Claude verifier checks the epic's `## Success Criteria` in a fresh
-worktree off `origin/main` HEAD and records evidence for every criterion. If a
-criterion needs tools this Mac lacks, such as full Xcode, the verifier uses the
-`CI` run for that commit instead.
+Each run finds open epics whose children are all closed. It first waits for the
+`CI` run of `origin/main` HEAD to finish (up to `EPIC_CI_WAIT_MINUTES`, default
+45), because every verifier gets that run's step results and log. For each epic,
+a headless Claude verifier checks the epic's `## Success Criteria` in a fresh
+worktree off that commit and records evidence for every criterion. It is told
+whether this Mac has full Xcode (it doesn't today); without it, the verifier
+takes evidence for `make build`, `make test`, and `make lint` from the CI run
+instead of running them.
 
 - **Pass:** the script closes the epic bead and its GitHub issue, with the
   evidence attached.
 - **Fail:** the script opens a GitHub issue and a child bead for each unmet
   criterion. The epic stays open, and the gaps show up in `bd ready`. Closing
   the last gap makes the epic eligible again.
+- **Verifier error (no verdict):** nothing is filed and the epic stays
+  eligible, but it cools down: 4 hours after one error, doubling per
+  consecutive error up to 24 hours. `epic-closeout.sh --force` skips the
+  cooldown; a verdict resets it.
 
 So every epic needs a `## Success Criteria` section of checkable bullets. An
 epic without one always fails. To preview a run without changing beads or
