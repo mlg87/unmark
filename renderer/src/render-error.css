@@ -6,6 +6,21 @@
  * mode. Loaded with the page, not with the lazy chunks: it is a few hundred bytes.
  */
 
+/*
+ * github-markdown-css 5.9 uses --bgColor-danger-muted but never defines it, so the box
+ * had no background (#78). Primer's values: light by default and while printing, which
+ * is light in either appearance (#34); dark otherwise when the system is dark.
+ */
+.markdown-body {
+  --bgColor-danger-muted: #ffebe9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-output-mode="print"]) .markdown-body {
+    --bgColor-danger-muted: #f851491a;
+  }
+}
+
 .markdown-body .math-error,
 .markdown-body .mermaid-error {
   margin-bottom: var(--base-size-8);
