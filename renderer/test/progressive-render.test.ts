@@ -505,3 +505,21 @@ test("an edit keeps the DOM of the blocks it didn't change, with their source li
   expect(article.querySelectorAll("table")[30]).toBe(table);
   expect(table?.getAttribute("data-source-line")).toBe(String(line + 2));
 });
+
+test("an edit's DOM build-out waits for a gap in the typing", async () => {
+  vi.useFakeTimers();
+  tallBlocks();
+  await renderOnEmptyPage(longDocument);
+  const edited = `Edited.\n\n${longDocument}`;
+  await render(edited);
+  const onPage = article.innerHTML;
+
+  // Long enough for the edit to render the rest of its pieces, short of the typing pause: the
+  // layout each inserted piece costs is what a keystroke would wait for
+  // (unmark-1793451427066-4-97884ee7.5).
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(article.innerHTML).toBe(onPage);
+
+  await vi.runAllTimersAsync();
+  expect(article.innerHTML).toBe(renderedAllAtOnce(edited));
+});
