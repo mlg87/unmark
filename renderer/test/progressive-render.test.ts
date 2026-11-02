@@ -5,9 +5,11 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Env } from "markdown-it";
 import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import "../src/index.ts";
 import { type Block, blockCache, htmlBlocks, Rendering, spliceBlocks } from "../src/chunks.ts";
+import type { Heading } from "../src/headings.ts";
 import { createMarkdown } from "../src/markdown.ts";
 import { sanitize } from "../src/sanitize.ts";
 import { parseSpecExamples } from "./spec-examples.ts";
@@ -375,25 +377,83 @@ const splices: [string, string, string, boolean][] = [
   ],
 ];
 
+/** `markdown` rendered up to its `count`th piece, as a render still going in the background leaves it. */
+function renderedUpTo(markdown: string, count: number): Rendering {
+  const rendering = new Rendering();
+  const pieces = htmlBlocks(md, markdown, { headings: [] }, new Map(), rendering);
+  for (let piece = 0; piece < count && !pieces.next().done; piece++);
+  return rendering;
+}
+
+/** The HTML of `after` rendered to the end as an edit of `previous`, spliced into it when it can be. */
+function renderedEdit(after: string, env: Env, previous: Rendering): string {
+  const spliced = spliceBlocks(md, after, env, previous);
+  for (const _block of spliced?.rest ?? []);
+  const blocks = spliced?.rendering.blocks ?? [
+    ...htmlBlocks(md, after, env, blockCache(previous.blocks)),
+  ];
+  return blocks.map((block) => block.html).join("");
+}
+
+/** `markdown`'s HTML and outline, parsed and rendered whole. */
+function renderedWhole(markdown: string): [string, Heading[]] {
+  const env = { headings: [] };
+  return [md.renderer.render(md.parse(markdown, env), md.options, env), env.headings];
+}
+
 test.each(splices)(
   "%s, spliced into the rendered document, adds up to its whole HTML and outline",
   (_name, before, after, splices) => {
-    const previous = new Rendering();
-    for (const _block of htmlBlocks(md, before, { headings: [] }, new Map(), previous));
+    const previous = renderedUpTo(before, Number.POSITIVE_INFINITY);
+    expect(spliceBlocks(md, after, { headings: [] }, previous) !== undefined).toBe(splices);
     const env = { headings: [] };
-    const spliced = spliceBlocks(md, after, env, previous);
-    expect(spliced !== undefined).toBe(splices);
-    const blocks = spliced?.blocks ?? [...htmlBlocks(md, after, env)];
-    const parsedEnv = { headings: [] };
-    expect(blocks.map((block) => block.html).join("")).toBe(
-      md.renderer.render(md.parse(after, parsedEnv), md.options, parsedEnv),
-    );
-    expect(env.headings).toEqual(parsedEnv.headings);
+    expect([renderedEdit(after, env, previous), env.headings]).toEqual(renderedWhole(after));
   },
 );
 
+// A keystroke while the document is still rendering splices into the pieces rendered so far
+// when it can, and the rest renders from that render's block parse
+// (unmark-1793451427066-4-97884ee7.8).
+test.each(splices)(
+  "%s, spliced into the document while it's still rendering, adds up to its whole HTML and outline",
+  (_name, before, after) => {
+    const count = [...htmlBlocks(md, before, { headings: [] })].length;
+    for (const rendered of new Set([1, count >> 1, count - 1])) {
+      const env = { headings: [] };
+      const html = renderedEdit(after, env, renderedUpTo(before, rendered));
+      expect([rendered, html, env.headings]).toEqual([rendered, ...renderedWhole(after)]);
+    }
+  },
+);
+
+test("keystrokes into the pieces rendered so far never block-parse the whole document", () => {
+  const previous = renderedUpTo(longDocument, 12);
+  const parse = vi.spyOn(md.block, "parse");
+  // A line added near the top moves the source lines of every piece after it, rendered or not.
+  const typed = longDocument.replace("Hidden **markdown** 0.", "Hidden **markdown** 0.\n\nNew.");
+  const first = spliceBlocks(md, typed, { headings: [] }, previous);
+  expect(first?.rest).toBeDefined();
+  first?.rest?.next();
+  first?.rest?.next();
+  // The next keystroke lands while the rest of the first one's pieces still render.
+  const retyped = typed.replace("## Part 0", "## Part zero");
+  const env = { headings: [] };
+  const second = spliceBlocks(md, retyped, env, first?.rendering as Rendering);
+  for (const _block of second?.rest ?? []);
+  expect(parse).not.toHaveBeenCalled();
+  const html = (second?.rendering.blocks ?? []).map((block) => block.html).join("");
+  expect([html, env.headings]).toEqual(renderedWhole(retyped));
+});
+
+test("an edit past the pieces rendered so far renders the whole document again", () => {
+  const previous = renderedUpTo(longDocument, 3);
+  const edited = longDocument.replace("Hidden **markdown** 40.", "Hidden **markdown** forty.");
+  expect(spliceBlocks(md, edited, { headings: [] }, previous)).toBeUndefined();
+});
+
 // Random edits, seeded so a failure repeats: what any edit splices into, or renders again in
-// full, must add up to what rendering the edited document afresh gives.
+// full, must add up to what rendering the edited document afresh gives, whether the document
+// before it had rendered or was still rendering, a seeded number of pieces in.
 test("seeded random edits to the spec examples render as the edited documents do", () => {
   const examples = ["spec.txt", "extensions.txt"].flatMap((file) =>
     parseSpecExamples(file, readFileSync(join(import.meta.dirname, "fixtures", file), "utf8")),
@@ -409,31 +469,31 @@ test("seeded random edits to the spec examples render as the edited documents do
       .slice(first, first + 8)
       .map(({ markdown }) => markdown)
       .join("\n");
-    const previous = new Rendering();
-    for (const _block of htmlBlocks(md, before, { headings: [] }, new Map(), previous));
+    const rendered = renderedUpTo(before, Number.POSITIVE_INFINITY);
     for (let edit = 0; edit < 4; edit++) {
       const at = random(before.length + 1);
       const after =
         random(3) === 0
           ? before.slice(0, at) + before.slice(at + 1 + random(20))
           : before.slice(0, at) + insertions[random(insertions.length)] + before.slice(at);
-      const env = { headings: [] };
-      const blocks = spliceBlocks(md, after, env, previous)?.blocks ?? [
-        ...htmlBlocks(md, after, env, blockCache(previous.blocks)),
-      ];
-      const parsedEnv = { headings: [] };
-      const expected = md.renderer.render(md.parse(after, parsedEnv), md.options, parsedEnv);
-      expect([after, blocks.map((block) => block.html).join("")]).toEqual([after, expected]);
-      expect(env.headings).toEqual(parsedEnv.headings);
+      const rendering = renderedUpTo(before, 1 + random(rendered.blocks.length));
+      for (const previous of [rendered, rendering]) {
+        const env = { headings: [] };
+        expect([
+          after,
+          previous.complete,
+          renderedEdit(after, env, previous),
+          env.headings,
+        ]).toEqual([after, previous.complete, ...renderedWhole(after)]);
+      }
     }
   }
 });
 
 test("a splice keeps the pieces before the edit and moves the ones after it", () => {
-  const previous = new Rendering();
-  for (const _block of htmlBlocks(md, plainDocument, { headings: [] }, new Map(), previous));
+  const previous = renderedUpTo(plainDocument, Number.POSITIVE_INFINITY);
   const edited = plainDocument.replace(paragraph30, `New paragraph.\n\n${paragraph30}`);
-  const blocks = spliceBlocks(md, edited, { headings: [] }, previous)?.blocks ?? [];
+  const blocks = spliceBlocks(md, edited, { headings: [] }, previous)?.rendering.blocks ?? [];
 
   const edit = previous.blocks.findIndex((block) => block.source.includes(paragraph30));
   expect(blocks).toHaveLength(previous.blocks.length + 1);
@@ -521,5 +581,22 @@ test("an edit's DOM build-out waits for a gap in the typing", async () => {
   expect(article.innerHTML).toBe(onPage);
 
   await vi.runAllTimersAsync();
+  expect(article.innerHTML).toBe(renderedAllAtOnce(edited));
+});
+
+test("a keystroke while a long document is still rendering block-parses only what it changed", async () => {
+  vi.useFakeTimers();
+  tallBlocks();
+  // Each background task renders one piece, so the open is still rendering when the reader types.
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => (now += 20));
+  await renderOnEmptyPage(longDocument);
+  await vi.advanceTimersToNextTimerAsync();
+  // Every markdown-it's block parser, the page's own among them.
+  const parse = vi.spyOn(Object.getPrototypeOf(md.block), "parse");
+  const edited = longDocument.replace("## Part 0\n", "## Part 0\n\nNew.\n");
+  await render(edited);
+  await vi.runAllTimersAsync();
+  expect(parse).not.toHaveBeenCalled();
   expect(article.innerHTML).toBe(renderedAllAtOnce(edited));
 });
