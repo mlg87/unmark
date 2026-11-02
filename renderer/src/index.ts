@@ -179,8 +179,11 @@ function* piecesOf(rendering: Rendering, rest: Iterator<Block> | undefined): Gen
  * past the pieces rendered so far renders the whole document again.
  */
 async function renderInBackground(rest: Iterator<Block>, isCurrent: () => boolean): Promise<void> {
-  for (let done = false; !done && isCurrent(); ) {
+  for (let done = false; !done; ) {
     await new Promise((resolve) => setTimeout(resolve));
+    // A render that started during the wait replaced this one; rendering more of the old
+    // document would only delay the keystroke behind it (unmark-1793451427066-4-97884ee7.9).
+    if (!isCurrent()) return;
     const deadline = performance.now() + BACKGROUND_TASK_MS;
     while (!done && performance.now() < deadline) done = rest.next().done ?? true;
   }
