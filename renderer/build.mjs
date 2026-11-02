@@ -87,8 +87,8 @@ for (const [name, budget] of Object.entries(ENTRY_BUDGETS)) {
   }
 }
 
-// Packages that must stay out of what every document loads: the entry and the chunks
-// it imports statically.
+// Packages that must stay out of what every document loads: the entry and every chunk
+// reachable from it through static imports.
 const LAZY_PACKAGES = [
   // unmark-1793451433078-17-487f189f: KaTeX loads only for math.
   "katex",
@@ -96,17 +96,19 @@ const LAZY_PACKAGES = [
   "mermaid",
 ];
 
-const eagerOutputs = [
-  entry,
-  ...entry.imports
-    .filter((imported) => imported.kind === "import-statement")
-    .map((imported) => outputs[imported.path]),
-];
+// Transitive (#79): esbuild can hoist a shared module into a chunk that another static
+// chunk imports, so one level of imports would miss it.
+const eagerOutputs = new Set([entry]);
+for (const output of eagerOutputs) {
+  for (const imported of output.imports) {
+    if (imported.kind === "import-statement") eagerOutputs.add(outputs[imported.path]);
+  }
+}
 
 for (const name of LAZY_PACKAGES) {
-  const eager = eagerOutputs.reduce((sum, output) => sum + packageBytes(output, name), 0);
+  const eager = [...eagerOutputs].reduce((sum, output) => sum + packageBytes(output, name), 0);
   const lazy = Object.entries(outputs).filter(
-    ([, output]) => !eagerOutputs.includes(output) && packageBytes(output, name) > 0,
+    ([, output]) => !eagerOutputs.has(output) && packageBytes(output, name) > 0,
   );
   console.log(`${name} is in ${lazy.length} lazy chunk(s)`);
   if (eager > 0 || lazy.length === 0) {
