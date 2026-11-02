@@ -115,14 +115,33 @@ update_state() {
 # Writes the verifier's structured verdict for one epic to stdout. Returns non-zero when the verifier
 # produced no verdict: that is an infrastructure failure, not a "fail", so nothing gets filed for it.
 assess_epic() {
-  local epic_id=$1 check_dir=$2 epic children raw
+  local epic_id=$1 check_dir=$2 epic children raw denied_tools
   epic="$(bd show "$epic_id" --json | jq '.[0]')"
   children="$(bd children "$epic_id" --json | jq '[(. // [])[] | {id, title, status, external_ref}]')"
 
   # Edit/Write are withheld so the verifier can't "fix" the repo into passing. Bash stays, because
-  # running the criteria's commands is the point; it is denied the commands that change shared state.
+  # running the criteria's commands is the point; it is denied the commands that change shared state:
+  # GitHub, the beads database, and the maintainer's gh login and config. A `gh` group is denied whole
+  # when nothing in it is evidence for a criterion; otherwise only its writing subcommands are, so
+  # reads like `gh pr checks`, `gh run view`, and `gh release list` stay available.
   # `gh api` stays for reads; the method and body flags that make it write (-f/-F/--input imply POST)
   # are denied wherever they appear in the command.
+  # This can't be inverted to an allow list of read-only `gh` forms (#110): a deny rule beats any allow
+  # rule, so denying `gh` would block the reads too, and without that deny the blanket `Bash` allow
+  # already permits every `gh` command. The rules match the command as written (`gh pr -R x create`
+  # slips past `gh pr create`), so they back up the prompt's ban rather than replace it.
+  denied_tools=(
+    Edit Write NotebookEdit 'Bash(bd:*)' 'Bash(git push:*)'
+    'Bash(gh '{agent-task,alias,auth,codespace,config,copilot,discussion,extension,gist,gpg-key,issue,project,skill,ssh-key,workflow}':*)'
+    'Bash(gh pr '{close,comment,create,edit,lock,merge,ready,reopen,revert,review,unlock,update-branch}':*)'
+    'Bash(gh run '{cancel,delete,rerun}':*)'
+    'Bash(gh release '{create,delete,delete-asset,edit,upload}':*)'
+    'Bash(gh repo '{archive,create,delete,edit,fork,rename,set-default,sync,unarchive,'autolink create','autolink delete','deploy-key add','deploy-key delete'}':*)'
+    'Bash(gh label '{clone,create,delete,edit}':*)'
+    'Bash(gh '{secret,variable}' '{set,delete}':*)'
+    'Bash(gh cache delete:*)'
+    'Bash(gh api*'{-X,--method,-f,-F,--input}'*)'
+  )
   # --strict-mcp-config drops the user's global MCP servers: slow to start, and tools the check must not have.
   # --setting-sources project and disableAllHooks drop the user's plugins and every SessionStart hook
   # (#65): ~10 s of startup, and the repo's `bd prime` hook would brief the verifier on bead workflow
@@ -137,7 +156,7 @@ assess_epic() {
         --model "${EPIC_VERIFIER_MODEL:-opus}" --max-turns "${EPIC_VERIFIER_MAX_TURNS:-100}" \
         --strict-mcp-config --setting-sources project --settings '{"disableAllHooks": true}' \
         --allowedTools "Bash,Read,Grep,Glob" \
-        --disallowedTools "Edit,Write,NotebookEdit,Bash(bd:*),Bash(git push:*),Bash(gh issue:*),Bash(gh pr merge:*),Bash(gh pr close:*),Bash(gh pr comment:*),Bash(gh pr edit:*),Bash(gh workflow:*),Bash(gh run rerun:*),Bash(gh api*-X*),Bash(gh api*--method*),Bash(gh api*-f*),Bash(gh api*-F*),Bash(gh api*--input*)")
+        --disallowedTools "$(IFS=,; printf '%s' "${denied_tools[*]}")")
   )" || true
 
   if jq -e '.is_error == false and (.structured_output | type == "object")' <<<"$raw" >/dev/null 2>&1; then
