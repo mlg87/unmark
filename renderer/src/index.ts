@@ -65,6 +65,10 @@ const BACKGROUND_CHUNK = 32 * 1024;
 // How long each background task renders pieces before yielding, so scrolling and input stay
 // responsive while a long document finishes rendering.
 const BACKGROUND_TASK_MS = 30;
+// How long after an edit the DOM build-out waits before inserting more of the document. Each
+// background merge step lays out the article again, which a keystroke landing behind it waits
+// for; a second between keystrokes counts as still typing (unmark-1793451427066-4-97884ee7.5).
+const TYPING_PAUSE_MS = 1500;
 
 const md = createMarkdown();
 let latestRender = 0;
@@ -128,7 +132,10 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
     background: firstScreen.then(
       async () => {
         // An open builds the DOM as it renders, so a reader scrolling down soon sees more. An
-        // edit renders the rest first, so the next keystroke can splice into it sooner.
+        // edit renders the rest first, so the next keystroke can splice into it sooner, and then
+        // waits for a pause in the typing before building any DOM: each step of the build-out
+        // lays out the whole article, which the next keystroke's render waits for
+        // (unmark-1793451427066-4-97884ee7.5).
         if (!previous) {
           await Promise.all([
             mergeInBackground(merge),
@@ -137,6 +144,9 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
           return;
         }
         if (rest) await renderInBackground(rest, isCurrent);
+        // A keystroke meanwhile replaces this render, dropping its build-out with the rest of
+        // its background work, so the build-out only ever runs in a gap in the typing.
+        await new Promise((resolve) => setTimeout(resolve, TYPING_PAUSE_MS));
         await mergeInBackground(merge);
       },
       () => {},
