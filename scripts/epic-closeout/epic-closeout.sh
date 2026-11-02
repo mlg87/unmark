@@ -24,6 +24,12 @@ schedule_plist="$HOME/Library/LaunchAgents/$schedule_label.plist"
 schedule_log="$HOME/Library/Logs/unmark-epic-closeout.log"
 # Consecutive verifier errors per epic (#65); see cooldown_seconds.
 state_file="$repo/.git/epic-closeout-state.json"
+# An flock rather than a lock directory: the kernel releases it when a run dies, even by SIGKILL,
+# which runs no EXIT trap to remove a directory (#115).
+lock_file="$repo/.git/epic-closeout.flock"
+# A run's CI evidence, prompt, and verifier output. A fixed path, so the next run clears what a killed
+# run left behind.
+run_dir="$repo/.git/epic-closeout-run"
 
 usage() {
   sed -n '6,16p' "${BASH_SOURCE[0]}" | sed 's/^#//' >&2
@@ -53,6 +59,8 @@ host_environment() {
       'Take their evidence from the CI run below. `swift format`, `xcodegen`, and `pnpm` (biome, vitest, the' \
       'renderer build) work here.'
   fi
+  printf 'This check is stopped, without a verdict, after %s minutes of wall-clock time.\n' \
+    "${EPIC_VERIFIER_TIMEOUT_MINUTES:-30}"
 }
 
 # Waits for the CI run of main at $1 to finish, then saves it to $2: ci-run.json (run, job, and step
@@ -112,10 +120,93 @@ update_state() {
   mv -f "$state_file.tmp" "$state_file"
 }
 
+# Prints the PIDs of verifier process $1 (optional) and its descendants, of every process left in a
+# process group verifier-shell.sh recorded, and of every process whose working directory is in a check
+# worktree. Claude Code runs each Bash command in a process group of its own, so a server the verifier
+# backgrounds is in no group of ours, and once its shell exits it is no descendant either (#115).
+# A recorded group counts only once its shell (the group leader) has exited: until then the shell is a
+# descendant anyway, and a live leader of a recorded group may be a later process that reused its PID.
+verifier_processes() {
+  local groups="" own_group
+  if [[ -f $run_dir/process-groups ]]; then
+    groups="$(tr '\n' ' ' <"$run_dir/process-groups")"
+  fi
+  own_group="$(ps -o pgid= -p $$ | tr -d ' ')"
+  {
+    { lsof -w -a -d cwd -F pn 2>/dev/null || true; } |
+      awk '/^p/ {pid = substr($0, 2)} /^n/ && index($0, "/unmark-epic-check.") {print pid}'
+    ps -A -o pid=,ppid=,pgid= | awk -v root="${1:-}" -v groups="$groups" -v own="$own_group" '
+      BEGIN {
+        n = split(groups, g, " ")
+        for (i = 1; i <= n; i++) recorded[g[i]] = 1
+      }
+      {
+        children[$2] = children[$2] " " $1
+        group[$1] = $3
+      }
+      END {
+        for (pid in group) {
+          if ((group[pid] in recorded) && !(group[pid] in group) && group[pid] != own) print pid
+        }
+        for (queue = root; queue != "";) {
+          n = split(queue, pids, " ")
+          queue = ""
+          for (i = 1; i <= n; i++) {
+            if (pids[i] in group) print pids[i]
+            queue = queue children[pids[i]]
+          }
+        }
+      }'
+  } | sort -u
+}
+
+# Stops the processes verifier_processes $1 finds: SIGTERM, then SIGKILL for any still running 5 s on.
+stop_verifier_processes() {
+  local pids pid alive _
+  pids="$(verifier_processes "${1:-}")"
+  [[ -n $pids ]] || return 0
+  log "Stopping verifier processes: $(tr '\n' ' ' <<<"$pids")" >&2
+  # shellcheck disable=SC2086 # One PID per word.
+  kill -TERM $pids 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    alive=""
+    for pid in $pids; do
+      if kill -0 "$pid" 2>/dev/null; then
+        alive="$alive $pid"
+      fi
+    done
+    pids=$alive
+    [[ -n $pids ]] || return 0
+    sleep 1
+  done
+  # shellcheck disable=SC2086 # One PID per word.
+  kill -KILL $pids 2>/dev/null || true
+}
+
+# Stops verifier processes and removes check worktrees and the run directory. Runs on exit, and at
+# start for whatever a run killed before its EXIT trap could run left behind (#115). Only ever called
+# under the lock, so nothing it finds belongs to another run.
+clean_up_run() {
+  local path
+  stop_verifier_processes "${verifier_pid:-}"
+  git -C "$repo" worktree list --porcelain |
+    awk '/^worktree / && index($0, "/unmark-epic-check.") {print substr($0, 10)}' |
+    while IFS= read -r path; do
+      if [[ -d $path ]]; then
+        git -C "$repo" worktree remove --force "$path"
+      fi
+    done
+  git -C "$repo" worktree prune
+  rm -rf "$run_dir"
+}
+
 # Writes the verifier's structured verdict for one epic to stdout. Returns non-zero when the verifier
-# produced no verdict: that is an infrastructure failure, not a "fail", so nothing gets filed for it.
+# produced no verdict, including when it ran past EPIC_VERIFIER_TIMEOUT_MINUTES: that is an
+# infrastructure failure, not a "fail", so nothing gets filed for it. Don't call it in a subshell: the
+# EXIT trap needs verifier_pid to stop a verifier the run is killed during.
 assess_epic() {
-  local epic_id=$1 check_dir=$2 epic children raw denied_tools
+  local epic_id=$1 check_dir=$2 epic children raw denied_tools deadline timed_out=0
+  local timeout_minutes=${EPIC_VERIFIER_TIMEOUT_MINUTES:-30}
   epic="$(bd show "$epic_id" --json | jq '.[0]')"
   children="$(bd children "$epic_id" --json | jq '[(. // [])[] | {id, title, status, external_ref}]')"
 
@@ -147,17 +238,44 @@ assess_epic() {
   # (#65): ~10 s of startup, and the repo's `bd prime` hook would brief the verifier on bead workflow
   # it is forbidden to run.
   # shellcheck disable=SC2016 # The backticks are literal markdown code fences.
-  raw="$(
-    printf '%s\n\n## Host\n\n%s\n\n## CI run for main HEAD\n\n```json\n%s\n```\n\n## Epic\n\n```json\n%s\n```\n\n## Children\n\n```json\n%s\n```\n' \
-      "$(cat "$here/verifier-prompt.md")" "$(host_environment)" "$(cat "$check_dir/.epic-closeout/ci-run.json")" \
-      "$epic" "$children" |
-      (cd "$check_dir" && claude -p --output-format json \
-        --json-schema "$(jq -c . "$here/verdict.schema.json")" \
-        --model "${EPIC_VERIFIER_MODEL:-opus}" --max-turns "${EPIC_VERIFIER_MAX_TURNS:-100}" \
-        --strict-mcp-config --setting-sources project --settings '{"disableAllHooks": true}' \
-        --allowedTools "Bash,Read,Grep,Glob" \
-        --disallowedTools "$(IFS=,; printf '%s' "${denied_tools[*]}")")
-  )" || true
+  printf '%s\n\n## Host\n\n%s\n\n## CI run for main HEAD\n\n```json\n%s\n```\n\n## Epic\n\n```json\n%s\n```\n\n## Children\n\n```json\n%s\n```\n' \
+    "$(cat "$here/verifier-prompt.md")" "$(host_environment)" "$(cat "$check_dir/.epic-closeout/ci-run.json")" \
+    "$epic" "$children" >"$run_dir/prompt.md"
+  # TMPDIR keeps the verifier's mktemp scratch in the worktree, which is deleted afterwards (#115).
+  # verifier-shell.sh records each Bash command's process group; it runs the command with a fixed shell.
+  # fd 9 is the run's lock: closed here so an orphaned verifier can't hold it.
+  mkdir -p "$check_dir/.epic-closeout/tmp"
+  (
+    cd "$check_dir"
+    exec env TMPDIR="$check_dir/.epic-closeout/tmp" CLAUDE_CODE_SHELL=/bin/zsh \
+      CLAUDE_CODE_SHELL_PREFIX="$here/verifier-shell.sh" \
+      EPIC_CLOSEOUT_PROCESS_GROUPS="$run_dir/process-groups" claude -p --output-format json \
+      --json-schema "$(jq -c . "$here/verdict.schema.json")" \
+      --model "${EPIC_VERIFIER_MODEL:-opus}" --max-turns "${EPIC_VERIFIER_MAX_TURNS:-100}" \
+      --strict-mcp-config --setting-sources project --settings '{"disableAllHooks": true}' \
+      --allowedTools "Bash,Read,Grep,Glob" \
+      --disallowedTools "$(IFS=,; printf '%s' "${denied_tools[*]}")"
+  ) <"$run_dir/prompt.md" >"$run_dir/verifier.json" 9>&- &
+  verifier_pid=$!
+  # Otherwise stopping it makes bash print a "Terminated" notice that echoes this whole command.
+  disown "$verifier_pid"
+
+  # --max-turns alone left one run going for 30+ min, building its own measurement harnesses (#115).
+  deadline=$((SECONDS + timeout_minutes * 60))
+  while kill -0 "$verifier_pid" 2>/dev/null && ((SECONDS < deadline)); do
+    sleep 5
+  done
+  if kill -0 "$verifier_pid" 2>/dev/null; then
+    timed_out=1
+    log "error: verifier for $epic_id still running after $timeout_minutes min; stopping it." >&2
+  fi
+  # After a verdict too: a server the verifier started would outlive it.
+  stop_verifier_processes "$verifier_pid"
+  verifier_pid=""
+  if ((timed_out)); then
+    return 1
+  fi
+  raw="$(cat "$run_dir/verifier.json")"
 
   if jq -e '.is_error == false and (.structured_output | type == "object")' <<<"$raw" >/dev/null 2>&1; then
     jq --arg id "$epic_id" '{epic_id: $id} + .structured_output' <<<"$raw"
@@ -256,19 +374,21 @@ cmd_check() {
     esac
   done
 
-  # One run at a time: overlapping runs would double-file gaps and race on `bd dolt push`.
-  # Global, not local: the EXIT trap runs after this function's locals are gone.
-  lock_dir="$repo/.git/epic-closeout.lock"
-  if ! mkdir "$lock_dir" 2>/dev/null; then
-    log "Another epic closeout run holds $lock_dir; exiting."
+  # One run at a time: overlapping runs would double-file gaps and race on `bd dolt push`. fd 9 holds
+  # the lock until this process exits.
+  exec 9>>"$lock_file"
+  if ! lockf -s -t 0 9; then
+    log "Another epic closeout run holds $lock_file; exiting."
     return 0
   fi
-  check_dir="" ci_dir=""
-  trap 'if [[ -n $check_dir ]]; then git -C "$repo" worktree remove --force "$check_dir"; fi; if [[ -n $ci_dir ]]; then rm -rf "$ci_dir"; fi; rmdir "$lock_dir"' EXIT
+  # Global, not local: the EXIT trap runs after this function's locals are gone.
+  verifier_pid=""
+  trap clean_up_run EXIT
+  clean_up_run
 
   cd "$repo"
   bd dolt pull
-  local eligible epic_ids="" epic_id errors last next sha commit verdict failures=0
+  local eligible epic_ids="" epic_id errors last next sha commit check_dir verdict failures=0
   eligible="$(eligible_epics)"
   if ((!dry_run)); then
     # Streaks of epics that closed or regained open children no longer matter.
@@ -290,19 +410,20 @@ cmd_check() {
 
   git fetch --quiet origin main
   sha="$(git rev-parse origin/main)"
-  ci_dir="$(mktemp -d "${TMPDIR:-/tmp}/unmark-epic-ci.XXXXXX")"
+  mkdir -p "$run_dir/ci"
   # No verifier runs without the CI evidence; this isn't any epic's fault, so no streak grows.
-  fetch_ci_run "$sha" "$ci_dir" || return 1
+  fetch_ci_run "$sha" "$run_dir/ci" || return 1
 
   for epic_id in $epic_ids; do
     log "Assessing $epic_id"
     # A fresh worktree per epic, off main HEAD, so one verifier's scratch state can't leak into the next.
     check_dir="$(mktemp -d "${TMPDIR:-/tmp}/unmark-epic-check.XXXXXX")"
     git worktree add --quiet --detach "$check_dir" "$sha"
-    cp -Rf "$ci_dir" "$check_dir/.epic-closeout"
+    cp -Rf "$run_dir/ci" "$check_dir/.epic-closeout"
     commit="$(git -C "$check_dir" rev-parse --short HEAD)"
 
-    if verdict="$(assess_epic "$epic_id" "$check_dir")"; then
+    if assess_epic "$epic_id" "$check_dir" >"$run_dir/verdict.json"; then
+      verdict="$(cat "$run_dir/verdict.json")"
       if ((!dry_run)); then
         update_state 'del(.[$id])' --arg id "$epic_id"
       fi
@@ -324,7 +445,6 @@ cmd_check() {
     fi
 
     git worktree remove --force "$check_dir"
-    check_dir=""
   done
 
   if ((!dry_run)); then
