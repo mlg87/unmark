@@ -5,9 +5,11 @@
 //
 // The merge walks the new pieces in order next to the old ones. A new piece with the same
 // lines as the next old piece, or as one shortly after it, lines up with it, and the old
-// pieces in between go. One that lines up and renders alike keeps its DOM, with its markers
-// moved; any other gets new DOM. Until the merge reaches them, the old pieces stay on the
-// page below the new ones, as a long document's pieces not yet rendered stay off it.
+// pieces in between go; the blank lines above a piece don't count, so a Return above it
+// doesn't take it for another (unmark-1793451427066-4-97884ee7.7). One that lines up and
+// renders alike keeps its DOM, with its markers moved; any other gets new DOM. Until the merge
+// reaches them, the old pieces stay on the page below the new ones, as a long document's
+// pieces not yet rendered stay off it.
 
 import type { Block } from "./chunks.ts";
 import { sanitizeEach } from "./sanitize.ts";
@@ -50,7 +52,7 @@ export class BlockMerge {
   #peeked: Block | undefined;
   #blocksDone = false;
   #complete = false;
-  #oldBySource: Map<string, number[]> | undefined;
+  #oldByText: Map<string, number[]> | undefined;
   #lastCall: Promise<void> = Promise.resolve();
 
   constructor(
@@ -159,7 +161,7 @@ export class BlockMerge {
       }
       if (keep) {
         const kept = this.#old[old as number] as PageBlock;
-        if (block.movable) moveMarkers(kept.nodes, block.line - kept.block.line);
+        if (block.movable) moveMarkers(kept.nodes, block.textLine - kept.block.textLine);
         this.#merged.push({ block, nodes: kept.nodes });
         continue;
       }
@@ -181,26 +183,26 @@ export class BlockMerge {
   #lineUp(block: Block, cursor: number): number | undefined {
     // Most edits change a piece or two, so the old piece is the next one or nearly.
     for (let index = cursor; index <= cursor + NEAR && index < this.#old.length; index++) {
-      if (this.#old[index]?.block.source === block.source) return index;
+      if (this.#old[index]?.block.text === block.text) return index;
     }
-    const later = this.#nextOldWithSource(block.source, cursor);
+    const later = this.#nextOldWithText(block.text, cursor);
     if (later === undefined) return undefined;
     const next = this.#peek();
     const oldNext = this.#old[later + 1]?.block;
-    if (next === undefined ? oldNext === undefined : oldNext?.source === next.source) return later;
+    if (next === undefined ? oldNext === undefined : oldNext?.text === next.text) return later;
     return undefined;
   }
 
-  #nextOldWithSource(source: string, cursor: number): number | undefined {
-    if (!this.#oldBySource) {
-      this.#oldBySource = new Map();
+  #nextOldWithText(text: string, cursor: number): number | undefined {
+    if (!this.#oldByText) {
+      this.#oldByText = new Map();
       this.#old.forEach(({ block }, index) => {
-        const indices = this.#oldBySource?.get(block.source);
+        const indices = this.#oldByText?.get(block.text);
         if (indices) indices.push(index);
-        else this.#oldBySource?.set(block.source, [index]);
+        else this.#oldByText?.set(block.text, [index]);
       });
     }
-    const indices = this.#oldBySource.get(source);
+    const indices = this.#oldByText.get(text);
     if (!indices) return undefined;
     // The first index after `cursor`; indices ascend.
     let low = 0;

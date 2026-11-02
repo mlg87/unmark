@@ -54,6 +54,37 @@ test("an edit elsewhere in the document doesn't draw an unchanged diagram again"
   expect(container?.getAttribute("data-source-line")).toBe("4");
 });
 
+test("typing above two identical diagrams keeps both drawn", async () => {
+  const diagram = "```mermaid\ngraph TD\n  A-->B\n```\n";
+  const documentWith = (above: string) => `# Title\n${above}\n${diagram}\n${diagram}\nAfter\n`;
+  diagrams.renderDiagrams.mockImplementationOnce(async (containers: Element[]) => {
+    for (const container of containers) container.innerHTML = "<svg></svg>";
+  });
+  await render(documentWith(""));
+  const svgs = [...article.querySelectorAll("svg")];
+  expect(svgs).toHaveLength(2);
+  diagrams.renderDiagrams.mockClear();
+
+  // Keystrokes that change the blank lines and text right above the first diagram, which
+  // used to hand the first diagram the second one's DOM and draw the second anew
+  // (unmark-1793451427066-4-97884ee7.7).
+  for (const above of ["\n", "\nx", "\nx\n", "\nx\n\n", "\nxy\n\n", ""]) {
+    const markdown = documentWith(above);
+    await render(markdown);
+    expect(diagrams.renderDiagrams).not.toHaveBeenCalled();
+    const drawn = [...article.querySelectorAll("svg")];
+    expect(drawn).toHaveLength(2);
+    for (const [index, svg] of svgs.entries()) expect(drawn[index]).toBe(svg);
+    const fenceLines = markdown
+      .split("\n")
+      .flatMap((line, index) => (line === "```mermaid" ? [String(index)] : []));
+    const markers = [...article.querySelectorAll(".mermaid-diagram")].map((container) =>
+      container.getAttribute("data-source-line"),
+    );
+    expect(markers).toEqual(fenceLines);
+  }
+});
+
 test("the sanitizer still drops data-mermaid on elements other than <pre>", async () => {
   await render('<div data-mermaid class="mermaid-source">graph TD; A-->B</div>');
   expect(article.innerHTML.trim()).toBe("<div>graph TD; A--&gt;B</div>");

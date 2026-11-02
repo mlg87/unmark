@@ -51,6 +51,8 @@ export type BlockCache = ReadonlyMap<string, BlockPart>;
 const INLINE_FOOTNOTE = "^[";
 const FOOTNOTE_SYNTAX = /\[\^|\^\[/g;
 const MARKER = new RegExp(` ${SOURCE_LINE}="(\\d+)"`, "g");
+// A line markdown-it's block parse skips: spaces and tabs at most.
+const BLANK_LINE = /[ \t]*\n/y;
 
 /** A top-level block's rendering. */
 export class BlockPart {
@@ -128,6 +130,7 @@ export class Block {
   readonly reusable: boolean;
   readonly #footnotes: string;
   #html: string | undefined;
+  #textStart: { text: string; line: number } | undefined;
 
   constructor(source: string, line: number, parts: readonly BlockPart[], footnotes = "") {
     this.source = source;
@@ -148,15 +151,46 @@ export class Block {
     return this.#html;
   }
 
+  /**
+   * `source` from its first line with text on it. The blank lines above a piece don't change its
+   * HTML but for the lines its source-line markers name, so a piece that gained or lost blank
+   * lines above it renders like its old self (unmark-1793451427066-4-97884ee7.7).
+   */
+  get text(): string {
+    return this.#skipBlankLines().text;
+  }
+
+  /** The line `text` starts on. */
+  get textLine(): number {
+    return this.#skipBlankLines().line;
+  }
+
+  #skipBlankLines(): { text: string; line: number } {
+    if (!this.#textStart) {
+      let offset = 0;
+      let line = this.line;
+      BLANK_LINE.lastIndex = 0;
+      while (BLANK_LINE.test(this.source)) {
+        offset = BLANK_LINE.lastIndex;
+        line++;
+      }
+      this.#textStart = { text: this.source.slice(offset), line };
+    }
+    return this.#textStart;
+  }
+
   /** Whether this piece's HTML is `other`'s, with the source-line markers moved to its lines. */
   rendersLike(other: Block): boolean {
-    if (this.source !== other.source || this.parts.length !== other.parts.length) return false;
+    if (this.text !== other.text || this.parts.length !== other.parts.length) return false;
+    // Parts with the same origin have the same lines, blank ones included.
     const reused = this.parts.every(
       (part, index) => part.context !== undefined && part.origin === other.parts[index]?.origin,
     );
     if (reused && !this.#footnotes && !other.#footnotes) return true;
     const moved = this.movable && other.movable;
-    return this.html === (moved ? moveMarkers(other.html, this.line - other.line) : other.html);
+    return (
+      this.html === (moved ? moveMarkers(other.html, this.textLine - other.textLine) : other.html)
+    );
   }
 
   /** This piece's rendering for the same lines, `delta` lines further down. */
