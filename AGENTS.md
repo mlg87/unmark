@@ -79,16 +79,19 @@ a headless Claude verifier checks the epic's `## Success Criteria` in a fresh
 worktree off that commit and records evidence for every criterion. It is told
 whether this Mac has full Xcode (it doesn't today); without it, the verifier
 takes evidence for `make build`, `make test`, and `make lint` from the CI run
-instead of running them.
+instead of running them. A verifier still running after
+`EPIC_VERIFIER_TIMEOUT_MINUTES` (default 30) is stopped, along with any process
+it started. A run killed before it could clean up leaves nothing in the way: the
+next run stops its leftover processes and removes its worktree.
 
 - **Pass:** the script closes the epic bead and its GitHub issue, with the
   evidence attached.
 - **Fail:** the script opens a GitHub issue and a child bead for each unmet
   criterion. The epic stays open, and the gaps show up in `bd ready`. Closing
   the last gap makes the epic eligible again.
-- **Verifier error (no verdict):** nothing is filed and the epic stays
-  eligible, but it cools down: 4 hours after one error, doubling per
-  consecutive error up to 24 hours. `epic-closeout.sh --force` skips the
+- **Verifier error (no verdict, including a timeout):** nothing is filed and
+  the epic stays eligible, but it cools down: 4 hours after one error, doubling
+  per consecutive error up to 24 hours. `epic-closeout.sh --force` skips the
   cooldown; a verdict resets it.
 
 So every epic needs a `## Success Criteria` section of checkable bullets. An
