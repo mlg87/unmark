@@ -173,6 +173,20 @@ test("a newer render stops the previous one's background chunks", async () => {
   expect(article.innerHTML).toBe(renderedAllAtOnce("# Replaced"));
 });
 
+test("a render that replaces one waiting for its next background task renders none of the old document", async () => {
+  vi.useFakeTimers();
+  tallBlocks();
+  await renderOnEmptyPage(longDocument);
+  // Every markdown-it's block parser, the page's own among them.
+  const parse = vi.spyOn(Object.getPrototypeOf(md.block), "parse");
+  await render("# Replaced");
+  await vi.runAllTimersAsync();
+  // Rendering more of the old document would only delay the keystroke that replaced it
+  // (unmark-1793451427066-4-97884ee7.9).
+  expect(parse.mock.calls.filter(([src]) => String(src).includes("## Part"))).toEqual([]);
+  expect(article.innerHTML).toBe(renderedAllAtOnce("# Replaced"));
+});
+
 test("scrolling to an element in a later chunk renders up to it, not the whole document", async () => {
   vi.useFakeTimers();
   tallBlocks();
