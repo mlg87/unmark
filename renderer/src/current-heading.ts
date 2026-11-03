@@ -77,7 +77,9 @@ export function reportCurrentHeading(): void {
     handler.postMessage({ type: "currentHeading", id });
   };
   const schedule = () => {
-    if (frameRequested) return;
+    // Outside the app nobody listens, so the page doesn't read heading positions for nobody. The
+    // handler is looked up each time because the app adds it after the page has loaded.
+    if (frameRequested || !window.webkit?.messageHandlers?.unmark) return;
     frameRequested = true;
     requestAnimationFrame(report);
   };
