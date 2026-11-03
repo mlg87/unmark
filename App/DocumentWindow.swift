@@ -1,8 +1,8 @@
 import SwiftUI
 import UnmarkCore
 
-/// A document window's content: the Preview, with the Source beside it in Split mode. Every window opens in Preview
-/// mode (q15).
+/// A document window's content: the Outline in a sidebar while it's shown, and the Preview, with the Source beside it
+/// in Split mode. Every window opens in Preview mode (q15).
 struct DocumentWindow: View {
     /// Narrow enough to read and edit in, and wide enough that two panes fit the window's 480 pt minimum.
     private static let paneMinWidth: CGFloat = 240
@@ -22,10 +22,37 @@ struct DocumentWindow: View {
     /// Both app-wide, so a zoom reaches every open window at once (q36).
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
     @AppStorage(PreviewZoom.defaultsKey) private var previewZoom = PreviewZoom.actualSize
+    @AppStorage(OutlineVisibility.key) private var isOutlineVisible = false
     /// Per window, so each window's panes follow only each other.
     @State private var scrollSync = ScrollSync()
 
     var body: some View {
+        // The sidebar sits outside both panes, so it stays put as Split mode adds and removes the Source.
+        NavigationSplitView(columnVisibility: outlineColumnVisibility) {
+            OutlineView(
+                headings: state.outline, currentHeadingID: state.currentHeadingID,
+                headingChosen: { id in
+                    state.scrollRequest = ScrollRequest(elementID: id)
+                    // Selected at once rather than once the renderer reports the scroll, so the click doesn't flicker
+                    // back to the previous row first.
+                    state.currentHeadingID = id
+                }
+            )
+            .navigationSplitViewColumnWidth(min: 160, ideal: 220, max: 400)
+        } detail: {
+            panes
+        }
+        .frame(minWidth: 480, minHeight: 320)
+    }
+
+    /// Collapsing the sidebar by dragging its divider hides the Outline in every window, as ⌃⌘S does.
+    private var outlineColumnVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { isOutlineVisible ? .all : .detailOnly },
+            set: { isOutlineVisible = $0 != .detailOnly })
+    }
+
+    private var panes: some View {
         VStack(spacing: 0) {
             if state.fileWasDeleted {
                 FileDeletedBanner()
@@ -67,6 +94,13 @@ struct DocumentWindow: View {
                         }
                     },
                     linkActivated: linkActivated, taskToggled: taskToggled,
+                    outlineChanged: { headings in
+                        // Every render posts its outline, and most leave it as it was.
+                        if headings != state.outline {
+                            state.outline = headings
+                        }
+                    },
+                    currentHeadingChanged: { id in state.currentHeadingID = id },
                     scrollSync: scrollSync
                 )
                 .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
@@ -87,7 +121,6 @@ struct DocumentWindow: View {
             guard !Task.isCancelled else { return }
             state.missingLinkTarget = nil
         }
-        .frame(minWidth: 480, minHeight: 320)
     }
 }
 

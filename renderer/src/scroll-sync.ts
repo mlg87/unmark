@@ -3,6 +3,7 @@
 // markers (source-lines.ts), and telling the app where the reader scrolled. The app keeps the
 // Source on the same line and owns the feedback-loop guard between the two panes.
 
+import type { Heading } from "./headings.ts";
 import { SOURCE_LINE } from "./source-lines.ts";
 
 declare global {
@@ -14,11 +15,14 @@ declare global {
 
 /**
  * What the Preview tells the app. `previewScrolled`'s `line` is the 0-based source line at the
- * viewport's top; task-toggle.ts posts `taskToggled`.
+ * viewport's top; task-toggle.ts posts `taskToggled`, current-heading.ts `currentHeading`, and
+ * index.ts `outline`.
  */
 export type PreviewMessage =
   | { type: "previewScrolled"; line: number }
-  | { type: "taskToggled"; line: number; checked: boolean };
+  | { type: "taskToggled"; line: number; checked: boolean }
+  | { type: "currentHeading"; id: string | null }
+  | { type: "outline"; headings: Heading[] };
 
 interface Marker {
   line: number;

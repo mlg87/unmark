@@ -28,6 +28,11 @@ struct PreviewView: NSViewRepresentable {
     /// Called when the user clicks the checkbox of the task-list item on 0-based source `line`, asking for it to be
     /// `checked`. The Preview shows the change only once the edited text renders.
     let taskToggled: @MainActor (_ line: Int, _ checked: Bool) -> Void
+    /// Called with the document's headings once a render has parsed and shown all of it, for the Outline.
+    let outlineChanged: @MainActor ([OutlineHeading]) -> Void
+    /// Called with the id of the last heading at or above the Preview's top whenever that changes, nil above the
+    /// first heading.
+    let currentHeadingChanged: @MainActor (String?) -> Void
     /// Keeps the Preview and, in Split mode, the Source on the same source line.
     let scrollSync: ScrollSync
 
@@ -40,9 +45,10 @@ struct PreviewView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
         context.coordinator.pageLoaded = pageLoaded
-        // The renderer posts `previewScrolled` and `taskToggled` to this handler as the user scrolls and clicks. WebKit
-        // looks handlers up when the page posts, so one added after the pool loaded the page still receives them. The
-        // content controller keeps the coordinator alive only as long as the web view, which is its own.
+        // The renderer posts `previewScrolled`, `taskToggled`, `currentHeading`, and `outline` to this handler as the
+        // user scrolls and clicks and renders finish. WebKit looks handlers up when the page posts, so one added after
+        // the pool loaded the page still receives them. The content controller keeps the coordinator alive only as
+        // long as the web view, which is its own.
         webView.configuration.userContentController.add(context.coordinator, name: PreviewMessage.handlerName)
         scrollSync.scrollPreview = { [weak coordinator = context.coordinator] line in
             coordinator?.scrollToSourceLine(line)
@@ -61,6 +67,8 @@ struct PreviewView: NSViewRepresentable {
         context.coordinator.wordCounted = wordCounted
         context.coordinator.linkActivated = linkActivated
         context.coordinator.taskToggled = taskToggled
+        context.coordinator.outlineChanged = outlineChanged
+        context.coordinator.currentHeadingChanged = currentHeadingChanged
         context.coordinator.previewScrolled = { [scrollSync] line in
             scrollSync.paneDidScroll(.preview, toLine: line)
         }
@@ -89,6 +97,8 @@ struct PreviewView: NSViewRepresentable {
         /// Called with the 0-based source line at the Preview's top as the user scrolls it.
         var previewScrolled: @MainActor (Double) -> Void = { _ in }
         var taskToggled: @MainActor (_ line: Int, _ checked: Bool) -> Void = { _, _ in }
+        var outlineChanged: @MainActor ([OutlineHeading]) -> Void = { _ in }
+        var currentHeadingChanged: @MainActor (String?) -> Void = { _ in }
 
         /// Set by `makeNSView` when the pool hands over a web view whose page already loaded.
         var pageLoaded = false
@@ -212,6 +222,10 @@ struct PreviewView: NSViewRepresentable {
                 previewScrolled(line)
             case .taskToggled(let line, let checked):
                 taskToggled(line, checked)
+            case .currentHeading(let id):
+                currentHeadingChanged(id)
+            case .outline(let headings):
+                outlineChanged(headings)
             case nil:
                 break
             }

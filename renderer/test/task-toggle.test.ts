@@ -26,6 +26,13 @@ beforeEach(async () => {
   await window.unmark.render(DOCUMENT, { documentBaseURL: "file:///docs/" });
 });
 
+/** The page's `taskToggled` posts; it also posts the Outline's messages. */
+function taskToggles(): unknown[] {
+  return postMessage.mock.calls
+    .map(([message]) => message)
+    .filter((message) => message.type === "taskToggled");
+}
+
 function checkboxes(): HTMLInputElement[] {
   return [...document.querySelectorAll<HTMLInputElement>("input.task-list-item-checkbox")];
 }
@@ -37,7 +44,7 @@ test("each checkbox is enabled", () => {
 test("a click posts the line and the state asked for, and leaves the checkbox as it was", () => {
   for (const box of checkboxes()) box.click();
 
-  expect(postMessage.mock.calls.map(([message]) => message)).toEqual([
+  expect(taskToggles()).toEqual([
     { type: "taskToggled", line: 0, checked: true },
     { type: "taskToggled", line: 1, checked: false },
     { type: "taskToggled", line: 2, checked: true },
@@ -53,6 +60,6 @@ test("a checkbox without a source line posts nothing", async () => {
   const [box] = checkboxes();
   box?.click();
 
-  expect(postMessage).not.toHaveBeenCalled();
+  expect(taskToggles()).toEqual([]);
   expect(box?.checked).toBe(false);
 });

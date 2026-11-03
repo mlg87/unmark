@@ -1,4 +1,5 @@
 import { type Block, blockCache, htmlBlocks, Rendering, spliceBlocks } from "./chunks.ts";
+import { reportCurrentHeading } from "./current-heading.ts";
 import type { Heading, RenderEnv } from "./headings.ts";
 import { createMarkdown } from "./markdown.ts";
 import { BlockMerge } from "./merge.ts";
@@ -144,6 +145,20 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   const allRendered = firstScreen.then(async () => {
     if (rest) await renderInBackground(rest, isCurrent);
   });
+  // The whole outline, once every piece is rendered, so the Outline lists all of the document;
+  // scrollToElement merges up to a heading whose DOM isn't on the page yet
+  // (unmark-1793451438713-29-a6ce6672). A render that replaced this one posts its own.
+  allRendered.then(
+    () => {
+      if (isCurrent()) {
+        window.webkit?.messageHandlers?.unmark?.postMessage({
+          type: "outline",
+          headings: env.headings,
+        });
+      }
+    },
+    () => {},
+  );
   // Set before the merge's first step, so a render that starts meanwhile merges from this one.
   rendered = {
     headings: env.headings,
@@ -354,3 +369,4 @@ reportScrolls(lineAtTop);
 const rememberLineAtTop = keepLineAcrossWidthChanges(lineAtTop, scrollLineToTop);
 
 reportTaskToggles();
+reportCurrentHeading();

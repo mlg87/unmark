@@ -2,10 +2,14 @@ import AppKit
 import SwiftUI
 import UnmarkCore
 
-/// A document's window: the SwiftUI content under a toolbar with the Split mode toggle. The toolbar button and
-/// View → Show Source both send `toggleSource(_:)` up the responder chain, which reaches this controller.
+/// A document's window: the SwiftUI content under a toolbar with the Outline and Split mode toggles. The toolbar
+/// buttons and their View menu items send `toggleOutline(_:)` and `toggleSource(_:)` up the responder chain, which
+/// reaches this controller.
 @MainActor
-final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, NSMenuItemValidation {
+final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, NSMenuItemValidation,
+    NSToolbarItemValidation
+{
+    private static let toggleOutlineItem = NSToolbarItem.Identifier("toggleOutline")
     private static let toggleSourceItem = NSToolbarItem.Identifier("toggleSource")
 
     private let state: DocumentState
@@ -13,7 +17,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
 
     init(state: DocumentState, content: DocumentWindow) {
         self.state = state
-        super.init(window: NSWindow(contentViewController: NSHostingController(rootView: content)))
+        let hostingController = NSHostingController(rootView: content)
+        // The toolbar is AppKit's, so the NavigationSplitView in the content doesn't add its own sidebar button to it.
+        hostingController.sceneBridgingOptions = []
+        super.init(window: NSWindow(contentViewController: hostingController))
         window?.delegate = self
         let toolbar = NSToolbar(identifier: "DocumentWindow")
         toolbar.delegate = self
@@ -31,12 +38,30 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         sourceVisible ? String(localized: "Hide Source") : String(localized: "Show Source")
     }
 
+    /// The View menu item's title for the Outline's visibility.
+    static func toggleOutlineTitle(outlineVisible: Bool) -> String {
+        outlineVisible ? String(localized: "Hide Outline") : String(localized: "Show Outline")
+    }
+
+    /// The Outline's visibility is one flag for every window (q34), which each window's content observes.
+    private static var isOutlineVisible: Bool {
+        get { UserDefaults.standard.bool(forKey: OutlineVisibility.key) }
+        set { UserDefaults.standard.set(newValue, forKey: OutlineVisibility.key) }
+    }
+
+    @objc func toggleOutline(_ sender: Any?) {
+        Self.isOutlineVisible.toggle()
+    }
+
     @objc func toggleSource(_ sender: Any?) {
         state.isSourceVisible.toggle()
         toggleSourceToolbarItem?.toolTip = Self.toggleSourceToolTip(sourceVisible: state.isSourceVisible)
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleOutline(_:)) {
+            menuItem.title = Self.toggleOutlineTitle(outlineVisible: Self.isOutlineVisible)
+        }
         if menuItem.action == #selector(toggleSource(_:)) {
             menuItem.title = Self.toggleSourceTitle(sourceVisible: state.isSourceVisible)
         }
@@ -105,6 +130,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         return responder.isDescendant(of: sourceScrollView)
     }
 
+    /// Retitles the Outline button's tooltip here rather than when it's clicked, because the Outline can be shown or
+    /// hidden from another window, or by dragging the sidebar closed.
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        if item.itemIdentifier == Self.toggleOutlineItem {
+            item.toolTip = Self.toggleOutlineToolTip(outlineVisible: Self.isOutlineVisible)
+        }
+        return true
+    }
+
     /// The Source's text view, while Split mode shows it.
     var sourceTextView: SourceNSTextView? {
         var views = window?.contentView.map { [$0] } ?? []
@@ -121,6 +155,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         sourceVisible ? String(localized: "Hide Source (⇧⌘E)") : String(localized: "Show Source (⇧⌘E)")
     }
 
+    private static func toggleOutlineToolTip(outlineVisible: Bool) -> String {
+        outlineVisible ? String(localized: "Hide Outline (⌃⌘S)") : String(localized: "Show Outline (⌃⌘S)")
+    }
+
     // MARK: NSWindowDelegate
 
     /// Edit → Undo and Redo use the window's undo manager. Handing them the document's, where the document registers
@@ -133,7 +171,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     // MARK: NSToolbarDelegate
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, Self.toggleSourceItem]
+        [Self.toggleOutlineItem, .flexibleSpace, Self.toggleSourceItem]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -144,16 +182,31 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         _ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
-        guard itemIdentifier == Self.toggleSourceItem else { return nil }
-        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        let title = Self.toggleSourceTitle(sourceVisible: state.isSourceVisible)
-        item.label = title
-        item.image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: title)
-        item.toolTip = Self.toggleSourceToolTip(sourceVisible: state.isSourceVisible)
-        item.isBordered = true
-        item.action = #selector(toggleSource(_:))
-        item.target = self
-        toggleSourceToolbarItem = item
-        return item
+        switch itemIdentifier {
+        case Self.toggleOutlineItem:
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            item.label = String(localized: "Outline")
+            item.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: item.label)
+            item.toolTip = Self.toggleOutlineToolTip(outlineVisible: Self.isOutlineVisible)
+            item.isBordered = true
+            item.action = #selector(toggleOutline(_:))
+            item.target = self
+            // At the window's leading edge, before the title, on the side the sidebar it toggles opens.
+            item.isNavigational = true
+            return item
+        case Self.toggleSourceItem:
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            let title = Self.toggleSourceTitle(sourceVisible: state.isSourceVisible)
+            item.label = title
+            item.image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: title)
+            item.toolTip = Self.toggleSourceToolTip(sourceVisible: state.isSourceVisible)
+            item.isBordered = true
+            item.action = #selector(toggleSource(_:))
+            item.target = self
+            toggleSourceToolbarItem = item
+            return item
+        default:
+            return nil
+        }
     }
 }

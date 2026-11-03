@@ -116,6 +116,12 @@ enum MainMenu {
 
     private static func viewMenu() -> NSMenu {
         let menu = NSMenu(title: String(localized: "View"))
+        // ⌃⌘S, the system's shortcut for showing and hiding a sidebar. `DocumentWindowController` retitles it to Hide
+        // Outline while the Outline is shown.
+        menu.addItem(
+            withTitle: DocumentWindowController.toggleOutlineTitle(outlineVisible: false),
+            action: #selector(DocumentWindowController.toggleOutline(_:)), keyEquivalent: "s"
+        ).keyEquivalentModifierMask = [.control, .command]
         // `DocumentWindowController` retitles it to Hide Source while its window is in Split mode.
         menu.addItem(
             withTitle: DocumentWindowController.toggleSourceTitle(sourceVisible: false),
