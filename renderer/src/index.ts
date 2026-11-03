@@ -67,11 +67,21 @@ export interface UnmarkRenderer {
    */
   setOutputMode(mode: OutputMode): Promise<void>;
   /**
-   * How many times `query` occurs in the document's rendered text, ignoring case, once all of it
-   * is on the page. The Preview's find bar shows it as the total beside the match WKWebView.find
-   * selected (unmark-1793451439168-30-08e35535).
+   * `query`'s matches in the document's rendered text, ignoring case, once all of it is on the
+   * page. The Preview's find bar shows `count` as the total and steps WKWebView.find from the
+   * selection (unmark-1793451439168-30-08e35535), so it also learns where the selection sits:
+   * after `before` matches, and on the next one when `selected`. A selection that isn't a match
+   * becomes a caret at its start, and one outside the document's text is cleared, so the next
+   * step lands on the match after `before` (unmark-1793451427523-5-478d1806.3).
    */
-  countMatches(query: string): Promise<number>;
+  countMatches(query: string): Promise<SelectedMatch>;
+}
+
+/** Where the selection sits among a query's matches; see `UnmarkRenderer.countMatches`. */
+export interface SelectedMatch {
+  count: number;
+  before: number;
+  selected: boolean;
 }
 
 declare global {
@@ -317,15 +327,26 @@ async function setOutputMode(mode: OutputMode): Promise<void> {
   await renderDiagrams([], mode);
 }
 
-async function countMatches(query: string): Promise<number> {
+async function countMatches(query: string): Promise<SelectedMatch> {
   const article = document.querySelector("article.markdown-body");
-  if (!article) return 0;
+  if (!article) return { count: 0, before: 0, selected: false };
   // Merges the rest of the document now rather than waiting for the background tasks, which
   // after an edit wait for a pause in the typing, so the count and WKWebView.find both see
   // all of it.
   const merge = rendered.merge;
   await merge?.advanceUntil(() => merge.done, BACKGROUND_CHUNK);
-  return countMatchesIn(article, query);
+  const selection = getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+  const matches = countMatchesIn(
+    article,
+    query,
+    range && { node: range.startContainer, offset: range.startOffset },
+  );
+  // A render can leave the selection a caret where it removed the selected match.
+  const selected = range !== undefined && !range.collapsed && matches.startsAtPoint;
+  if (matches.before === null) selection?.removeAllRanges();
+  else if (!selected) selection?.collapseToStart();
+  return { count: matches.count, before: matches.before ?? 0, selected };
 }
 
 async function scrollToElement(id: string): Promise<void> {

@@ -5,9 +5,11 @@ import os
 /// The Preview pane: the find bar, while it's open, above the web view. A plain view around the stack, so SwiftUI sizes
 /// the pane to its proposal as it does a bare web view.
 final class PreviewPaneView: NSView {
+    let findBar: PreviewFindBar
+
     init(webView: WKWebView) {
+        findBar = PreviewFindBar(webView: webView)
         super.init(frame: .zero)
-        let findBar = PreviewFindBar(webView: webView)
         // A stack view gives the hidden find bar's height to the web view.
         let stack = NSStackView(views: [findBar, webView])
         stack.orientation = .vertical
@@ -34,7 +36,8 @@ final class PreviewPaneView: NSView {
 /// Find in the Preview (unmark-1793451439168-30-08e35535), styled like NSTextView's find bar: WKWebView can search its
 /// page but has no find bar on macOS. The total comes from the renderer's `countMatches`, and each step from
 /// `WKWebView.find`, which selects and scrolls to the next match but reports only whether there was one, so the bar
-/// counts its steps for "n of m". Both ignore case.
+/// counts its steps for "n of m". Both ignore case. A render while the bar is open counts again, and the renderer
+/// says where the selection, which the next step starts from, now sits (unmark-1793451427523-5-478d1806.3).
 @MainActor
 final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
     private static let logger = Logger(subsystem: "com.mlg87.unmark", category: "PreviewFindBar")
@@ -52,10 +55,11 @@ final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
     private var query = ""
     /// Nil until the renderer has counted `query`'s matches.
     private var matchCount: Int?
-    /// 1-based; zero before the first step to a match.
-    private var currentMatch = 0
+    private var place = Place.after(0)
     /// Bumped by each new search and by closing, so answers to an earlier search don't overwrite a later one.
     private var generation = 0
+    /// Bumped by each count after a render, so only the latest render's count shows.
+    private var recounts = 0
 
     init(webView: WKWebView) {
         self.webView = webView
@@ -170,7 +174,7 @@ final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
         guard !isHidden else { return }
         generation += 1
         matchCount = nil
-        currentMatch = 0
+        place = .after(0)
         showStatus()
         if let webView {
             // Before hiding the bar, so the field ends editing rather than vanishing with the focus.
@@ -187,7 +191,7 @@ final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
         let query = searchField.stringValue
         self.query = query
         matchCount = nil
-        currentMatch = 0
+        place = .after(0)
         showStatus()
         guard let webView else { return }
         Task {
@@ -201,21 +205,40 @@ final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
             guard generation == self.generation else { return }
             // WebKit finding nothing is no results, whatever the renderer counted.
             matchCount = found ? count : 0
-            currentMatch = found ? 1 : 0
+            place = found ? .match(1) : .after(0)
             showStatus()
         }
     }
 
+    /// Called once a render reaches the page. Counts the matches in the new text, keeping the selected one when the
+    /// render kept it, rather than search again and move the Preview to the first match.
+    func documentDidRender() {
+        guard !isHidden, !query.isEmpty, let webView else { return }
+        // A search still under way may have counted the text before the render.
+        guard matchCount != nil else {
+            search()
+            return
+        }
+        recounts += 1
+        let generation = generation
+        let recount = recounts
+        Task {
+            let selection = await selectedMatch(of: query, in: webView)
+            guard generation == self.generation, recount == recounts, let selection else { return }
+            matchCount = selection.count
+            place = selection.selected ? .match(selection.before + 1) : .after(selection.before)
+            showStatus()
+        }
+    }
+
+    /// Doesn't check `recounts`: a count after a render reads the selection before or after this step's `find`, and
+    /// WebKit answers in that order, so applying the step to whichever place is current keeps them in agreement.
     private func step(backwards: Bool) {
         guard let count = matchCount, count > 0, let webView else { return }
         let generation = generation
         Task {
             guard await find(query, backwards: backwards, in: webView), generation == self.generation else { return }
-            if backwards {
-                currentMatch = currentMatch <= 1 ? count : currentMatch - 1
-            } else {
-                currentMatch = currentMatch >= count ? 1 : currentMatch + 1
-            }
+            place = place.stepped(backwards: backwards, among: matchCount ?? count)
             showStatus()
         }
     }
@@ -224,8 +247,12 @@ final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
         let noResults = !query.isEmpty && matchCount == 0
         if noResults {
             matchLabel.stringValue = String(localized: "No results")
-        } else if let matchCount, currentMatch > 0 {
-            matchLabel.stringValue = String(localized: "\(currentMatch) of \(matchCount)")
+        } else if let matchCount, case .match(let index) = place {
+            matchLabel.stringValue = String(localized: "\(index) of \(matchCount)")
+        } else if let matchCount {
+            // No match is selected after a render removed the selected one. The String Catalog's plural variations
+            // give "1 match".
+            matchLabel.stringValue = String(localized: "\(matchCount) matches")
         } else {
             matchLabel.stringValue = ""
         }
@@ -244,13 +271,30 @@ final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
             let count = try await webView.callAsyncJavaScript(
                 """
                 getSelection()?.removeAllRanges();
-                return (await window.unmark?.countMatches(query)) ?? 0;
+                return (await window.unmark?.countMatches(query))?.count ?? 0;
                 """,
                 arguments: ["query": query], contentWorld: .page)
             return count as? Int ?? 0
         } catch {
             Self.logger.error("Counting matches failed: \(String(describing: error), privacy: .public)")
             return 0
+        }
+    }
+
+    /// The renderer's `countMatches`, which leaves the selection where the next `WKWebView.find` steps from the
+    /// place it reports. Nil when counting failed.
+    private func selectedMatch(of query: String, in webView: WKWebView) async -> SelectedMatch? {
+        do {
+            let answer = try await webView.callAsyncJavaScript(
+                "return await window.unmark.countMatches(query);", arguments: ["query": query],
+                contentWorld: .page)
+            guard let answer = answer as? [String: Any], let count = answer["count"] as? Int,
+                let before = answer["before"] as? Int, let selected = answer["selected"] as? Bool
+            else { return nil }
+            return SelectedMatch(count: count, before: before, selected: selected)
+        } catch {
+            Self.logger.error("Recounting matches failed: \(String(describing: error), privacy: .public)")
+            return nil
         }
     }
 
@@ -305,6 +349,33 @@ final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
         default:
             return false
         }
+    }
+}
+
+/// The renderer's `SelectedMatch`: where the selection sits among a query's `count` matches.
+private struct SelectedMatch {
+    let count: Int
+    /// How many matches start before the selection.
+    let before: Int
+    /// Whether the selection is the match after `before`.
+    let selected: Bool
+}
+
+/// Where WebKit's selection, which `WKWebView.find` steps from, sits among the matches.
+private enum Place {
+    /// The selection is the match at this 1-based index.
+    case match(Int)
+    /// A caret or nothing is selected, after this many matches; nothing selected is the document's top.
+    case after(Int)
+
+    /// The match `WKWebView.find` selects next, wrapping around `count` matches.
+    func stepped(backwards: Bool, among count: Int) -> Place {
+        let index =
+            switch self {
+            case .match(let index): backwards ? index - 1 : index + 1
+            case .after(let before): backwards ? before : before + 1
+            }
+        return .match(index < 1 ? count : index > count ? 1 : index)
     }
 }
 
