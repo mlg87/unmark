@@ -139,6 +139,29 @@ struct PreviewMessageTests {
         #expect(PreviewMessage(body: body) == .taskToggled(line: 4, checked: true))
     }
 
+    @Test func parsesTheCurrentHeading() {
+        #expect(PreviewMessage(body: ["type": "currentHeading", "id": "install"]) == .currentHeading(id: "install"))
+        // Above the first heading; WebKit hands JavaScript's null over as NSNull.
+        #expect(PreviewMessage(body: ["type": "currentHeading", "id": NSNull()]) == .currentHeading(id: nil))
+    }
+
+    @Test func parsesTheOutline() {
+        let body: [String: Any] = [
+            "type": "outline",
+            "headings": [
+                ["level": NSNumber(value: 1), "text": "Unmark", "id": "unmark"],
+                ["level": NSNumber(value: 2), "text": "Install", "id": "install"],
+            ],
+        ]
+        #expect(
+            PreviewMessage(body: body)
+                == .outline(headings: [
+                    OutlineHeading(level: 1, text: "Unmark", id: "unmark"),
+                    OutlineHeading(level: 2, text: "Install", id: "install"),
+                ]))
+        #expect(PreviewMessage(body: ["type": "outline", "headings": [Any]()]) == .outline(headings: []))
+    }
+
     @Test func rejectsMalformedBodies() {
         #expect(PreviewMessage(body: "previewScrolled") == nil)
         #expect(PreviewMessage(body: ["type": "other", "line": 1]) == nil)
@@ -148,5 +171,17 @@ struct PreviewMessageTests {
         #expect(PreviewMessage(body: ["type": "taskToggled", "line": NSNumber(value: 1.5), "checked": true]) == nil)
         #expect(PreviewMessage(body: ["type": "taskToggled", "line": NSNumber(value: -1), "checked": true]) == nil)
         #expect(PreviewMessage(body: ["type": "taskToggled", "line": NSNumber(value: 1)]) == nil)
+        #expect(PreviewMessage(body: ["type": "currentHeading"]) == nil)
+        #expect(PreviewMessage(body: ["type": "currentHeading", "id": NSNumber(value: 1)]) == nil)
+        #expect(PreviewMessage(body: ["type": "outline"]) == nil)
+        // One malformed heading drops the whole outline rather than a row the Outline would then be missing.
+        let badLevel: [String: Any] = [
+            "type": "outline",
+            "headings": [
+                ["level": NSNumber(value: 1), "text": "A", "id": "a"],
+                ["level": NSNumber(value: 7), "text": "B", "id": "b"],
+            ],
+        ]
+        #expect(PreviewMessage(body: badLevel) == nil)
     }
 }

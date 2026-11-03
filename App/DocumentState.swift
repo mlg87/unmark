@@ -29,6 +29,11 @@ final class DocumentState {
     /// the first render has them.
     var wordCount: Int?
     var lineCount: Int?
+    /// The Outline's rows: the headings of the last render that finished parsing the whole document.
+    var outline: [OutlineHeading] = []
+    /// The id of the last heading at or above the Preview's top, which the Outline selects; nil above the first
+    /// heading.
+    var currentHeadingID: String?
 
     /// Where the document's relative images and links resolve; see `PreviewURL.documentBaseURL(forDocumentAt:)`.
     /// Without a file, relative paths resolve inside the renderer bundle and match nothing.

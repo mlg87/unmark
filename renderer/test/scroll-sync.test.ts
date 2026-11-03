@@ -99,11 +99,12 @@ function runFrames(): void {
   for (const frame of due) frame(performance.now());
 }
 
+/** The lines of the `previewScrolled` reports; the page also posts the Outline's messages. */
 function reportedLines(): number[] {
-  return postMessage.mock.calls.map(([message]) => {
-    expect(message.type).toBe("previewScrolled");
-    return message.line;
-  });
+  return postMessage.mock.calls
+    .map(([message]) => message)
+    .filter((message) => message.type === "previewScrolled")
+    .map((message) => message.line);
 }
 
 test.each([
