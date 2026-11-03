@@ -1,6 +1,59 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld words · %lld lines" : {
+      "comment" : "The status bar's counts: the words the Preview shows and the lines of the Source.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%#@words@ · %#@lines@"
+          },
+          "substitutions" : {
+            "lines" : {
+              "argNum" : 2,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg line"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg lines"
+                    }
+                  }
+                }
+              }
+            },
+            "words" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg word"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg words"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "About %@" : {
 
     },

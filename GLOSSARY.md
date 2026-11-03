@@ -18,6 +18,10 @@ _Avoid_: Raw, editor, plain text
 The sidebar listing a document's headings in order, used to jump within the Preview.
 _Avoid_: TOC, table of contents, navigator, sidebar
 
+**Status bar**:
+The strip along a window's bottom edge, under both panes, showing the Preview's word count and the Source's line count.
+_Avoid_: Footer, info bar
+
 ### View modes
 
 **Preview mode**:

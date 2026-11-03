@@ -19,6 +19,9 @@ struct PreviewView: NSViewRepresentable {
     let renderDebounce: Duration
     /// Called with the rendered text after each render reaches the page.
     let didRender: @MainActor (String) -> Void
+    /// Called with the rendered document's word count once a render has all of it rendered, which can be after
+    /// `didRender` for a long document (q35).
+    let wordCounted: @MainActor (Int) -> Void
     /// Called with a clicked link's URL, resolved against `documentBaseURL`. The Preview itself never navigates
     /// away from the renderer page (#23).
     let linkActivated: @MainActor (URL) -> Void
@@ -55,6 +58,7 @@ struct PreviewView: NSViewRepresentable {
             webView.pageZoom = zoom
         }
         context.coordinator.didRender = didRender
+        context.coordinator.wordCounted = wordCounted
         context.coordinator.linkActivated = linkActivated
         context.coordinator.taskToggled = taskToggled
         context.coordinator.previewScrolled = { [scrollSync] line in
@@ -80,6 +84,7 @@ struct PreviewView: NSViewRepresentable {
 
         weak var webView: WKWebView?
         var didRender: @MainActor (String) -> Void = { _ in }
+        var wordCounted: @MainActor (Int) -> Void = { _ in }
         var linkActivated: @MainActor (URL) -> Void = { _ in }
         /// Called with the 0-based source line at the Preview's top as the user scrolls it.
         var previewScrolled: @MainActor (Double) -> Void = { _ in }
@@ -105,6 +110,9 @@ struct PreviewView: NSViewRepresentable {
         /// The newest source line the Preview should follow the Source to, while an earlier one is still scrolling.
         private var pendingSourceLine: Double?
         private var isScrollingToSourceLine = false
+        /// A render finished since the word count running now was asked for.
+        private var needsWordCount = false
+        private var isCountingWords = false
 
         func render(_ request: RenderRequest, after delay: Duration) {
             guard request != latest else { return }
@@ -156,6 +164,30 @@ struct PreviewView: NSViewRepresentable {
                     }
                 }
                 isScrollingToSourceLine = false
+            }
+        }
+
+        /// Reports the word count of the latest render. Requests run one at a time, and a render that finishes while
+        /// one runs asks again once it returns, so the last count reported is the latest render's.
+        private func countWords(in webView: WKWebView) {
+            needsWordCount = true
+            guard !isCountingWords else { return }
+            isCountingWords = true
+            Task {
+                while needsWordCount {
+                    needsWordCount = false
+                    do {
+                        // Resolves once the whole document is rendered, null when the render failed.
+                        let count = try await webView.callAsyncJavaScript(
+                            "return await window.unmark.wordCount();", contentWorld: .page)
+                        if let count = count as? Int {
+                            wordCounted(count)
+                        }
+                    } catch {
+                        Self.logger.error("Counting words failed: \(String(describing: error), privacy: .public)")
+                    }
+                }
+                isCountingWords = false
             }
         }
 
@@ -239,6 +271,7 @@ struct PreviewView: NSViewRepresentable {
                         ],
                         contentWorld: .page)
                     didRender(request.markdown)
+                    countWords(in: webView)
                 } catch {
                     // The description carries WebKit's WKJavaScriptExceptionMessage, which names the cause.
                     Self.logger.error("Render failed: \(String(describing: error), privacy: .public)")
@@ -266,64 +299,67 @@ struct PreviewView: NSViewRepresentable {
                 }
             }
         }
+    }
+}
 
-        /// Prints in print output, GitHub's light theme in either appearance (q61), and switches back to screen
-        /// output once the print panel or the PDF export closes, whether it printed or was cancelled.
-        private func printPendingRequest(in webView: WKWebView) {
-            guard latest != nil, let request = pendingPrint else { return }
-            pendingPrint = nil
-            guard !isPrinting, let window = webView.window else { return }
-            isPrinting = true
-            Task {
-                await setOutputMode(.print, in: webView)
-                let operation = printOperation(for: request.destination, in: webView)
-                // WKWebView hands back a print view with a zero frame, which prints blank pages.
-                operation.view?.frame = webView.bounds
-                operation.runModal(
-                    for: window, delegate: self, didRun: #selector(printOperationDidRun(_:success:contextInfo:)),
-                    contextInfo: nil)
-            }
+// Printing (#34).
+extension PreviewView.Coordinator {
+    /// Prints in print output, GitHub's light theme in either appearance (q61), and switches back to screen output
+    /// once the print panel or the PDF export closes, whether it printed or was cancelled.
+    private func printPendingRequest(in webView: WKWebView) {
+        guard latest != nil, let request = pendingPrint else { return }
+        pendingPrint = nil
+        guard !isPrinting, let window = webView.window else { return }
+        isPrinting = true
+        Task {
+            await setOutputMode(.print, in: webView)
+            let operation = printOperation(for: request.destination, in: webView)
+            // WKWebView hands back a print view with a zero frame, which prints blank pages.
+            operation.view?.frame = webView.bounds
+            operation.runModal(
+                for: window, delegate: self, didRun: #selector(printOperationDidRun(_:success:contextInfo:)),
+                contextInfo: nil)
         }
+    }
 
-        /// Both destinations use the paper size from Page Setup, which edits `NSPrintInfo.shared`.
-        private func printOperation(for destination: PrintRequest.Destination, in webView: WKWebView)
-            -> NSPrintOperation
-        {
-            switch destination {
-            case .printPanel:
-                return webView.printOperation(with: NSPrintInfo.shared)
-            case .pdf(let url):
-                // A copy, so the save disposition doesn't leak into the next Print….
-                let printInfo = NSPrintInfo.shared.copy() as? NSPrintInfo ?? NSPrintInfo()
-                printInfo.jobDisposition = .save
-                printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = url
-                let operation = webView.printOperation(with: printInfo)
-                operation.showsPrintPanel = false
-                operation.showsProgressPanel = true
-                return operation
-            }
+    /// Both destinations use the paper size from Page Setup, which edits `NSPrintInfo.shared`.
+    private func printOperation(for destination: PrintRequest.Destination, in webView: WKWebView)
+        -> NSPrintOperation
+    {
+        switch destination {
+        case .printPanel:
+            return webView.printOperation(with: NSPrintInfo.shared)
+        case .pdf(let url):
+            // A copy, so the save disposition doesn't leak into the next Print….
+            let printInfo = NSPrintInfo.shared.copy() as? NSPrintInfo ?? NSPrintInfo()
+            printInfo.jobDisposition = .save
+            printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = url
+            let operation = webView.printOperation(with: printInfo)
+            operation.showsPrintPanel = false
+            operation.showsProgressPanel = true
+            return operation
         }
+    }
 
-        @objc private func printOperationDidRun(
-            _ operation: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?
-        ) {
-            Task {
-                if let webView {
-                    await setOutputMode(.screen, in: webView)
-                }
-                isPrinting = false
+    @objc private func printOperationDidRun(
+        _ operation: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?
+    ) {
+        Task {
+            if let webView {
+                await setOutputMode(.screen, in: webView)
             }
+            isPrinting = false
         }
+    }
 
-        private func setOutputMode(_ mode: OutputMode, in webView: WKWebView) async {
-            do {
-                // Print output resolves once the whole document is on the page in the light theme.
-                _ = try await webView.callAsyncJavaScript(
-                    "await window.unmark.setOutputMode(mode);", arguments: ["mode": mode.rawValue],
-                    contentWorld: .page)
-            } catch {
-                Self.logger.error("Output mode switch failed: \(String(describing: error), privacy: .public)")
-            }
+    private func setOutputMode(_ mode: PreviewView.OutputMode, in webView: WKWebView) async {
+        do {
+            // Print output resolves once the whole document is on the page in the light theme.
+            _ = try await webView.callAsyncJavaScript(
+                "await window.unmark.setOutputMode(mode);", arguments: ["mode": mode.rawValue],
+                contentWorld: .page)
+        } catch {
+            Self.logger.error("Output mode switch failed: \(String(describing: error), privacy: .public)")
         }
     }
 }
@@ -336,7 +372,7 @@ extension PreviewView {
     }
 
     /// The renderer's `OutputMode`.
-    private enum OutputMode: String {
+    fileprivate enum OutputMode: String {
         case screen, print
     }
 }
