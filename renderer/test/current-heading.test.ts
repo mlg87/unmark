@@ -160,6 +160,19 @@ test("a heading in a closed <details> is never current", async () => {
   ]);
 });
 
+// The footnotes section's "Footnotes" heading is for screen readers and has no Outline row, so
+// reporting it cleared the Outline's highlight (unmark-1793451427523-5-478d1806.5).
+test("the footnotes section's hidden heading is never current", async () => {
+  // Top of each block: h1 0, p 100, h2 200, p 300, footnotes section 600.
+  await renderSettled("# A\n\nText.\n\n## B\n\nClaim[^1].\n\n[^1]: Source.");
+  expect(article.querySelector(".footnotes h2.sr-only")).not.toBeNull();
+  for (const y of [250, 650, 700]) {
+    scrollTo(y);
+    runFrames();
+  }
+  expect(messagesOfType("currentHeading")).toEqual([{ type: "currentHeading", id: "b" }]);
+});
+
 test("each finished render posts the whole outline", async () => {
   await renderAll("# One\n\n## Two");
   expect(messagesOfType("outline")).toEqual([

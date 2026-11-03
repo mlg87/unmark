@@ -9,6 +9,7 @@ import { documentIdOf } from "./sanitize.ts";
 const TOP_SLACK_PX = 1;
 
 const HEADINGS = "h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]";
+const FOOTNOTES_LABEL = "section[data-footnotes] > h2.sr-only";
 
 /** The article's headings that have a box, in document order, cached until the article changes. */
 let cached: Element[] | undefined;
@@ -32,8 +33,10 @@ function headingsOf(article: Element): Element[] {
   }
   if (changes.takeRecords().length > 0) cached = undefined;
   // Headings in a closed <details> have no box, so they'd read as being at the viewport's top.
+  // The footnotes section's screen-reader-only "Footnotes" heading (footnotes.ts) has no Outline
+  // row, so reporting it would clear the Outline's highlight (unmark-1793451427523-5-478d1806.5).
   cached ??= [...article.querySelectorAll(HEADINGS)].filter(
-    (heading) => !heading.closest("details:not([open])"),
+    (heading) => !heading.closest("details:not([open])") && !heading.matches(FOOTNOTES_LABEL),
   );
   return cached;
 }
