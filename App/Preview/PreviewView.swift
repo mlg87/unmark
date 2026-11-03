@@ -56,7 +56,9 @@ struct PreviewView: NSViewRepresentable {
         scrollSync.previewLineAtTop = { [weak coordinator = context.coordinator] in
             await coordinator?.lineAtTop()
         }
-        return PreviewPaneView(webView: webView)
+        let pane = PreviewPaneView(webView: webView)
+        context.coordinator.findBar = pane.findBar
+        return pane
     }
 
     func updateNSView(_ pane: PreviewPaneView, context: Context) {
@@ -91,6 +93,7 @@ struct PreviewView: NSViewRepresentable {
         private static let signposter = OSSignposter(subsystem: "com.mlg87.unmark", category: .pointsOfInterest)
 
         weak var webView: WKWebView?
+        weak var findBar: PreviewFindBar?
         var didRender: @MainActor (String) -> Void = { _ in }
         var wordCounted: @MainActor (Int) -> Void = { _ in }
         var linkActivated: @MainActor (URL) -> Void = { _ in }
@@ -285,6 +288,7 @@ struct PreviewView: NSViewRepresentable {
                         ],
                         contentWorld: .page)
                     didRender(request.markdown)
+                    findBar?.documentDidRender()
                     countWords(in: webView)
                 } catch {
                     // The description carries WebKit's WKJavaScriptExceptionMessage, which names the cause.
