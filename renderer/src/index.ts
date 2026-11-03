@@ -1,5 +1,6 @@
 import { type Block, blockCache, htmlBlocks, Rendering, spliceBlocks } from "./chunks.ts";
 import { reportCurrentHeading } from "./current-heading.ts";
+import { countMatches as countMatchesIn } from "./find.ts";
 import type { Heading, RenderEnv } from "./headings.ts";
 import { createMarkdown } from "./markdown.ts";
 import { BlockMerge } from "./merge.ts";
@@ -61,6 +62,12 @@ export interface UnmarkRenderer {
    * all of it.
    */
   setOutputMode(mode: OutputMode): Promise<void>;
+  /**
+   * How many times `query` occurs in the document's rendered text, ignoring case, once all of it
+   * is on the page. The Preview's find bar shows it as the total beside the match WKWebView.find
+   * selected (unmark-1793451439168-30-08e35535).
+   */
+  countMatches(query: string): Promise<number>;
 }
 
 declare global {
@@ -306,6 +313,17 @@ async function setOutputMode(mode: OutputMode): Promise<void> {
   await renderDiagrams([], mode);
 }
 
+async function countMatches(query: string): Promise<number> {
+  const article = document.querySelector("article.markdown-body");
+  if (!article) return 0;
+  // Merges the rest of the document now rather than waiting for the background tasks, which
+  // after an edit wait for a pause in the typing, so the count and WKWebView.find both see
+  // all of it.
+  const merge = rendered.merge;
+  await merge?.advanceUntil(() => merge.done, BACKGROUND_CHUNK);
+  return countMatchesIn(article, query);
+}
+
 async function scrollToElement(id: string): Promise<void> {
   // Merges pieces only up to the target rather than waiting for the background tasks to
   // reach it, so an anchor to a late heading doesn't wait for the whole document
@@ -363,6 +381,7 @@ window.unmark = {
   scrollToSourceLine,
   lineAtTop,
   setOutputMode,
+  countMatches,
 };
 
 reportScrolls(lineAtTop);

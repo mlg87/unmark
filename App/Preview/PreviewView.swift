@@ -3,8 +3,8 @@ import UnmarkCore
 import WebKit
 import os
 
-/// The rendered document: the renderer bundle in a WKWebView, served by `UnmarkSchemeHandler` (#22). The page follows
-/// the system appearance through `prefers-color-scheme` (q8).
+/// The rendered document: the renderer bundle in a WKWebView, served by `UnmarkSchemeHandler` (#22), under its find
+/// bar. The page follows the system appearance through `prefers-color-scheme` (q8).
 struct PreviewView: NSViewRepresentable {
     let markdown: String
     /// Where the document's relative images and links resolve; see `PreviewURL.documentBaseURL(forDocumentAt:)`.
@@ -40,7 +40,7 @@ struct PreviewView: NSViewRepresentable {
         Coordinator()
     }
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeNSView(context: Context) -> PreviewPaneView {
         let (webView, pageLoaded) = PreviewWebViewPool.shared.take()
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
@@ -56,11 +56,11 @@ struct PreviewView: NSViewRepresentable {
         scrollSync.previewLineAtTop = { [weak coordinator = context.coordinator] in
             await coordinator?.lineAtTop()
         }
-        return webView
+        return PreviewPaneView(webView: webView)
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        if webView.pageZoom != zoom {
+    func updateNSView(_ pane: PreviewPaneView, context: Context) {
+        if let webView = context.coordinator.webView, webView.pageZoom != zoom {
             webView.pageZoom = zoom
         }
         context.coordinator.didRender = didRender
