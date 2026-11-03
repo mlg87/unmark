@@ -216,9 +216,3 @@ final class SourceNSTextView: NSTextView {
         sequence(first: superview, next: { $0?.superview }).lazy.compactMap { $0 as? NSSplitView }.first
     }
 }
-
-/// The Source font size. The key is shared with zoom and Settings, which change it.
-enum SourceFont {
-    static let sizeKey = "sourceFontSize"
-    static let defaultSize = 13.0
-}

@@ -120,6 +120,24 @@ enum MainMenu {
         menu.addItem(
             withTitle: DocumentWindowController.toggleSourceTitle(sourceVisible: false),
             action: #selector(DocumentWindowController.toggleSource(_:)), keyEquivalent: "E")
+        menu.addItem(.separator())
+
+        // The window controller zooms whichever pane has the focus (q36).
+        menu.addItem(
+            withTitle: String(localized: "Zoom In"), action: #selector(DocumentWindowController.zoomIn(_:)),
+            keyEquivalent: "+")
+        // ⌘+ needs Shift on most layouts, so ⌘= zooms in too, from an item the menu doesn't show.
+        let zoomInWithoutShift = menu.addItem(
+            withTitle: String(localized: "Zoom In"), action: #selector(DocumentWindowController.zoomIn(_:)),
+            keyEquivalent: "=")
+        zoomInWithoutShift.isHidden = true
+        zoomInWithoutShift.allowsKeyEquivalentWhenHidden = true
+        menu.addItem(
+            withTitle: String(localized: "Zoom Out"), action: #selector(DocumentWindowController.zoomOut(_:)),
+            keyEquivalent: "-")
+        menu.addItem(
+            withTitle: String(localized: "Actual Size"),
+            action: #selector(DocumentWindowController.zoomToActualSize(_:)), keyEquivalent: "0")
         return menu
     }
 

@@ -4,6 +4,9 @@
     "About %@" : {
 
     },
+    "Actual Size" : {
+
+    },
     "Bring All to Front" : {
 
     },
@@ -110,6 +113,12 @@
 
     },
     "Zoom" : {
+
+    },
+    "Zoom In" : {
+
+    },
+    "Zoom Out" : {
 
     }
   },
