@@ -2,37 +2,6 @@ import AppKit
 import WebKit
 import os
 
-/// The Preview pane: the find bar, while it's open, above the web view. A plain view around the stack, so SwiftUI sizes
-/// the pane to its proposal as it does a bare web view.
-final class PreviewPaneView: NSView {
-    let findBar: PreviewFindBar
-
-    init(webView: WKWebView) {
-        findBar = PreviewFindBar(webView: webView)
-        super.init(frame: .zero)
-        // A stack view gives the hidden find bar's height to the web view.
-        let stack = NSStackView(views: [findBar, webView])
-        stack.orientation = .vertical
-        stack.spacing = 0
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            findBar.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            webView.widthAnchor.constraint(equalTo: stack.widthAnchor),
-        ])
-        webView.setContentHuggingPriority(.defaultLow, for: .vertical)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("PreviewPaneView is created in code")
-    }
-}
-
 /// Find in the Preview (unmark-1793451439168-30-08e35535), styled like NSTextView's find bar: WKWebView can search its
 /// page but has no find bar on macOS. The total comes from the renderer's `countMatches`, and each step from
 /// `WKWebView.find`, which selects and scrolls to the next match but reports only whether there was one, so the bar
@@ -263,7 +232,11 @@ final class PreviewFindBar: NSVisualEffectView, NSSearchFieldDelegate {
             searchField.fieldEditor.textColor = textColor
         }
     }
+}
 
+// MARK: Page calls and control actions
+
+extension PreviewFindBar {
     /// Clears the selection first, so `WKWebView.find` starts from the document's top.
     private func countMatches(of query: String, in webView: WKWebView) async -> Int {
         do {
