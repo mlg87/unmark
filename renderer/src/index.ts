@@ -99,8 +99,8 @@ let latestRender = 0;
 let outputMode: OutputMode = "screen";
 /**
  * The document on the page: its outline so far, its line count, its pieces, the merge putting
- * them on the page, when all of its pieces are rendered, and when that merge's background work
- * settles.
+ * them on the page, when all of its pieces are rendered, its word count once asked for, and
+ * when that merge's background work settles.
  */
 let rendered: {
   headings: Heading[];
@@ -109,6 +109,11 @@ let rendered: {
   merge?: BlockMerge;
   /** Settles once every piece is rendered, the render failed, or a newer render replaced it. */
   allRendered: Promise<void>;
+  /**
+   * The words the Preview shows, counted once every piece is rendered: `null` when the render
+   * failed, `undefined` when a newer render replaced this one.
+   */
+  words?: Promise<number | null | undefined>;
   background: Promise<void>;
 } = {
   headings: [],
@@ -171,33 +176,40 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
     () => {},
   );
   // Set before the merge's first step, so a render that starts meanwhile merges from this one.
-  rendered = {
+  const current: typeof rendered = {
     headings: env.headings,
     lineCount,
     rendering,
     merge,
     allRendered: allRendered.catch(() => {}),
-    // A render that failed has nothing left to do in the background; its caller gets the error.
-    background: firstScreen.then(
-      async () => {
-        // An open builds the DOM as it renders, so a reader scrolling down soon sees more. An
-        // edit renders the rest first, so the next keystroke can splice into it sooner, and then
-        // waits for a pause in the typing before building any DOM: each step of the build-out
-        // lays out the whole article, which the next keystroke's render waits for
-        // (unmark-1793451427066-4-97884ee7.5).
-        if (!previous) {
-          await Promise.all([mergeInBackground(merge), allRendered]);
-          return;
-        }
-        await allRendered;
-        // A keystroke meanwhile replaces this render, dropping its build-out with the rest of
-        // its background work, so the build-out only ever runs in a gap in the typing.
-        await new Promise((resolve) => setTimeout(resolve, TYPING_PAUSE_MS));
-        await mergeInBackground(merge);
-      },
-      () => {},
-    ),
+    background: Promise.resolve(),
   };
+  rendered = current;
+  // A render that failed has nothing left to do in the background; its caller gets the error.
+  current.background = firstScreen.then(
+    async () => {
+      // An open renders the rest of the document, and counts its words, before it builds any
+      // DOM below the first screen: taking turns with the build-out, which lays out the article
+      // at every step, held a 1 MB document's word count back until the build-out had nearly
+      // finished (unmark-1793451427523-5-478d1806.4). An edit renders the rest first too, so the
+      // next keystroke can splice into it sooner, and then waits for a pause in the typing
+      // before building any DOM: each step of the build-out lays out the whole article, which
+      // the next keystroke's render waits for (unmark-1793451427066-4-97884ee7.5).
+      await allRendered;
+      if (!previous) {
+        // PreviewView asks for the count as soon as the first screen is up, well before a long
+        // document is all rendered. wordCount() gets the error of a count that failed.
+        await current.words?.catch(() => {});
+        await mergeInBackground(merge);
+        return;
+      }
+      // A keystroke meanwhile replaces this render, dropping its build-out with the rest of
+      // its background work, so the build-out only ever runs in a gap in the typing.
+      await new Promise((resolve) => setTimeout(resolve, TYPING_PAUSE_MS));
+      await mergeInBackground(merge);
+    },
+    () => {},
+  );
   await firstScreen;
   // An edit above the top changes the line there even when the page doesn't scroll.
   rememberLineAtTop();
@@ -268,12 +280,14 @@ async function outline(): Promise<Heading[]> {
 async function wordCount(): Promise<number | null> {
   for (;;) {
     const current = rendered;
-    await current.allRendered;
+    current.words ??= current.allRendered.then(() =>
+      current.rendering?.complete
+        ? countRenderedWords(current.rendering.blocks, () => current === rendered)
+        : null,
+    );
+    const count = await current.words;
     // A newer render replaced this one while it rendered or counted: count that one instead.
-    if (current !== rendered) continue;
-    if (!current.rendering?.complete) return null;
-    const count = await countRenderedWords(current.rendering.blocks, () => current === rendered);
-    if (count !== undefined) return count;
+    if (current === rendered) return count ?? null;
   }
 }
 

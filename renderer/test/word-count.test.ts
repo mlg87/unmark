@@ -5,6 +5,7 @@
 
 import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import "../src/index.ts";
+import { countWords } from "../src/word-count.ts";
 
 beforeAll(() => {
   document.body.innerHTML = '<article class="markdown-body"></article>';
@@ -37,6 +38,27 @@ test("the footnotes section counts, but not its heading only screen readers read
 
 test("an empty document has no words", async () => {
   expect(await wordCountOf("")).toBe(0);
+});
+
+test("raw HTML the sanitizer drops doesn't count", async () => {
+  // Elements GitHub's allowlist drops with their content; GFM's tag filter escapes <script>.
+  expect(await wordCountOf("Hello <video>fallback words</video>")).toBe(1);
+  expect(await wordCountOf("<svg>\n<text>Drawn words</text>\n</svg>\n\nHello")).toBe(1);
+});
+
+test("counts the words the Preview shows of every kind of block", async () => {
+  const markdown = [
+    "# Heading *one*",
+    "Some **bold** and ~~struck~~ text with `code`, a [link](https://x/y) and https://example.com.",
+    "> [!NOTE]\n> An alert :smile: with an emoji.",
+    "- [ ] a task\n- [x] done task\n  1. nested item",
+    "| left | right |\n| --- | --- |\n| a&amp;b | c &lt; d |",
+    "```js\nconst answer = 42; // highlighted\n```",
+    "![alt text](pic.png) &copy; Fin",
+  ].join("\n\n");
+  const count = await wordCountOf(markdown);
+  const article = document.querySelector("article.markdown-body") as Element;
+  expect(count).toBe(countWords(article.textContent ?? ""));
 });
 
 test("an edit changes the count", async () => {
