@@ -231,6 +231,33 @@ test("following the Source to a line in a later chunk renders up to it, not the 
   expect(document.getElementById("user-content-part-59")).toBeNull();
 });
 
+test("scrolling near the end of the pieces on the page builds a screen past the viewport, not the whole document", async () => {
+  // Fakes only setTimeout, so no background task runs while setImmediate lets the merge's
+  // promises settle.
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  // Each of the article's blocks 100 px tall, so the first screen ends where it would on screen.
+  let scrollY = 0;
+  vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    if (this === article) return new DOMRect(0, -scrollY, 100, article.children.length * 100);
+    const index = Array.prototype.indexOf.call(article.children, this);
+    return new DOMRect(0, index * 100 - scrollY, 100, 100);
+  });
+  const articleBottom = () => article.children.length * 100 - scrollY;
+  await renderOnEmptyPage(longDocument);
+
+  // The reader at the bottom of the first screen, before the background builds any further
+  // (unmark-1793451427523-5-478d1806.6).
+  scrollY = articleBottom() - window.innerHeight;
+  window.dispatchEvent(new Event("scroll"));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  expect(articleBottom()).toBeGreaterThanOrEqual(2 * window.innerHeight);
+  expect(document.getElementById("user-content-part-59")).toBeNull();
+  await vi.runAllTimersAsync();
+  expect(article.innerHTML).toBe(renderedAllAtOnce(longDocument));
+});
+
 test("scrolling to an element that isn't in the document renders all of it", async () => {
   vi.useFakeTimers();
   tallBlocks();
