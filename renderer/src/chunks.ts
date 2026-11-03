@@ -88,6 +88,8 @@ export class BlockPart {
   readonly movable: boolean;
   /** The part whose rendering this one reuses, or this one if it rendered its own. */
   readonly origin: BlockPart;
+  /** Whether the block is the document's YAML front matter, which the word count leaves out (q35). */
+  readonly frontMatter: boolean;
   #html: string | undefined;
 
   constructor(
@@ -96,6 +98,7 @@ export class BlockPart {
     context: BlockContext | undefined,
     rawHtml: readonly string[],
     rendering: string | BlockPart,
+    frontMatter = false,
   ) {
     this.source = source;
     this.line = line;
@@ -105,6 +108,7 @@ export class BlockPart {
     this.movable =
       typeof rendering === "string" ? !source.includes(SOURCE_LINE) : rendering.movable;
     this.origin = typeof rendering === "string" ? this : rendering;
+    this.frontMatter = typeof rendering === "string" ? frontMatter : rendering.frontMatter;
     this.#html = typeof rendering === "string" ? rendering : undefined;
   }
 
@@ -157,6 +161,11 @@ export class Block {
   get html(): string {
     this.#html ??= this.parts.map((part) => part.html).join("") + this.#footnotes;
     return this.#html;
+  }
+
+  /** The footnotes section's HTML, when the piece ends with it. */
+  get footnotes(): string {
+    return this.#footnotes;
   }
 
   /**
@@ -821,7 +830,8 @@ class Pieces {
     // Retaking both in one block would need undoing one when the other fails.
     const takesBoth = ids.length > 0 && footnotes.refs.length > 0;
     const blockContext = lookups && !takesBoth ? { lookups, ids, outline, footnotes } : undefined;
-    return new BlockPart(source, span, blockContext, rawHtmlOf(block), html);
+    const frontMatter = block[0]?.type === "front_matter";
+    return new BlockPart(source, span, blockContext, rawHtmlOf(block), html, frontMatter);
   }
 
   // Rules read and replace `tokens` on the state; a block's view shares everything else.

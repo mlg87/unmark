@@ -53,16 +53,32 @@ struct DocumentWindow: View {
                     // In Preview mode text changes come only from disk, which ExternalChangeMonitor already debounces,
                     // and from task toggles, one per click.
                     renderDebounce: state.isSourceVisible ? Self.editRenderDebounce : .zero,
-                    didRender: didRender, linkActivated: linkActivated, taskToggled: taskToggled,
+                    didRender: { markdown in
+                        let lineCount = LineCount.of(markdown)
+                        // Setting an equal value still re-renders the status bar.
+                        if state.lineCount != lineCount {
+                            state.lineCount = lineCount
+                        }
+                        didRender(markdown)
+                    },
+                    wordCounted: { wordCount in
+                        if state.wordCount != wordCount {
+                            state.wordCount = wordCount
+                        }
+                    },
+                    linkActivated: linkActivated, taskToggled: taskToggled,
                     scrollSync: scrollSync
                 )
                 .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
             }
-        }
-        .overlay(alignment: .bottom) {
-            if let missing = state.missingLinkTarget {
-                MissingLinkTargetNotice(fileName: missing.fileName)
+            // Over the panes, so the notice doesn't cover the status bar.
+            .overlay(alignment: .bottom) {
+                if let missing = state.missingLinkTarget {
+                    MissingLinkTargetNotice(fileName: missing.fileName)
+                }
             }
+            Divider()
+            StatusBar(state: state)
         }
         // A new notice cancels this task and restarts the 3 s (#23).
         .task(id: state.missingLinkTarget) {
@@ -72,6 +88,27 @@ struct DocumentWindow: View {
             state.missingLinkTarget = nil
         }
         .frame(minWidth: 480, minHeight: 320)
+    }
+}
+
+/// Under both panes in both modes (q52): the Preview's word count and the Source's line count (q35). Its own view, so
+/// a count changing re-renders only the bar.
+private struct StatusBar: View {
+    let state: DocumentState
+
+    var body: some View {
+        HStack {
+            Spacer()
+            if let wordCount = state.wordCount, let lineCount = state.lineCount {
+                // The String Catalog's plural variations give "1 word" and "1 line".
+                Text("\(wordCount) words · \(lineCount) lines")
+                    .monospacedDigit()
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+            }
+        }
+        .font(.system(size: NSFont.smallSystemFontSize))
+        .padding(.horizontal, 10)
+        .frame(height: 22)
     }
 }
 

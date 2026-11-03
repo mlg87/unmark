@@ -25,6 +25,10 @@ final class DocumentState {
     /// Split mode shows the Source beside the Preview. Per window and never saved, so every window opens in Preview
     /// mode (q15).
     var isSourceVisible = false
+    /// The status bar's counts (q35): the Preview's words and the Source's lines, as of the latest render. Nil until
+    /// the first render has them.
+    var wordCount: Int?
+    var lineCount: Int?
 
     /// Where the document's relative images and links resolve; see `PreviewURL.documentBaseURL(forDocumentAt:)`.
     /// Without a file, relative paths resolve inside the renderer bundle and match nothing.

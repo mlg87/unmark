@@ -10,6 +10,7 @@ import {
   SourceLineMap,
 } from "./scroll-sync.ts";
 import { reportTaskToggles } from "./task-toggle.ts";
+import { countRenderedWords } from "./word-count.ts";
 
 export type { Heading };
 
@@ -33,6 +34,12 @@ export interface UnmarkRenderer {
   render(markdown: string, opts: RenderOptions): Promise<void>;
   /** The rendered document's headings, in document order, once all of it is parsed. */
   outline(): Promise<Heading[]>;
+  /**
+   * The words the Preview shows for the latest `render`, without the front matter, once all
+   * of the document is rendered (q35). It doesn't wait for the background tasks to put all of
+   * it on the page. `null` when that render failed or nothing was rendered yet.
+   */
+  wordCount(): Promise<number | null>;
   /** Scrolls the element with `id` into view, rendering the document up to it first if needed. */
   scrollToElement(id: string): Promise<void>;
   /**
@@ -80,17 +87,21 @@ let latestRender = 0;
 let outputMode: OutputMode = "screen";
 /**
  * The document on the page: its outline so far, its line count, its pieces, the merge putting
- * them on the page, and when that merge's background work settles.
+ * them on the page, when all of its pieces are rendered, and when that merge's background work
+ * settles.
  */
 let rendered: {
   headings: Heading[];
   lineCount: number;
   rendering?: Rendering;
   merge?: BlockMerge;
+  /** Settles once every piece is rendered, the render failed, or a newer render replaced it. */
+  allRendered: Promise<void>;
   background: Promise<void>;
 } = {
   headings: [],
   lineCount: 0,
+  allRendered: Promise.resolve(),
   background: Promise.resolve(),
 };
 
@@ -128,12 +139,18 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
   const firstScreen = showFirstScreen(article, merge, anchor, isCurrent);
   // markdown-it splits lines at the same breaks.
   const lineCount = (markdown.match(/\r\n?|\n/g)?.length ?? 0) + 1;
+  // Renders the pieces the first screen didn't, in background tasks; the word count waits for
+  // them, not for their DOM.
+  const allRendered = firstScreen.then(async () => {
+    if (rest) await renderInBackground(rest, isCurrent);
+  });
   // Set before the merge's first step, so a render that starts meanwhile merges from this one.
   rendered = {
     headings: env.headings,
     lineCount,
     rendering,
     merge,
+    allRendered: allRendered.catch(() => {}),
     // A render that failed has nothing left to do in the background; its caller gets the error.
     background: firstScreen.then(
       async () => {
@@ -143,13 +160,10 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
         // lays out the whole article, which the next keystroke's render waits for
         // (unmark-1793451427066-4-97884ee7.5).
         if (!previous) {
-          await Promise.all([
-            mergeInBackground(merge),
-            rest && renderInBackground(rest, isCurrent),
-          ]);
+          await Promise.all([mergeInBackground(merge), allRendered]);
           return;
         }
-        if (rest) await renderInBackground(rest, isCurrent);
+        await allRendered;
         // A keystroke meanwhile replaces this render, dropping its build-out with the rest of
         // its background work, so the build-out only ever runs in a gap in the typing.
         await new Promise((resolve) => setTimeout(resolve, TYPING_PAUSE_MS));
@@ -223,6 +237,18 @@ async function whenRendered(): Promise<void> {
 async function outline(): Promise<Heading[]> {
   await whenRendered();
   return rendered.headings;
+}
+
+async function wordCount(): Promise<number | null> {
+  for (;;) {
+    const current = rendered;
+    await current.allRendered;
+    // A newer render replaced this one while it rendered or counted: count that one instead.
+    if (current !== rendered) continue;
+    if (!current.rendering?.complete) return null;
+    const count = await countRenderedWords(current.rendering.blocks, () => current === rendered);
+    if (count !== undefined) return count;
+  }
 }
 
 /**
@@ -314,7 +340,15 @@ function setDocumentBase(href: string): void {
   base.href = href;
 }
 
-window.unmark = { render, outline, scrollToElement, scrollToSourceLine, lineAtTop, setOutputMode };
+window.unmark = {
+  render,
+  outline,
+  wordCount,
+  scrollToElement,
+  scrollToSourceLine,
+  lineAtTop,
+  setOutputMode,
+};
 
 reportScrolls(lineAtTop);
 const rememberLineAtTop = keepLineAcrossWidthChanges(lineAtTop, scrollLineToTop);
