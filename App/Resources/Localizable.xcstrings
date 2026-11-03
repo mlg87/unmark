@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld of %lld" : {
+
+    },
     "%lld words · %lld lines" : {
       "comment" : "The status bar's counts: the words the Preview shows and the lines of the Source.",
       "localizations" : {
@@ -72,6 +75,9 @@
     "Cut" : {
 
     },
+    "Done" : {
+
+    },
     "Edit" : {
 
     },
@@ -108,6 +114,12 @@
     "Minimize" : {
 
     },
+    "Next" : {
+
+    },
+    "No results" : {
+
+    },
     "Open…" : {
 
     },
@@ -115,6 +127,9 @@
 
     },
     "Paste" : {
+
+    },
+    "Previous" : {
 
     },
     "Print…" : {

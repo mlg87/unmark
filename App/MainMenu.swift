@@ -98,7 +98,8 @@ enum MainMenu {
         return menu
     }
 
-    /// Drives the Source's find bar (`usesFindBar`).
+    /// Drives the Source's find bar (`usesFindBar`) while the Source has focus, and otherwise the Preview's
+    /// (`PreviewFindBar`, through `DocumentWindowController`).
     private static func findMenu() -> NSMenu {
         let menu = NSMenu(title: String(localized: "Find"))
         func addItem(_ title: String, _ action: NSTextFinder.Action, keyEquivalent: String) {

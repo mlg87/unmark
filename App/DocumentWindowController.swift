@@ -58,6 +58,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         toggleSourceToolbarItem?.toolTip = Self.toggleSourceToolTip(sourceVisible: state.isSourceVisible)
     }
 
+    /// Edit → Find sends `performTextFinderAction(_:)` up the responder chain, which reaches the controller whenever
+    /// the Source's text view isn't the first responder: neither WKWebView nor anything above it implements the action.
+    /// So ⌘F finds in the Preview unless the Source has focus, where its own find bar opens (#31).
+    override func performTextFinderAction(_ sender: Any?) {
+        previewFindBar?.performTextFinderAction(from: sender)
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleOutline(_:)) {
             menuItem.title = Self.toggleOutlineTitle(outlineVisible: Self.isOutlineVisible)
@@ -68,6 +75,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         if let step = Self.zoomStep(for: menuItem.action) {
             let zoom = focusedPaneZoom(after: step)
             return zoom.zoomed != zoom.current
+        }
+        if menuItem.action == #selector(performTextFinderAction(_:)) {
+            return previewFindBar != nil && PreviewFindBar.performs(tag: menuItem.tag)
         }
         return true
     }
@@ -141,10 +151,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
 
     /// The Source's text view, while Split mode shows it.
     var sourceTextView: SourceNSTextView? {
+        descendant(ofType: SourceNSTextView.self)
+    }
+
+    private var previewFindBar: PreviewFindBar? {
+        descendant(ofType: PreviewFindBar.self)
+    }
+
+    private func descendant<View: NSView>(ofType type: View.Type) -> View? {
         var views = window?.contentView.map { [$0] } ?? []
         while let view = views.popLast() {
-            if let textView = view as? SourceNSTextView {
-                return textView
+            if let match = view as? View {
+                return match
             }
             views.append(contentsOf: view.subviews)
         }
