@@ -115,6 +115,21 @@ export function sanitize(html: string): DocumentFragment {
   return purifier().sanitize(html, purifyConfig());
 }
 
+// What DOMPurify's SANITIZE_NAMED_PROPS puts before every id and name; it doesn't export it.
+const NAMED_PROPS_PREFIX = "user-content-";
+
+/** The id on the page of the element the document calls `id`, as its `#id` links and outline do. */
+export function pageElementId(id: string): string {
+  return `${NAMED_PROPS_PREFIX}${id}`;
+}
+
+/** The id the document gave `element`: its id on the page without the sanitizer's prefix. */
+export function documentIdOf(element: Element): string {
+  return element.id.startsWith(NAMED_PROPS_PREFIX)
+    ? element.id.slice(NAMED_PROPS_PREFIX.length)
+    : element.id;
+}
+
 // Separates the pieces sanitizeEach() parses together. Random per page, so a document can't
 // write one to split a piece where the Preview didn't.
 const SPLIT = `unmark-split-${[...crypto.getRandomValues(new Uint32Array(2))].map((n) => n.toString(36)).join("")}`;
@@ -179,6 +194,11 @@ function purifyConfig(extraElements: string[] = []): Config & { RETURN_DOM_FRAGM
     // Insert DOMPurify's own parse instead of serializing it and parsing again,
     // which is where mutation-XSS lives.
     RETURN_DOM_FRAGMENT: true,
+    // DOMPurify's DOM-clobbering guard drops an id or name that names a document or form
+    // property, so `## Title` or `## Links` lost its id and no Outline row or `#title` link
+    // could reach it (unmark-1793451427523-5-478d1806.1). Prefixing every id and name, as
+    // github.com does, keeps them all and can't clobber; pageElementId() resolves a fragment.
+    SANITIZE_NAMED_PROPS: true,
   };
 }
 

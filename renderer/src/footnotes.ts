@@ -4,7 +4,7 @@
 
 import type { MarkdownIt, Token } from "markdown-it";
 import footnote from "markdown-it-footnote";
-import { extendAllowlist } from "./sanitize.ts";
+import { extendAllowlist, pageElementId } from "./sanitize.ts";
 
 export function footnotes(md: MarkdownIt): void {
   md.use(footnote);
@@ -12,7 +12,8 @@ export function footnotes(md: MarkdownIt): void {
   const rules = md.renderer.rules;
   rules.footnote_ref = (tokens, idx) => {
     const { number, refId } = footnoteIds(tokens, idx);
-    return `<sup><a href="#fn-${number}" id="fnref-${refId}" data-footnote-ref aria-describedby="footnote-label">${number}</a></sup>`;
+    // The sanitizer prefixes the label's id but not this reference to it.
+    return `<sup><a href="#fn-${number}" id="fnref-${refId}" data-footnote-ref aria-describedby="${pageElementId("footnote-label")}">${number}</a></sup>`;
   };
   rules.footnote_block_open = () =>
     '<section data-footnotes class="footnotes"><h2 id="footnote-label" class="sr-only">Footnotes</h2>\n<ol>\n';
