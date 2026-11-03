@@ -93,13 +93,13 @@ export class BlockMerge {
     );
   }
 
-  /** Whether the merged pieces reach the viewport's bottom edge. */
-  coversViewport(): boolean {
+  /** Whether the merged pieces reach `bottom`, in CSS pixels below the viewport's top edge. */
+  reaches(bottom: number): boolean {
     const boundary = this.#firstOldElement();
     const end = boundary
       ? boundary.getBoundingClientRect().top
       : this.#article.getBoundingClientRect().bottom;
-    return end >= window.innerHeight;
+    return end >= bottom;
   }
 
   /**

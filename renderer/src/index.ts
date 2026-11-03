@@ -90,10 +90,11 @@ declare global {
   }
 }
 
-// HTML characters per chunk while filling the first screen: small, because everything
-// sanitized and laid out before the viewport is full delays the open (q47). 4 KB opened a
-// 1 MB document about 0.1 s sooner than 8 KB, and 2 KB no sooner than 4 KB.
-const FIRST_SCREEN_CHUNK = 4 * 1024;
+// HTML characters per chunk while filling a screen, the first one or the next one ahead of the
+// reader's scroll: small, because everything sanitized and laid out before the viewport is full
+// delays the open (q47), as it delays the scroll's frame. 4 KB opened a 1 MB document about
+// 0.1 s sooner than 8 KB, and 2 KB no sooner than 4 KB.
+const SCREEN_CHUNK = 4 * 1024;
 // Larger chunks after that, so per-chunk overhead stays small across a long document.
 const BACKGROUND_CHUNK = 32 * 1024;
 // How long each background task renders pieces before yielding, so scrolling and input stay
@@ -195,6 +196,14 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
     background: Promise.resolve(),
   };
   rendered = current;
+  // A screen past the first one, in a task after the first screen's, so the reader has a page
+  // to scroll before an open's build-out starts; scrolling builds further (buildAhead).
+  if (!previous) {
+    firstScreen.then(
+      () => setTimeout(() => buildAhead(merge)),
+      () => {},
+    );
+  }
   // A render that failed has nothing left to do in the background; its caller gets the error.
   current.background = firstScreen.then(
     async () => {
@@ -263,7 +272,7 @@ async function showFirstScreen(
   isCurrent: () => boolean,
 ): Promise<void> {
   do {
-    await merge.advanceUntil(() => merge.coversViewport(), FIRST_SCREEN_CHUNK);
+    await merge.advanceUntil(() => merge.reaches(window.innerHeight), SCREEN_CHUNK);
     if (!isCurrent()) return;
     // After the diagrams the merge drew, whose height the anchor was captured with. Bringing the
     // anchor's block back may bring old pieces into view, which the next pass merges.
@@ -271,7 +280,7 @@ async function showFirstScreen(
       restoreScrollAnchor(article, anchor);
       markOwnScroll();
     }
-  } while (!merge.done && !merge.coversViewport());
+  } while (!merge.done && !merge.reaches(window.innerHeight));
 }
 
 /** Waits for the background work of the document on the page, even if a render replaces it. */
@@ -311,6 +320,29 @@ async function mergeInBackground(merge: BlockMerge): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve));
     let steps = 0;
     await merge.advanceUntil(() => steps++ > 0, BACKGROUND_CHUNK);
+  }
+}
+
+let buildingAhead = false;
+
+/**
+ * Merges until the merged pieces reach a screen past the viewport's bottom edge, ahead of the
+ * reader's scroll. An open renders the rest of the document and counts its words before its
+ * build-out starts, 1-2 s for a 1 MB document (unmark-1793451427523-5-478d1806.4), and until
+ * then the page would end at the first screen (unmark-1793451427523-5-478d1806.6). Like
+ * scrollToSourceLine, it renders only the pieces it merges; the background renders the rest.
+ */
+async function buildAhead(merge: BlockMerge | undefined): Promise<void> {
+  // The call in flight checks the viewport at every step, so it follows the scroll that came
+  // meanwhile, and scroll events don't queue a call each.
+  if (!merge || merge.done || buildingAhead) return;
+  buildingAhead = true;
+  try {
+    await merge.advanceUntil(() => merge.reaches(2 * window.innerHeight), SCREEN_CHUNK);
+  } catch {
+    // A lazy chunk that didn't load; a scroll has no caller to report it to.
+  } finally {
+    buildingAhead = false;
   }
 }
 
@@ -425,6 +457,7 @@ window.unmark = {
 };
 
 reportScrolls(lineAtTop);
+window.addEventListener("scroll", () => buildAhead(rendered.merge), { passive: true });
 const rememberLineAtTop = keepLineAcrossWidthChanges(lineAtTop, scrollLineToTop);
 
 reportTaskToggles();
