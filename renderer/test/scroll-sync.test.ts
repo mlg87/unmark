@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 // The Preview's half of Split mode's scroll sync (unmark-1793451437275-26-1e1952b0). jsdom has
-// no layout, so top-level blocks are stacked from a list of heights and the window scroll is
-// simulated, as in scroll-anchor.test.ts.
+// no layout, so top-level blocks are stacked from a list of heights, elements nested in a block
+// take its rect, and the window scroll is simulated, as in scroll-anchor.test.ts.
 
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import "../src/index.ts";
@@ -56,10 +56,12 @@ beforeEach(async () => {
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     const stretch = FULL_WIDTH / viewportWidth;
     let top = -scrollY;
+    let block: Element | null = this;
+    while (block && block.parentElement !== article) block = block.parentElement;
     const children = [...article.children];
-    for (const [index, block] of children.entries()) {
+    for (const [index, child] of children.entries()) {
       const height = (HEIGHTS[index] ?? 100) * stretch;
-      if (block === this) return new DOMRect(0, top, 100, height);
+      if (child === block) return new DOMRect(0, top, 100, height);
       top += height;
     }
     if (this === article) return new DOMRect(0, -scrollY, 100, top + scrollY);
@@ -180,6 +182,48 @@ test("an edit above the top moves the line there though the page keeps the block
   });
   expect(scrollY).toBe(600);
   expect(window.unmark.lineAtTop()).toBe(13);
+});
+
+// The marker cache drops a block's markers when a mutation lands inside it (unmark-3u1, #122):
+// opening a <details> shows its blocks' markers, and closing it hides them again.
+test("opening and closing a <details> moves the line at the top", async () => {
+  // Blocks: h1 (line 0) at 0 px, the <details> from 100, and h2 (line 9) at 200; the hidden
+  // paragraph (line 5) shares the <details>' top.
+  await window.unmark.render(
+    "# A\n\n<details>\n<summary>More</summary>\n\nHidden paragraph.\n\n</details>\n\n## B",
+    { documentBaseURL: "file:///docs/" },
+  );
+  const details = article.querySelector("details") as HTMLDetailsElement;
+  scrollTo(150);
+  // Halfway from heading A (line 0, 0 px) to heading B (line 9, 200 px).
+  expect(window.unmark.lineAtTop()).toBe(6.75);
+
+  details.open = true;
+  // Halfway from the paragraph (line 5, 100 px) to heading B.
+  expect(window.unmark.lineAtTop()).toBe(7);
+
+  details.open = false;
+  expect(window.unmark.lineAtTop()).toBe(6.75);
+});
+
+test("opening and closing a <details> in a blockquote moves the line at the top", async () => {
+  // Blocks: h1 (line 0) at 0 px, the blockquote (line 2) from 100, and h2 (line 11) at 200; the
+  // <details>' hidden paragraph (line 7) shares the blockquote's top.
+  await window.unmark.render(
+    "# A\n\n> Quote.\n>\n> <details>\n> <summary>More</summary>\n>\n> Hidden.\n>\n> </details>\n\n## B",
+    { documentBaseURL: "file:///docs/" },
+  );
+  const details = article.querySelector("blockquote details") as HTMLDetailsElement;
+  scrollTo(150);
+  // Halfway from the blockquote (line 2, 100 px) to heading B (line 11, 200 px).
+  expect(window.unmark.lineAtTop()).toBe(6.5);
+
+  details.open = true;
+  // Halfway from the hidden paragraph (line 7, 100 px) to heading B.
+  expect(window.unmark.lineAtTop()).toBe(9);
+
+  details.open = false;
+  expect(window.unmark.lineAtTop()).toBe(6.5);
 });
 
 test("narrowing the page, as opening Split mode does, keeps the line at the top", async () => {
