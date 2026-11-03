@@ -3,6 +3,7 @@ import { reportCurrentHeading } from "./current-heading.ts";
 import type { Heading, RenderEnv } from "./headings.ts";
 import { createMarkdown } from "./markdown.ts";
 import { BlockMerge } from "./merge.ts";
+import { pageElementId } from "./sanitize.ts";
 import { captureScrollAnchor, restoreScrollAnchor, type ScrollAnchor } from "./scroll-anchor.ts";
 import {
   keepLineAcrossWidthChanges,
@@ -41,7 +42,10 @@ export interface UnmarkRenderer {
    * it on the page. `null` when that render failed or nothing was rendered yet.
    */
   wordCount(): Promise<number | null>;
-  /** Scrolls the element with `id` into view, rendering the document up to it first if needed. */
+  /**
+   * Scrolls the element the document gives `id` into view, as a `#id` link or an outline
+   * heading's id names it, rendering the document up to it first if needed.
+   */
   scrollToElement(id: string): Promise<void>;
   /**
    * Scrolls the block that starts on 0-based source `line` to the viewport's top, rendering
@@ -307,16 +311,17 @@ async function setOutputMode(mode: OutputMode): Promise<void> {
 }
 
 async function scrollToElement(id: string): Promise<void> {
+  const pageId = pageElementId(id);
   // Merges pieces only up to the target rather than waiting for the background tasks to
   // reach it, so an anchor to a late heading doesn't wait for the whole document
   // (unmark-1793451426597-3-58814491.9). An old piece the merge hasn't reached yet may have
   // the id too; a merged one comes first in the document, so getElementById finds it first.
   const merge = rendered.merge;
   await merge?.advanceUntil(() => {
-    const target = document.getElementById(id);
+    const target = document.getElementById(pageId);
     return target !== null && merge.isMerged(target);
   }, BACKGROUND_CHUNK);
-  document.getElementById(id)?.scrollIntoView();
+  document.getElementById(pageId)?.scrollIntoView();
 }
 
 async function scrollToSourceLine(line: number): Promise<void> {

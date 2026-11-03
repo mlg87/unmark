@@ -2,6 +2,8 @@
 // current heading is the last heading at or above the viewport's top, and the page tells the
 // app whenever that changes. The app selects that heading's row.
 
+import { documentIdOf } from "./sanitize.ts";
+
 // scrollIntoView puts a heading's top at the viewport's top, give or take WebKit's subpixel
 // rounding, and a heading the Outline just scrolled to has to count as passed.
 const TOP_SLACK_PX = 1;
@@ -53,7 +55,8 @@ export function currentHeadingId(article: Element): string | null {
       notPassed = middle;
     }
   }
-  return passed > 0 ? (headings[passed - 1] as Element).id : null;
+  // The outline's id, which the sanitizer's prefix isn't part of.
+  return passed > 0 ? documentIdOf(headings[passed - 1] as Element) : null;
 }
 
 /**

@@ -196,11 +196,11 @@ test("scrolling to an element in a later chunk renders up to it, not the whole d
     scrolledTo(this.id);
   };
   await renderOnEmptyPage(longDocument);
-  expect(document.getElementById("part-30")).toBeNull();
+  expect(document.getElementById("user-content-part-30")).toBeNull();
   // No timers run, so no background task contributes to the scroll.
   await window.unmark.scrollToElement("part-30");
-  expect(scrolledTo).toHaveBeenCalledWith("part-30");
-  expect(document.getElementById("part-59")).toBeNull();
+  expect(scrolledTo).toHaveBeenCalledWith("user-content-part-30");
+  expect(document.getElementById("user-content-part-59")).toBeNull();
   // The background tasks carry on from where the scroll stopped.
   await vi.runAllTimersAsync();
   expect(article.innerHTML).toBe(renderedAllAtOnce(longDocument));
@@ -211,13 +211,13 @@ test("a scroll whose element arrives while it waits its turn renders no further"
   tallBlocks();
   Element.prototype.scrollIntoView = () => {};
   await renderOnEmptyPage(longDocument);
-  expect(document.getElementById("part-20")).toBeNull();
+  expect(document.getElementById("user-content-part-20")).toBeNull();
   // The second call waits for the first, whose batch brings in part-20 too.
   await Promise.all([
     window.unmark.scrollToElement("part-30"),
     window.unmark.scrollToElement("part-20"),
   ]);
-  expect(document.getElementById("part-59")).toBeNull();
+  expect(document.getElementById("user-content-part-59")).toBeNull();
 });
 
 test("following the Source to a line in a later chunk renders up to it, not the whole document", async () => {
@@ -225,10 +225,10 @@ test("following the Source to a line in a later chunk renders up to it, not the 
   tallBlocks();
   vi.spyOn(window, "scrollBy").mockImplementation(() => {});
   await renderOnEmptyPage(longDocument);
-  expect(document.getElementById("part-30")).toBeNull();
+  expect(document.getElementById("user-content-part-30")).toBeNull();
   await window.unmark.scrollToSourceLine(longDocument.split("\n").indexOf("## Part 30"));
-  expect(document.getElementById("part-30")).not.toBeNull();
-  expect(document.getElementById("part-59")).toBeNull();
+  expect(document.getElementById("user-content-part-30")).not.toBeNull();
+  expect(document.getElementById("user-content-part-59")).toBeNull();
 });
 
 test("scrolling to an element that isn't in the document renders all of it", async () => {

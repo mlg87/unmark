@@ -109,6 +109,22 @@ test("a heading scrolled to is current", async () => {
   expect(messagesOfType("currentHeading")).toEqual([{ type: "currentHeading", id: "c" }]);
 });
 
+// DOMPurify used to drop an id naming a document or form property, so these headings had no
+// element to scroll to and were never current (unmark-1793451427523-5-478d1806.1).
+test("headings named after document and form properties can be scrolled to and are current", async () => {
+  const ids = ["title", "links", "images", "forms", "hidden", "after"];
+  await renderSettled(ids.map((id) => `## ${id}`).join("\n\n"));
+  // Bottom up, so every scroll moves the page and changes the current heading.
+  for (const [index, id] of [...ids.entries()].reverse()) {
+    await window.unmark.scrollToElement(id);
+    runFrames();
+    expect(article.children[index]?.getBoundingClientRect().top, id).toBeCloseTo(0);
+  }
+  expect(messagesOfType("currentHeading")).toEqual(
+    ids.toReversed().map((id) => ({ type: "currentHeading", id })),
+  );
+});
+
 test("above the first heading there is no current heading", async () => {
   await renderSettled("Intro.\n\n# A\n\nText.");
   scrollTo(150);
@@ -131,7 +147,6 @@ test("an edit that renames the current heading reports its new id without a scro
 });
 
 test("a heading in a closed <details> is never current", async () => {
-  // Not "Hidden" or "After": DOMPurify drops ids that name document or form properties.
   await renderSettled(
     "Intro.\n\n<details><summary>More</summary>\n\n## Folded\n\n</details>\n\n## Later",
   );

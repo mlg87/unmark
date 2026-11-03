@@ -52,10 +52,10 @@ describe("footnotes", () => {
   test("a reference and the footnote section", async () => {
     expect(await render("Claim[^1].\n\n[^1]: Source.")).toBe(
       [
-        '<p>Claim<sup><a href="#fn-1" id="fnref-1" data-footnote-ref="" aria-describedby="footnote-label">1</a></sup>.</p>',
-        '<section data-footnotes="" class="footnotes"><h2 id="footnote-label" class="sr-only">Footnotes</h2>',
+        '<p>Claim<sup><a href="#fn-1" data-footnote-ref="" aria-describedby="user-content-footnote-label" id="user-content-fnref-1">1</a></sup>.</p>',
+        '<section data-footnotes="" class="footnotes"><h2 class="sr-only" id="user-content-footnote-label">Footnotes</h2>',
         "<ol>",
-        '<li id="fn-1">',
+        '<li id="user-content-fn-1">',
         '<p>Source. <a href="#fnref-1" data-footnote-backref="" aria-label="Back to reference 1" class="data-footnote-backref">↩</a></p>',
         "</li>",
         "</ol>",
@@ -66,7 +66,9 @@ describe("footnotes", () => {
 
   test("a second reference to the same footnote gets its own id and back-reference", async () => {
     const html = await render("a[^n] b[^n]\n\n[^n]: Note.");
-    expect(html).toContain('<a href="#fn-1" id="fnref-1-2" data-footnote-ref=""');
+    expect(html).toContain(
+      '<a href="#fn-1" data-footnote-ref="" aria-describedby="user-content-footnote-label" id="user-content-fnref-1-2">',
+    );
     expect(html).toContain(
       '<a href="#fnref-1-2" data-footnote-backref="" aria-label="Back to reference 1-2" class="data-footnote-backref">↩<sup>2</sup></a>',
     );
@@ -77,15 +79,15 @@ describe("heading anchors", () => {
   test("duplicate headings get GitHub's unique ids", async () => {
     expect(await render("## A\n\n## A")).toBe(
       [
-        `<h2 id="a"><a class="anchor" href="#a" aria-hidden="true">${ANCHOR_ICON}</a>A</h2>`,
-        `<h2 id="a-1"><a class="anchor" href="#a-1" aria-hidden="true">${ANCHOR_ICON}</a>A</h2>`,
+        `<h2 id="user-content-a"><a class="anchor" href="#a" aria-hidden="true">${ANCHOR_ICON}</a>A</h2>`,
+        `<h2 id="user-content-a-1"><a class="anchor" href="#a-1" aria-hidden="true">${ANCHOR_ICON}</a>A</h2>`,
       ].join("\n"),
     );
   });
 
   test("ids restart with every render", async () => {
     await render("# A");
-    expect(await render("# A")).toContain('<h1 id="a">');
+    expect(await render("# A")).toContain('<h1 id="user-content-a">');
   });
 
   test("outline() returns the headings in document order", async () => {
