@@ -100,6 +100,14 @@ struct SourceTextView: NSViewRepresentable {
         let highlighting = SourceHighlighting()
         /// Built from `lastText` on the first scroll after it changes, not on every keystroke.
         private var cachedLines: SourceLines?
+        /// The line at the Source's top as of its latest scroll at `keptWidth`, which a width change keeps there.
+        private var keptLine: Double = 0
+        /// The clip view's width when the Source last kept `keptLine`, nil until it first lays out.
+        private var keptWidth: CGFloat?
+        private var isKeepScheduled = false
+        /// Set while the Source scrolls to keep its line. Reading the line back off the scroll, which lands on a whole
+        /// pixel, would move it a little on every frame of a live resize.
+        private var isKeepingLine = false
 
         init(text: Binding<String>, didEdit: @escaping @MainActor (TextEdit) -> Void) {
             self.text = text
@@ -125,12 +133,41 @@ struct SourceTextView: NSViewRepresentable {
         }
 
         @objc func sourceDidScroll(_ notification: Notification) {
+            guard !isKeepingLine, let clipView = textView?.enclosingScrollView?.contentView else { return }
+            // A window resize or the Outline narrowing or widening Split mode rewraps the Source under a scroll
+            // position that stays put, which drifts the top a paragraph or more from the Preview's line
+            // (unmark-1793451427523-5-478d1806.2). That's no scroll of the user's: it isn't reported, and the Source
+            // puts its line back once the width settles, as the Preview's keepLineAcrossWidthChanges does.
+            guard clipView.bounds.width == keptWidth else {
+                scheduleKeepingLine()
+                return
+            }
             guard let line = lineAtTop() else { return }
+            keptLine = line
             scrollSync?.paneDidScroll(.source, toLine: line)
+        }
+
+        /// After the pass that resized the clip view has also resized the text view and its text container, so the
+        /// line is put back where the text wraps at the new width. A live resize changes the width every frame, and
+        /// each frame's changes keep the line once.
+        private func scheduleKeepingLine() {
+            guard !isKeepScheduled else { return }
+            isKeepScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                isKeepScheduled = false
+                guard let clipView = textView?.enclosingScrollView?.contentView else { return }
+                keptWidth = clipView.bounds.width
+                isKeepingLine = true
+                scroll(toLine: keptLine)
+                isKeepingLine = false
+            }
         }
 
         /// Scrolls so 0-based source `line` is at the top, a fractional line that far into the line's height.
         func scroll(toLine line: Double) {
+            // Following the Preview while the width changes moves the line a later keep puts back.
+            keptLine = line
             guard let textView, let scrollView = textView.enclosingScrollView,
                 let layoutManager = textView.textLayoutManager, let contentManager = layoutManager.textContentManager,
                 let location = contentManager.location(
