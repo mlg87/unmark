@@ -13,6 +13,8 @@ struct PreviewView: NSViewRepresentable {
     let scrollRequest: ScrollRequest?
     /// Prints the Preview once the current text has rendered (#34).
     let printRequest: PrintRequest?
+    /// `WKWebView.pageZoom`, remembered app-wide (q36).
+    let zoom: Double
     /// How long a text change waits for further changes before it renders. Zero renders at once.
     let renderDebounce: Duration
     /// Called with the rendered text after each render reaches the page.
@@ -49,6 +51,9 @@ struct PreviewView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        if webView.pageZoom != zoom {
+            webView.pageZoom = zoom
+        }
         context.coordinator.didRender = didRender
         context.coordinator.linkActivated = linkActivated
         context.coordinator.taskToggled = taskToggled
@@ -60,16 +65,6 @@ struct PreviewView: NSViewRepresentable {
             RenderRequest(markdown: markdown, documentBaseURL: documentBaseURL), after: renderDebounce)
         context.coordinator.scroll(to: scrollRequest)
         context.coordinator.printPreview(printRequest)
-    }
-
-    struct RenderRequest: Equatable {
-        let markdown: String
-        let documentBaseURL: URL
-    }
-
-    /// The renderer's `OutputMode`.
-    private enum OutputMode: String {
-        case screen, print
     }
 
     /// Queues renders until the renderer page has loaded, then runs them one at a time. Only the newest waiting
@@ -330,5 +325,18 @@ struct PreviewView: NSViewRepresentable {
                 Self.logger.error("Output mode switch failed: \(String(describing: error), privacy: .public)")
             }
         }
+    }
+}
+
+// Outside the struct, which SwiftLint's type_body_length caps at 250 lines.
+extension PreviewView {
+    struct RenderRequest: Equatable {
+        let markdown: String
+        let documentBaseURL: URL
+    }
+
+    /// The renderer's `OutputMode`.
+    private enum OutputMode: String {
+        case screen, print
     }
 }

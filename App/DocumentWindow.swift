@@ -19,7 +19,9 @@ struct DocumentWindow: View {
     let reloadFromDisk: @MainActor () -> Void
     let keepChanges: @MainActor () -> Void
 
+    /// Both app-wide, so a zoom reaches every open window at once (q36).
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
+    @AppStorage(PreviewZoom.defaultsKey) private var previewZoom = PreviewZoom.actualSize
     /// Per window, so each window's panes follow only each other.
     @State private var scrollSync = ScrollSync()
 
@@ -47,7 +49,7 @@ struct DocumentWindow: View {
                 }
                 PreviewView(
                     markdown: state.text, documentBaseURL: state.documentBaseURL, scrollRequest: state.scrollRequest,
-                    printRequest: state.printRequest,
+                    printRequest: state.printRequest, zoom: previewZoom,
                     // In Preview mode text changes come only from disk, which ExternalChangeMonitor already debounces,
                     // and from task toggles, one per click.
                     renderDebounce: state.isSourceVisible ? Self.editRenderDebounce : .zero,
