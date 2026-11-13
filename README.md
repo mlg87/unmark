@@ -38,6 +38,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
 | `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
 | `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs, `scripts/release/` the DMG build |
+| `Artwork/` | The owner's app icon artwork, square and at least 1024 px; `swift scripts/generate-app-icon.swift` renders `AppIcon.appiconset` from it |
 | `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
 
 ## Command-line tool
@@ -92,10 +93,14 @@ and `arm64` for the app and the embedded `unmark` tool, and checks the tool's ex
 statuses for usage errors and missing files. Then it launches the app with
 `unmark a.md b.md` and fails unless the tool exits 0 within 10 s and the app then
 reports both files open, asked over `com.mlg87.unmark.queryOpen` by
-`scripts/ci/open-documents.swift`. Last, it runs `GIT_EDITOR="unmark --wait" git
+`scripts/ci/open-documents.swift`. Then it runs `GIT_EDITOR="unmark --wait" git
 commit` in a scratch repo and fails unless git is still running 5 s after the app
 reports `COMMIT_EDITMSG` open, then commits the message once `osascript` clicks the
-window's close button.
+window's close button. Last, `scripts/ci/check-updates.sh` checks Sparkle in copies
+of the app re-signed with a local feed URL: a scheduled check against an
+unreachable feed opens no dialog, the Settings toggle reads and writes
+`SUEnableAutomaticChecks`, and Check for Updates… offers a newer version from an
+appcast served on `127.0.0.1`.
 
 The `main: baseline` ruleset requires the `ci` check (pinned to the GitHub
 Actions app) before a pull request can merge, so red builds can't land on

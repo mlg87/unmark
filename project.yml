@@ -22,6 +22,10 @@ settings:
 packages:
   UnmarkCore:
     path: Packages/UnmarkCore
+  # Updates (q29, ADR-0002). Unmark is unsandboxed, so it needs none of Sparkle's XPC services.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.10.1"
 
 targets:
   Unmark:
@@ -48,6 +52,7 @@ targets:
         basedOnDependencyAnalysis: false
     dependencies:
       - package: UnmarkCore
+      - package: Sparkle
       # The `unmark` command-line tool ships inside the app (#8). It goes in Contents/Helpers, not next to
       # the app's executable in Contents/MacOS: on case-insensitive APFS, the default for macOS volumes,
       # `unmark` and `Unmark` are the same file.
@@ -73,6 +78,10 @@ targets:
             LSHandlerRank: Default
             LSItemContentTypes: [net.daringfireball.markdown]
             NSDocumentClass: $(PRODUCT_MODULE_NAME).MarkdownDocument
+            # Finder draws markdown files Unmark opens by default as a folded page badged with the
+            # app icon and labeled MD (#44). macOS generates that icon from AppIcon and the
+            # UTTypeIcons below, so there's no separate document artwork to keep in sync.
+            CFBundleTypeIconSystemGenerated: 1
         UTImportedTypeDeclarations:
           - UTTypeIdentifier: net.daringfireball.markdown
             UTTypeDescription: Markdown Document
@@ -82,10 +91,18 @@ targets:
               # Keep in sync with MarkdownFile.pathExtensions in UnmarkCore.
               public.filename-extension: [md, markdown, mdown, mdwn, mkd, mkdn, mkdown]
               public.mime-type: [text/markdown]
+            # Without a UTTypeIcons entry, the system skips the generated icon and draws the
+            # plain-text icon this type inherits from public.plain-text.
+            UTTypeIcons:
+              UTTypeIconText: md
         # Remote images load over http as well as https (q28). Scoped to web content, so the
         # app's own networking keeps App Transport Security.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoadsInWebContent: true
+        # Sparkle (q29). The release workflow publishes appcast.xml to every GitHub release, so the latest one's
+        # asset is always the newest feed. The private half of this key is the SPARKLE_ED_PRIVATE_KEY repo secret.
+        SUFeedURL: https://github.com/mlg87/unmark/releases/latest/download/appcast.xml
+        SUPublicEDKey: SHY1ZbrT3cB2SbsJpKV3WAAOvXSeFH3809iHB7G2HlM=
     settings:
       base:
         PRODUCT_NAME: Unmark

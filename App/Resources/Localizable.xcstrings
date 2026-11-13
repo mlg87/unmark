@@ -89,7 +89,13 @@
     "Add %@ to your PATH" : {
 
     },
+    "Automatically check for updates" : {
+
+    },
     "Bring All to Front" : {
+
+    },
+    "Check for Updates…" : {
 
     },
     "Close" : {
@@ -237,6 +243,9 @@
 
     },
     "Undo" : {
+
+    },
+    "Updates" : {
 
     },
     "Use Selection for Find" : {
