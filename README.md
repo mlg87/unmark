@@ -37,7 +37,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `Packages/UnmarkCore/` | Swift package with pure, unit-tested logic (no AppKit or WebKit) |
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
 | `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
-| `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs |
+| `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs, `scripts/release/` the DMG build |
 | `Artwork/` | The owner's app icon artwork, square and at least 1024 px; `swift scripts/generate-app-icon.swift` renders `AppIcon.appiconset` from it |
 | `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
 
@@ -121,6 +121,15 @@ row sets a failure status and files a GitHub issue and a bead. launchd checks
 every 15 minutes once you run `scripts/perf/keystroke-to-preview-gate.sh
 install-schedule` in the primary checkout; the log is
 `~/Library/Logs/unmark-keystroke-to-preview-gate.log`.
+
+## Releasing
+
+`scripts/release/build-dmg.sh <version>` builds a universal, Developer ID
+signed, notarized, and stapled `Unmark-<version>.dmg`, and fails if it's 30 MB
+or more. The manually run Release workflow runs it in CI and uploads the DMG as
+an artifact. [docs/releasing.md](docs/releasing.md) covers the certificate, the
+notary credentials and repository secrets, running it on a Mac with Xcode, and
+renewing the certificate before it expires on 2027-12-13.
 
 ## License
 
