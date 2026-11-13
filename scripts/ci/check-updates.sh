@@ -69,9 +69,11 @@ on run argv
     tell (first process whose unix id is (item 1 of argv as integer))
       repeat with w in windows
         set end of output to "window: " & (name of w as text)
-        repeat with e in (entire contents of w)
+        -- Fetched first: `repeat with e in (entire contents of …)` can't resolve its items as references.
+        set uiElements to entire contents of w
+        repeat with e in uiElements
           try
-            if role of e is "AXStaticText" then set end of output to (value of e as text)
+            if role of e is "AXStaticText" then set end of output to ((value of e) as text)
           end try
         end repeat
       end repeat
@@ -85,7 +87,7 @@ EOF
 
 # <menu item title>, from the app menu.
 click_app_menu_item() {
-  osascript - "$pid" "$1" << 'EOF'
+  osascript - "$pid" "$1" > /dev/null << 'EOF'
 on run argv
   tell application "System Events"
     tell (first process whose unix id is (item 1 of argv as integer))
@@ -103,13 +105,15 @@ settings_toggle() {
 on run argv
   tell application "System Events"
     tell (first process whose unix id is (item 1 of argv as integer))
-      repeat with e in (entire contents of window "Settings")
+      -- Fetched first: `repeat with e in (entire contents of …)` can't resolve its items as references.
+      set uiElements to entire contents of window "Settings"
+      repeat with e in uiElements
         if role of e is "AXCheckBox" then
           if item 2 of argv is "click" then
             click e
             delay 1
           end if
-          return value of e as text
+          return (value of e) as text
         end if
       end repeat
     end tell
