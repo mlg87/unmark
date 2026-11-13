@@ -61,6 +61,13 @@ const FOOTNOTE_SYNTAX = /\[\^|\^\[/g;
 const MARKER = new RegExp(` ${SOURCE_LINE}="(\\d+)"`, "g");
 // A line markdown-it's block parse skips: spaces and tabs at most.
 const BLANK_LINE = /[ \t]*\n/y;
+// The most source a splice block-parses again. A splice renders every piece it parses before
+// the Preview shows the edit, where a whole render renders pieces only as far as the first
+// screen: a 1 MB document replacing another took 3.6 s to its first screen in WKWebView as a
+// splice, against 0.35-0.45 s for a fresh open (unmark-1793451427523-5-478d1806.9). With the
+// edit in view 0.8 MB into a 1 MB document, splicing in 64 KB of new sections took about as
+// long in jsdom as rendering the whole document again; nearer the top, a whole render is quicker.
+const SPLICE_LIMIT = 64 * 1024;
 
 /** A top-level block's rendering. */
 export class BlockPart {
@@ -394,8 +401,9 @@ function* renderPieces(
  * (unmark-1793451427066-4-97884ee7.8). `previous` hands the rest over: it renders no further.
  *
  * Returns `undefined` when the edit reaches what the pieces it keeps depend on: a link
- * reference or footnote definition, or the heading ids and footnote numbers after it. Then the
- * whole document needs rendering.
+ * reference or footnote definition, or the heading ids and footnote numbers after it; or when
+ * it block-parses more than SPLICE_LIMIT characters again. Then the whole document needs
+ * rendering.
  */
 export function spliceBlocks(
   md: MarkdownIt,
@@ -474,6 +482,13 @@ export function spliceBlocks(
   let resumed: number | undefined;
   for (let line = start; line < blockState.lineMax; ) {
     line = parseBlock(md, blockState, line);
+    // The source the splice block-parsed again, which it would render before the first screen.
+    if (
+      (pieces.lineStarts[line] ?? edited.length) - (pieces.lineStarts[start] ?? 0) >
+      SPLICE_LIMIT
+    ) {
+      return undefined;
+    }
     const oldEnd = line - delta;
     const ended = firstBlockEndingAtOrAfter(blocks, oldEnd);
     if (blocks[ended]?.end === oldEnd && ended >= first && resumes(oldEnd)) {

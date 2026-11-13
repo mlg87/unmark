@@ -187,6 +187,29 @@ test("a render that replaces one waiting for its next background task renders no
   expect(article.innerHTML).toBe(renderedAllAtOnce("# Replaced"));
 });
 
+test("a long document replacing another renders only its first screen before the render resolves", async () => {
+  vi.useFakeTimers();
+  // Without footnote definitions, which a splice never replaces.
+  await renderOnEmptyPage(plainDocument);
+  await vi.runAllTimersAsync();
+  // Each top-level block a viewport tall, so the first screen ends at the first new block.
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const index = this.parentElement === article ? [...article.children].indexOf(this) : 0;
+    return new DOMRect(0, index * 1e6, 100, 1e6);
+  });
+  // Numbered apart from plainDocument's sections, and longer than the most a splice parses again.
+  const replacement = Array.from({ length: 400 }, (_, n) => plainSection(1000 + n)).join("\n");
+  const renderPiece = vi.spyOn(Object.getPrototypeOf(md.renderer), "render");
+  await render(replacement);
+  const beforeFirstScreen = renderPiece.mock.calls.length;
+  await vi.runAllTimersAsync();
+  // As a splice of the whole document, it rendered every piece first: a 1 MB document took 3.6 s
+  // to its first screen in WKWebView, against 0.35-0.45 s for an open
+  // (unmark-1793451427523-5-478d1806.9).
+  expect(beforeFirstScreen).toBeLessThan(renderPiece.mock.calls.length / 10);
+  expect(article.innerHTML).toBe(renderedAllAtOnce(replacement));
+});
+
 test("scrolling to an element in a later chunk renders up to it, not the whole document", async () => {
   vi.useFakeTimers();
   tallBlocks();
