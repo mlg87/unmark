@@ -6,11 +6,12 @@
 //
 // It exits 1 when the median keystroke, from `callAsyncJavaScript` to the painted frame, takes the debounce's 40 ms
 // off q47's 250 ms or more. That gates q47 only on a Mac of the oldest generation macOS 14 supports, such as the
-// 2019 i9 MacBook Pro the figures here come from (unmark-1793451427523-5-478d1806.10). CI runs it and prints the
-// figure without gating on it: for the same renderer, the runner's medians ranged 88-206 ms between runs, against the
-// i9's 128-143 ms. Timing a renderer-free workload alongside to scale the runner's figure to the i9's didn't help.
-// The runner ran that workload twice as fast as the i9 but the keystrokes no faster, so the scaled medians came out
-// at 170-201 ms.
+// 2019 i9 MacBook Pro the figures here come from (unmark-1793451427523-5-478d1806.10), where
+// scripts/perf/keystroke-to-preview-gate.sh runs it on every new `main` (unmark-1793451427523-5-478d1806.11). CI
+// runs it and prints the figure without gating on it: for the same renderer, the runner's medians ranged 88-206 ms
+// between runs, against the i9's 128-143 ms. Timing a renderer-free workload alongside to scale the runner's figure
+// to the i9's didn't help. The runner ran that workload twice as fast as the i9 but the keystrokes no faster, so the
+// scaled medians came out at 170-201 ms.
 //
 // usage: sh scripts/build-renderer.sh && swift scripts/perf/keystroke-to-preview.swift [options]
 //   --width W --height H  the Preview's size in points (default 360x760: the Preview in Split mode at the
@@ -21,6 +22,9 @@
 // The window must be visible and the app active for the whole run: WebKit throttles the timers of a page in a
 // window that isn't, and the renderer's background work then stalls `outline()` after the open. The script
 // activates itself; leave the window in front until it exits. A GitHub macOS runner's session activates it too.
+// Throttling only slows a run, so a median under budget holds q47 either way. One over budget after the window
+// lost focus, a run on a locked screen or asleep display, or one with no result after 300 s (a sleeping display
+// paints no frames) exits 3 instead of 1: it can't tell whether q47 holds, and the gate script retries it.
 import AppKit
 import WebKit
 
@@ -265,6 +269,27 @@ func describeMachine(window: NSWindow) -> String {
         """
 }
 
+/// Exit status 3: the run can't tell whether q47 holds, so keystroke-to-preview-gate.sh retries it rather than
+/// reporting a failure.
+func inconclusive(_ reason: String) -> Never {
+    // Flushed first, so a log of both streams ends with the reason rather than starting with it.
+    fflush(stdout)
+    FileHandle.standardError.write(Data("keystroke-to-preview: inconclusive: \(reason)\n".utf8))
+    exit(3)
+}
+
+func fail(_ reason: String) -> Never {
+    fflush(stdout)
+    FileHandle.standardError.write(Data("keystroke-to-preview: \(reason)\n".utf8))
+    exit(1)
+}
+
+// A scheduled run can find the session in any of these states, none of which shows the window.
+let session = CGSessionCopyCurrentDictionary() as? [String: Any] ?? [:]
+if session[kCGSessionOnConsoleKey] as? Bool == false { inconclusive("the login session isn't on the console") }
+if session["CGSSessionScreenIsLocked"] as? Bool == true { inconclusive("the screen is locked") }
+if CGDisplayIsAsleep(CGMainDisplayID()) != 0 { inconclusive("the display is asleep") }
+
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
 let activity = ProcessInfo.processInfo.beginActivity(
@@ -283,6 +308,35 @@ window.center()
 let pageLoad = PageLoad()
 webView.navigationDelegate = pageLoad
 
+/// Whether the window stopped being key, or the app active, since the page loaded: an over-budget median may then be
+/// WebKit's throttling rather than the renderer's.
+var lostFocus = false
+for name in [NSApplication.didResignActiveNotification, NSWindow.didResignKeyNotification] {
+    NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+        MainActor.assumeIsolated { lostFocus = true }
+    }
+}
+// Names whatever took focus, so a scheduled run's log shows what keeps making it inconclusive.
+NSWorkspace.shared.notificationCenter.addObserver(
+    forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+) { notification in
+    guard let activated = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+        activated.processIdentifier != ProcessInfo.processInfo.processIdentifier
+    else { return }
+    print("  focus went to \(activated.localizedName ?? "?") (\(activated.bundleIdentifier ?? "no bundle ID"))")
+}
+// A whole run takes about 25 s on the i9.
+let watchdogSeconds = 300
+DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(watchdogSeconds)) {
+    MainActor.assumeIsolated {
+        let reason = "no result after \(watchdogSeconds) s"
+        if lostFocus || CGDisplayIsAsleep(CGMainDisplayID()) != 0 {
+            inconclusive("\(reason), with the window out of focus or the display asleep")
+        }
+        fail(reason)
+    }
+}
+
 Task { @MainActor in
     window.makeKeyAndOrderFront(nil)
     app.activate(ignoringOtherApps: true)
@@ -290,6 +344,7 @@ Task { @MainActor in
         pageLoad.continuation = continuation
         webView.load(URLRequest(url: rendererPage))
     }
+    lostFocus = !(NSApp.isActive && window.isKeyWindow)
     let harness = Harness(webView: webView)
     do {
         print(describeMachine(window: window))
@@ -313,18 +368,17 @@ Task { @MainActor in
         report("call to painted:", shown)
         let budget = keystrokeToPreviewMs - editRenderDebounceMs
         print("  q47 budget after the \(Int(editRenderDebounceMs)) ms debounce: \(Int(budget)) ms")
-        print("still active at the end: app \(NSApp.isActive), window key \(window.isKeyWindow)")
+        print("window key and app active throughout: \(!lostFocus)")
         ProcessInfo.processInfo.endActivity(activity)
         // The median, as the jsdom test holds its own, so one keystroke a garbage collection lands on doesn't fail.
         guard median(shown) < budget else {
-            FileHandle.standardError.write(
-                Data("keystroke-to-preview: median call to painted is over the \(Int(budget)) ms budget\n".utf8))
-            exit(1)
+            let reason = "median call to painted is over the \(Int(budget)) ms budget"
+            if lostFocus { inconclusive("\(reason), but WebKit may have throttled the window out of focus") }
+            fail(reason)
         }
         exit(0)
     } catch {
-        FileHandle.standardError.write(Data("keystroke-to-preview: \(error)\n".utf8))
-        exit(1)
+        fail("\(error)")
     }
 }
 app.run()

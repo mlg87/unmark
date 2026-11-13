@@ -60,7 +60,8 @@ jobs:
 
       # Prints q47's keystroke-to-preview figure in WebKit for a 1 MB file, for the record, and never fails the build:
       # this runner's medians range 88-206 ms between runs for the same renderer, so its figure says nothing about the
-      # oldest Mac q47 holds. The script's exit status gates q47 on such a Mac (unmark-1793451427523-5-478d1806.10).
+      # oldest Mac q47 holds. scripts/perf/keystroke-to-preview-gate.sh holds q47 on such a Mac, for every new main
+      # (unmark-1793451427523-5-478d1806.11).
       - name: Keystroke-to-preview in WebKit (informational)
         continue-on-error: true
         timeout-minutes: 5
