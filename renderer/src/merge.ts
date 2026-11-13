@@ -28,6 +28,11 @@ const NEAR = 4;
 // Pieces a step keeps after lining them up before the caller's check, so a background task
 // stays short. Pieces the page shows as they are cost nothing and don't count.
 const KEPT_PER_STEP = 512;
+// The one range every removal goes through. WebKit updates every live range on each change to
+// the DOM, and a range stays live until it's collected: with a range per removal, hundreds of
+// them made inserting and removing pieces 1.2 s of the 1.7 s a 1 MB document replacing another
+// took to its first screen, and 0.06 s with this one (unmark-1793451427523-5-478d1806.9).
+const REMOVAL = document.createRange();
 
 /** Where a new piece goes; `undefined` for the old piece the page shows, kept as it is. */
 type Placement =
@@ -236,10 +241,9 @@ export class BlockMerge {
     const first = nodes[0];
     const last = nodes.at(-1);
     if (!first || !last) return;
-    const range = document.createRange();
-    range.setStartBefore(first);
-    range.setEndAfter(last);
-    range.deleteContents();
+    REMOVAL.setStartBefore(first);
+    REMOVAL.setEndAfter(last);
+    REMOVAL.deleteContents();
   }
 
   #firstOldNode(): ChildNode | null {
