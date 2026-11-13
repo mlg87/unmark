@@ -9,24 +9,11 @@ on:
         description: Marketing version, like 1.2.3 or 1.2.3-beta.1
         required: true
         type: string
-  push:
-    branches: [bead/unmark-1793451443787-40-b4c49f84-developer-id-signing-notarization-and-dm]
 
 permissions:
   contents: read
 
 jobs:
-  notary-status:
-    runs-on: macos-15
-    steps:
-      - env:
-          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
-          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
-          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
-        run: |
-          key="$RUNNER_TEMP/AuthKey.p8"
-          printf '%s\n' "$NOTARY_KEY_P8" > "$key"
-          xcrun notarytool history --key "$key" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
   dmg:
     # Same runner and Xcode as ci.yml.
     runs-on: macos-15
@@ -82,7 +69,7 @@ jobs:
 
       - name: Build, sign, and notarize the DMG
         env:
-          VERSION: ${{ inputs.version || '0.0.1-test' }}
+          VERSION: ${{ inputs.version }}
           NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
@@ -90,8 +77,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: Unmark-${{ inputs.version || '0.0.1-test' }}.dmg
-          path: build/release/Unmark-${{ inputs.version || '0.0.1-test' }}.dmg
+          name: Unmark-${{ inputs.version }}.dmg
+          path: build/release/Unmark-${{ inputs.version }}.dmg
           if-no-files-found: error
 
       - name: Delete the temporary keychain
