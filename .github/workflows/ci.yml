@@ -58,6 +58,18 @@ jobs:
       - name: Renderer build
         run: pnpm --dir renderer build
 
+      # TEMPORARY (unmark-1793451427523-5-478d1806.10): measurements, removed before merge.
+      - name: TEMP jsdom keystroke figure
+        run: |
+          for i in 1 2 3; do KS_TAG="alone-$i" pnpm --dir renderer exec vitest run test/zz-tmp-ks.test.ts 2>&1 | grep -E "KS |passed|failed"; done
+
+      - name: TEMP WebKit harness on the runner
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          for i in 1 2 3; do swift scripts/perf/keystroke-to-preview.swift; done
+          swift scripts/perf/keystroke-to-preview.swift --width 980 --height 1000
+
       - name: Swift tests
         run: make test
 
