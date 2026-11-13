@@ -122,6 +122,9 @@
     "Find…" : {
 
     },
+    "Font" : {
+
+    },
     "Hide %@" : {
 
     },
@@ -158,6 +161,9 @@
     "Print…" : {
 
     },
+    "pt" : {
+
+    },
     "Quit %@" : {
 
     },
@@ -176,6 +182,12 @@
     "Services" : {
 
     },
+    "Settings" : {
+
+    },
+    "Settings…" : {
+
+    },
     "Show All" : {
 
     },
@@ -183,6 +195,12 @@
 
     },
     "Show Source (⇧⌘E)" : {
+
+    },
+    "Size" : {
+
+    },
+    "Source" : {
 
     },
     "Toggle Task" : {

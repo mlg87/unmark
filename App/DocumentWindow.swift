@@ -19,7 +19,8 @@ struct DocumentWindow: View {
     let reloadFromDisk: @MainActor () -> Void
     let keepChanges: @MainActor () -> Void
 
-    /// Both app-wide, so a zoom reaches every open window at once (q36).
+    /// App-wide, so a zoom or a Settings change reaches every open window at once (q36, q37).
+    @AppStorage(SourceFont.familyKey) private var sourceFontFamily = SourceFont.defaultFamily
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
     @AppStorage(PreviewZoom.defaultsKey) private var previewZoom = PreviewZoom.actualSize
     @AppStorage(OutlineVisibility.key) private var isOutlineVisible = false
@@ -69,8 +70,8 @@ struct DocumentWindow: View {
             HSplitView {
                 if state.isSourceVisible {
                     SourceTextView(
-                        text: $state.text, fontSize: sourceFontSize, willEdit: willEdit, didEdit: didEdit,
-                        scrollSync: scrollSync
+                        text: $state.text, fontFamily: sourceFontFamily, fontSize: sourceFontSize, willEdit: willEdit,
+                        didEdit: didEdit, scrollSync: scrollSync
                     )
                     .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
                 }

@@ -27,6 +27,10 @@ enum MainMenu {
             withTitle: String(localized: "About \(appName)"),
             action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         menu.addItem(.separator())
+        menu.addItem(
+            withTitle: String(localized: "Settings…"), action: #selector(AppDelegate.showSettings(_:)),
+            keyEquivalent: ",")
+        menu.addItem(.separator())
 
         let services = NSMenu(title: String(localized: "Services"))
         menu.addItem(withTitle: services.title, action: nil, keyEquivalent: "").submenu = services
