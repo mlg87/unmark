@@ -9,7 +9,7 @@ Unmark ships outside the Mac App Store as a notarized DMG (ADR-0002). `scripts/r
 5. The DMG must be under 30 MB (1,000,000-byte MB, as Finder counts them), epic #10's budget. It's checked before notarizing, so an oversized DMG fails fast, and again after stapling. `UNMARK_DMG_MAX_MB` overrides the limit, only to check that the gate fails.
 6. `xcrun notarytool submit --wait` notarizes the DMG and `xcrun stapler staple` attaches the ticket, so Gatekeeper accepts it offline. A rejected submission prints its notary log. The script then requires `spctl` to report `source=Notarized Developer ID`.
 
-Notarization usually takes minutes but can take much longer; the team's first two submissions, on 2026-11-13, were still in progress after 30 minutes. After 30 minutes the script fails with the submission ID. `xcrun notarytool info <id>` shows whether Apple accepted it later; rerun the script for a stapled DMG.
+Notarization usually takes minutes but can take much longer: on 2026-11-13 the team's first submissions were still in progress after 30 minutes. After 90 minutes the script fails with the submission ID. `xcrun notarytool info <id>` shows whether Apple accepted it later; rerun the script for a stapled DMG.
 
 `project.yml` keeps `CODE_SIGN_IDENTITY: "-"` (sign to run locally), so `make build` and CI's build need no certificate. Only the release script signs with Developer ID.
 

@@ -50,12 +50,13 @@ readonly dmg="$out/Unmark-$version.dmg"
 security find-identity -v -p codesigning | grep -q "\"$identity: .*($team_id)\"" ||
     fail "no valid '$identity' identity for team $team_id in the keychain search list (docs/releasing.md)"
 
-secrets=$(mktemp -d)
-trap 'rm -rf "$secrets"' EXIT
+# Outside build/, so the notary key never lands in the build output.
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
 if [[ -n ${NOTARY_KEY_P8:-} ]]; then
     : "${NOTARY_KEY_ID:?NOTARY_KEY_ID must accompany NOTARY_KEY_P8}"
     : "${NOTARY_ISSUER_ID:?NOTARY_ISSUER_ID must accompany NOTARY_KEY_P8}"
-    key_file="$secrets/AuthKey_$NOTARY_KEY_ID.p8"
+    key_file="$scratch/AuthKey_$NOTARY_KEY_ID.p8"
     printf '%s\n' "$NOTARY_KEY_P8" >"$key_file"
     notary_auth=(--key "$key_file" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
 else
@@ -102,17 +103,23 @@ for attempt in 1 2 3; do
 done
 codesign --sign "$identity" --timestamp "$dmg"
 
-# Checked before notarizing too, which can take half an hour, so an oversized DMG fails fast. The stapled ticket adds
+# Checked before notarizing too, which can take over an hour, so an oversized DMG fails fast. The stapled ticket adds
 # only a few KB.
 check_size
 
 step "Notarizing $dmg"
-# notarytool exits non-zero when --timeout runs out, with the submission ID and a message instead of a status.
-submission=$(xcrun notarytool submit "$dmg" "${notary_auth[@]}" --wait --timeout 30m --output-format json) || true
+# When --timeout runs out, notarytool exits non-zero and prints its JSON, with the submission ID but no status, to
+# stderr instead of stdout.
+notary_errors="$scratch/notarytool.err"
+submission=$(xcrun notarytool submit "$dmg" "${notary_auth[@]}" --wait --timeout 90m --output-format json \
+    2>"$notary_errors") || true
 echo "$submission"
-submission_id=$(plutil -extract id raw -o - - <<<"$submission") || fail "notarytool didn't submit $dmg"
-status=$(plutil -extract status raw -o - - <<<"$submission") ||
+cat "$notary_errors" >&2
+if ! status=$(plutil -extract status raw -o - - <<<"$submission" 2>/dev/null); then
+    submission_id=$(plutil -extract id raw -o - "$notary_errors" 2>/dev/null) || fail "notarytool didn't submit $dmg"
     fail "notarization of $dmg didn't finish (submission $submission_id). Check it with: xcrun notarytool info $submission_id"
+fi
+submission_id=$(plutil -extract id raw -o - - <<<"$submission")
 if [[ $status != Accepted ]]; then
     xcrun notarytool log "$submission_id" "${notary_auth[@]}" >&2 || true
     fail "notarization of $dmg ended '$status' (submission $submission_id); its log is above"

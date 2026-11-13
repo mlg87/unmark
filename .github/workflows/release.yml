@@ -26,21 +26,12 @@ jobs:
         run: |
           key="$RUNNER_TEMP/AuthKey.p8"
           printf '%s\n' "$NOTARY_KEY_P8" > "$key"
-          auth=(--key "$key" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
-          xcrun notarytool history "${auth[@]}"
-          for id in 451cfa7c-324d-4c46-a77e-4e8b369cbdc5 bf3fe057-fc1b-44b0-a6e5-e87480a3d9a8; do
-            xcrun notarytool info "$id" "${auth[@]}" || true
-            xcrun notarytool log "$id" "${auth[@]}" || true
-          done
+          xcrun notarytool history --key "$key" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
   dmg:
-    strategy:
-      fail-fast: false
-      matrix:
-        max_mb: ["30", "1"]
     # Same runner and Xcode as ci.yml.
     runs-on: macos-15
-    # Notarization usually takes minutes, but Apple's queue can take much longer.
-    timeout-minutes: 60
+    # build-dmg.sh waits up to 90 minutes for notarization, which usually takes minutes but has taken over 30.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
         with:
@@ -92,7 +83,6 @@ jobs:
       - name: Build, sign, and notarize the DMG
         env:
           VERSION: ${{ inputs.version || '0.0.1-test' }}
-          UNMARK_DMG_MAX_MB: ${{ matrix.max_mb }}
           NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
@@ -100,8 +90,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: Unmark-0.0.1-test.dmg-${{ matrix.max_mb }}
-          path: build/release/Unmark-0.0.1-test.dmg
+          name: Unmark-${{ inputs.version || '0.0.1-test' }}.dmg
+          path: build/release/Unmark-${{ inputs.version || '0.0.1-test' }}.dmg
           if-no-files-found: error
 
       - name: Delete the temporary keychain
