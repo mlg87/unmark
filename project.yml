@@ -75,6 +75,10 @@ targets:
             LSHandlerRank: Default
             LSItemContentTypes: [net.daringfireball.markdown]
             NSDocumentClass: $(PRODUCT_MODULE_NAME).MarkdownDocument
+            # Finder draws markdown files Unmark opens by default as a folded page badged with the
+            # app icon and labeled MD (#44). macOS generates that icon from AppIcon and the
+            # UTTypeIcons below, so there's no separate document artwork to keep in sync.
+            CFBundleTypeIconSystemGenerated: 1
         UTImportedTypeDeclarations:
           - UTTypeIdentifier: net.daringfireball.markdown
             UTTypeDescription: Markdown Document
@@ -84,6 +88,10 @@ targets:
               # Keep in sync with MarkdownFile.pathExtensions in UnmarkCore.
               public.filename-extension: [md, markdown, mdown, mdwn, mkd, mkdn, mkdown]
               public.mime-type: [text/markdown]
+            # Without a UTTypeIcons entry, the system skips the generated icon and draws the
+            # plain-text icon this type inherits from public.plain-text.
+            UTTypeIcons:
+              UTTypeIconText: md
         # Remote images load over http as well as https (q28). Scoped to web content, so the
         # app's own networking keeps App Transport Security.
         NSAppTransportSecurity:

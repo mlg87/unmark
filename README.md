@@ -38,6 +38,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
 | `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
 | `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs |
+| `Artwork/` | The owner's app icon artwork, square and at least 1024 px; `swift scripts/generate-app-icon.swift` renders `AppIcon.appiconset` from it |
 | `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
 
 ## Command-line tool
