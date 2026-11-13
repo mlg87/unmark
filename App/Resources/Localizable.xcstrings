@@ -86,10 +86,16 @@
     "Actual Size" : {
 
     },
+    "Add %@ to your PATH" : {
+
+    },
     "Bring All to Front" : {
 
     },
     "Close" : {
+
+    },
+    "Command-Line Tool" : {
 
     },
     "Copy" : {
@@ -140,6 +146,12 @@
     "Hide Source (⇧⌘E)" : {
 
     },
+    "Install Command-Line Tool" : {
+
+    },
+    "Installed at %@" : {
+
+    },
     "Make Unmark the Default Markdown App" : {
 
     },
@@ -150,6 +162,9 @@
 
     },
     "No results" : {
+
+    },
+    "Not installed" : {
 
     },
     "Open…" : {
@@ -176,7 +191,13 @@
     "Redo" : {
 
     },
+    "Reinstall" : {
+
+    },
     "Revert to Saved" : {
+
+    },
+    "Run this in Terminal:" : {
 
     },
     "Save" : {

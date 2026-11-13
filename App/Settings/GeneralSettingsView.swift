@@ -32,6 +32,7 @@ struct GeneralSettingsView: View {
                 }
             }
             DefaultMarkdownAppSection()
+            CommandLineToolSection()
         }
         .formStyle(.grouped)
         .scrollDisabled(true)

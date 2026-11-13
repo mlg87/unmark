@@ -64,12 +64,22 @@ answer while an alert is up), failed to open: the tool prints
 
 The binary is `Unmark.app/Contents/Helpers/unmark`, not `Contents/MacOS/unmark`:
 on a case-insensitive volume that name would replace the app's own `Unmark`
-executable. Put it on your `PATH` with a symlink, which it resolves to find its
-app:
+executable. The tool resolves the symlink it's run through to find its app.
+
+Settings (⌘,) → Command-Line Tool → Install Command-Line Tool links
+`/usr/local/bin/unmark` to the tool in the running copy of Unmark, after the
+standard admin password prompt. It shows `Installed at /usr/local/bin/unmark`
+only while that link resolves to this copy's tool; a link left behind when the
+app moved shows `Not installed` and a Reinstall button. If you cancel the
+prompt or the install fails, a sheet gives the command to run in Terminal
+instead:
 
 ```sh
-ln -s /Applications/Unmark.app/Contents/Helpers/unmark /usr/local/bin/unmark
+sudo mkdir -p /usr/local/bin && sudo ln -sf '/Applications/Unmark.app/Contents/Helpers/unmark' /usr/local/bin/unmark
 ```
+
+Settings also notes when `/usr/local/bin` isn't on the `PATH` that
+`/usr/libexec/path_helper -s` reports.
 
 ## Continuous integration
 
