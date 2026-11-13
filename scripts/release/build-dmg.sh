@@ -25,6 +25,15 @@ step() {
     echo "==> $*"
 }
 
+check_size() {
+    local bytes
+    bytes=$(stat -f %z "$dmg")
+    if ((bytes >= max_mb * 1000 * 1000)); then
+        fail "$dmg is $bytes bytes, over the ${max_mb} MB budget (epic #10). Find what grew before raising it."
+    fi
+    echo "$dmg is $bytes bytes, under the ${max_mb} MB budget"
+}
+
 [[ $# == 1 ]] || fail "usage: $0 <version>"
 readonly version=$1
 # Ends up in CFBundleShortVersionString and the DMG's file name.
@@ -93,11 +102,17 @@ for attempt in 1 2 3; do
 done
 codesign --sign "$identity" --timestamp "$dmg"
 
+# Checked before notarizing too, which can take half an hour, so an oversized DMG fails fast. The stapled ticket adds
+# only a few KB.
+check_size
+
 step "Notarizing $dmg"
-submission=$(xcrun notarytool submit "$dmg" "${notary_auth[@]}" --wait --timeout 30m --output-format json)
+# notarytool exits non-zero when --timeout runs out, with the submission ID and a message instead of a status.
+submission=$(xcrun notarytool submit "$dmg" "${notary_auth[@]}" --wait --timeout 30m --output-format json) || true
 echo "$submission"
-submission_id=$(plutil -extract id raw -o - - <<<"$submission") || fail "notarytool returned no submission ID"
-status=$(plutil -extract status raw -o - - <<<"$submission") || fail "notarytool returned no status"
+submission_id=$(plutil -extract id raw -o - - <<<"$submission") || fail "notarytool didn't submit $dmg"
+status=$(plutil -extract status raw -o - - <<<"$submission") ||
+    fail "notarization of $dmg didn't finish (submission $submission_id). Check it with: xcrun notarytool info $submission_id"
 if [[ $status != Accepted ]]; then
     xcrun notarytool log "$submission_id" "${notary_auth[@]}" >&2 || true
     fail "notarization of $dmg ended '$status' (submission $submission_id); its log is above"
@@ -108,8 +123,5 @@ assessment=$(spctl --assess -vv --type install "$dmg" 2>&1) || fail "Gatekeeper 
 echo "$assessment"
 [[ $assessment == *"source=Notarized Developer ID"* ]] || fail "Gatekeeper doesn't see $dmg as notarized: $assessment"
 
-bytes=$(stat -f %z "$dmg")
-if ((bytes >= max_mb * 1000 * 1000)); then
-    fail "$dmg is $bytes bytes, over the ${max_mb} MB budget (epic #10). Find what grew before raising it."
-fi
-echo "Built $dmg ($bytes bytes, under ${max_mb} MB)"
+check_size
+echo "Built $dmg"
