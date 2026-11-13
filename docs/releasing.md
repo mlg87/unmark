@@ -43,7 +43,7 @@ xcrun stapler validate Unmark-1.2.3.dmg
 The Account Holder set these up outside the repo on 2026-11-13.
 
 - **Apple Developer Program**, team ID `C33CHKC73H`. `project.yml` sets it as `DEVELOPMENT_TEAM`.
-- **Developer ID Application certificate**, valid until 2027-12-13. Created at [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list) from a Keychain Access certificate signing request, so its private key lives in the maintainer's login keychain. Macs without Xcode lack the [Developer ID G2 intermediate](https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer); until it's added to the keychain, `security find-identity -v -p codesigning` doesn't count the certificate as valid. The release workflow imports the intermediate itself.
+- **Developer ID Application certificate**, valid until 2027-12-13. Created at [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list) from a Keychain Access certificate signing request, so its private key lives in the maintainer's login keychain. Macs without Xcode lack the [Developer ID G2 intermediate](https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer); until it's added to the keychain, `security find-identity -v -p codesigning` doesn't count the certificate as valid. Once it's there, Keychain Access exports it into the `.p12` along with the certificate, so the release workflow's keychain gets it too.
 - **App Store Connect API Team key** `MW96UZNAUH`, issuer `84f05c5e-87e3-4275-97e6-77267e7642fd`, created under [Users and Access → Integrations](https://appstoreconnect.apple.com/access/integrations/api). Apple lets you download its `.p8` only once; it's stored outside the repo.
 
 ### Repository secrets
