@@ -1,7 +1,9 @@
 // Times the renderer's share of q47's keystroke-to-preview (under 250 ms for a 1 MB file) in a real WKWebView, with
-// WebKit's layout and paint, for comparison with renderer/test/keystroke-to-preview.test.ts's jsdom figure
-// (unmark-1793451427523-5-478d1806.8). It types the way that test does, into the same 1 MB document, and calls the
-// renderer the way PreviewView does: the whole text through `callAsyncJavaScript` on every keystroke.
+// WebKit's layout and paint, and gates it: exits 1 when the median keystroke, from `callAsyncJavaScript` to the
+// painted frame, takes the debounce's 40 ms off q47's 250 ms or more. CI runs it (unmark-1793451427523-5-478d1806.10)
+// because renderer/test/keystroke-to-preview.test.ts's jsdom figure understates WebKit by 1.5-2x on a 2019 i9 MacBook
+// Pro (unmark-1793451427523-5-478d1806.8). It types the way that test does, into the same 1 MB document, and calls
+// the renderer the way PreviewView does: the whole text through `callAsyncJavaScript` on every keystroke.
 //
 // usage: sh scripts/build-renderer.sh && swift scripts/perf/keystroke-to-preview.swift [options]
 //   --width W --height H  the Preview's size in points (default 360x760: the Preview in Split mode at the
@@ -11,8 +13,7 @@
 //
 // The window must be visible and the app active for the whole run: WebKit throttles the timers of a page in a
 // window that isn't, and the renderer's background work then stalls `outline()` after the open. The script
-// activates itself; leave the window in front until it exits. Not part of CI: a GitHub runner has no window server
-// session to activate in.
+// activates itself; leave the window in front until it exits. A GitHub macOS runner's session activates it too.
 import AppKit
 import WebKit
 
@@ -302,6 +303,12 @@ Task { @MainActor in
         print("  q47 budget after the \(Int(editRenderDebounceMs)) ms debounce: \(Int(budget)) ms")
         print("still active at the end: app \(NSApp.isActive), window key \(window.isKeyWindow)")
         ProcessInfo.processInfo.endActivity(activity)
+        // The median, as the jsdom test holds its own, so one keystroke a garbage collection lands on doesn't fail.
+        guard median(shown) < budget else {
+            FileHandle.standardError.write(
+                Data("keystroke-to-preview: median call to painted is over the \(Int(budget)) ms budget\n".utf8))
+            exit(1)
+        }
         exit(0)
     } catch {
         FileHandle.standardError.write(Data("keystroke-to-preview: \(error)\n".utf8))

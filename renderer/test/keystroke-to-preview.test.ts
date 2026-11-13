@@ -5,12 +5,14 @@
 // a render's first screen, on the renderer's own entry point with the whole document on the
 // page (unmark-1793451427066-4-97884ee7.10).
 //
-// jsdom understates WebKit. On a 2019 i9 MacBook Pro, of the oldest generation macOS 14
-// supports, this test's keystrokes took a median 77-80 ms here, while in a WKWebView
-// (scripts/perf/keystroke-to-preview.swift) the same render took 99-121 ms, and 123-161 ms
-// with the 1 MB of text passed through callAsyncJavaScript and the frame painted
-// (unmark-1793451427523-5-478d1806.8). A median at this test's budget would miss q47 in the app
-// (unmark-1793451427523-5-478d1806.10).
+// jsdom understates WebKit, so CI holds q47 in a WKWebView instead, with
+// scripts/perf/keystroke-to-preview.swift (unmark-1793451427523-5-478d1806.10). On a 2019 i9
+// MacBook Pro, of the oldest generation macOS 14 supports, this test's median keystroke took
+// 77-87 ms while the WKWebView's, with the 1 MB of text passed through callAsyncJavaScript and
+// the frame painted, took 123-161 ms: 1.5-2x (unmark-1793451427523-5-478d1806.8). Holding this
+// test to q47 by that ratio, about 115 ms, would fail CI's runner with no regression: its
+// medians here are 111-144 ms. So this test's budget is q47's unscaled, a coarse guard that
+// needs no build, and its sharper check is the first keystroke's below.
 
 import { beforeAll, expect, test, vi } from "vitest";
 import "../src/index.ts";
@@ -125,7 +127,7 @@ async function openAndType(
   return durations;
 }
 
-test("typing in a 1 MB document shows the edit in the Preview within q47's budget", async () => {
+test("typing in a 1 MB document shows the edit in the Preview within q47's budget in jsdom", async () => {
   // The first edit runs the edit path's code for the first time, and V8 compiling it added up
   // to 130 ms to that keystroke, on CI's runner and a 2019 i9 MacBook Pro alike, against the
   // renderer's own 150-200 ms per keystroke on both (unmark-1793451427523-5-478d1806.7). So a
