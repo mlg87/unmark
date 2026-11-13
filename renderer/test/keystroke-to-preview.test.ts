@@ -6,12 +6,13 @@
 // page (unmark-1793451427066-4-97884ee7.10).
 //
 // jsdom understates WebKit, and no CI check holds q47: scripts/perf/keystroke-to-preview.swift
-// does, in a WKWebView, run on a Mac of the oldest generation macOS 14 supports
-// (unmark-1793451427523-5-478d1806.10). On a 2019 i9 MacBook Pro of that generation, this
-// test's median keystroke took 77-87 ms while the WKWebView's, with the 1 MB of text passed
-// through callAsyncJavaScript and the frame painted, took 123-161 ms: 1.5-2x
-// (unmark-1793451427523-5-478d1806.8). Holding this test to q47 by that ratio, about 115 ms,
-// would fail CI's runner with no regression: its medians here range 111-237 ms between runs.
+// does, in a WKWebView, run by scripts/perf/keystroke-to-preview-gate.sh for every new main on
+// a Mac of the oldest generation macOS 14 supports (unmark-1793451427523-5-478d1806.11). On a
+// 2019 i9 MacBook Pro of that generation, this test's median keystroke took 77-87 ms while the
+// WKWebView's, with the 1 MB of text passed through callAsyncJavaScript and the frame painted,
+// took 123-161 ms: 1.5-2x (unmark-1793451427523-5-478d1806.8). Holding this test to q47 by that
+// ratio, about 115 ms, would fail CI's runner with no regression: its medians here range
+// 111-237 ms between runs.
 // So the median's budget is a coarse guard, and the sharper check is the first keystroke's.
 
 import { beforeAll, expect, test, vi } from "vitest";

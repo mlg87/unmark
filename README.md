@@ -91,6 +91,22 @@ The `main: baseline` ruleset requires the `ci` check (pinned to the GitHub
 Actions app) before a pull request can merge, so red builds can't land on
 `main`. GitHub lists the check as `ci`; pull requests show it as `CI / ci`.
 
+### Keystroke-to-preview on the oldest Mac
+
+q47 holds typing in a 1 MB file to under 250 ms before the Preview shows it.
+CI can't check that: the runner's WebKit timings vary 2x between runs. So
+`scripts/perf/keystroke-to-preview-gate.sh` runs
+`scripts/perf/keystroke-to-preview.swift` on the maintainer's 2019 i9 MacBook
+Pro, of the oldest generation macOS 14 supports, once for each new `main`. It
+needs the harness's window in front, so it waits until nobody has used the
+keyboard or mouse for 2 minutes, and retries a run the window lost focus in or
+one on a locked screen. A pass sets the `q47 keystroke-to-preview` status on the
+commit. A median over 210 ms (250 ms less the 40 ms edit debounce) twice in a
+row sets a failure status and files a GitHub issue and a bead. launchd checks
+every 15 minutes once you run `scripts/perf/keystroke-to-preview-gate.sh
+install-schedule` in the primary checkout; the log is
+`~/Library/Logs/unmark-keystroke-to-preview-gate.log`.
+
 ## License
 
 [MIT](LICENSE)
