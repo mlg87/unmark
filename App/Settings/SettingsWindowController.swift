@@ -1,14 +1,14 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
-/// The one Settings window. An `NSWindow` hosts the SwiftUI form because the AppKit lifecycle has no SwiftUI
-/// `Settings` scene (ADR-0003). The window outlives being closed, so Settings… reopens the same one.
+/// The one Settings window, which `AppDelegate` keeps. An `NSWindow` hosts the SwiftUI form because the AppKit
+/// lifecycle has no SwiftUI `Settings` scene (ADR-0003). The window outlives being closed, so Settings… reopens the
+/// same one.
 @MainActor
 final class SettingsWindowController: NSWindowController {
-    static let shared = SettingsWindowController()
-
-    private init() {
-        let hostingController = NSHostingController(rootView: GeneralSettingsView())
+    init(updater: SPUUpdater) {
+        let hostingController = NSHostingController(rootView: GeneralSettingsView(updater: updater))
         // The window takes its size from the form, which sets its own width.
         hostingController.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: hostingController)

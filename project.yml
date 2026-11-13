@@ -19,6 +19,10 @@ settings:
 packages:
   UnmarkCore:
     path: Packages/UnmarkCore
+  # Updates (q29, ADR-0002). Unmark is unsandboxed, so it needs none of Sparkle's XPC services.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.10.1"
 
 targets:
   Unmark:
@@ -45,6 +49,7 @@ targets:
         basedOnDependencyAnalysis: false
     dependencies:
       - package: UnmarkCore
+      - package: Sparkle
       # The `unmark` command-line tool ships inside the app (#8). It goes in Contents/Helpers, not next to
       # the app's executable in Contents/MacOS: on case-insensitive APFS, the default for macOS volumes,
       # `unmark` and `Unmark` are the same file.
@@ -83,6 +88,10 @@ targets:
         # app's own networking keeps App Transport Security.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoadsInWebContent: true
+        # Sparkle (q29). The release workflow publishes appcast.xml to every GitHub release, so the latest one's
+        # asset is always the newest feed. The private half of this key is the SPARKLE_ED_PRIVATE_KEY repo secret.
+        SUFeedURL: https://github.com/mlg87/unmark/releases/latest/download/appcast.xml
+        SUPublicEDKey: SHY1ZbrT3cB2SbsJpKV3WAAOvXSeFH3809iHB7G2HlM=
     settings:
       base:
         PRODUCT_NAME: Unmark

@@ -1,3 +1,4 @@
+import Sparkle
 import SwiftUI
 import UnmarkCore
 
@@ -5,6 +6,8 @@ import UnmarkCore
 /// Source panes follow each change as it's made, and zooming the Source shows here as its new size (q43).
 struct GeneralSettingsView: View {
     private static let width: CGFloat = 480
+
+    let updater: SPUUpdater
 
     @AppStorage(SourceFont.familyKey) private var sourceFontFamily = SourceFont.defaultFamily
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
@@ -33,6 +36,7 @@ struct GeneralSettingsView: View {
             }
             DefaultMarkdownAppSection()
             CommandLineToolSection()
+            UpdatesSection(updater: updater)
         }
         .formStyle(.grouped)
         .scrollDisabled(true)

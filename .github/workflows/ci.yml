@@ -218,3 +218,9 @@ jobs:
           subject="$(git log -1 --format=%s)"
           [[ $subject == "$message" ]] || fail "git committed '$subject', expected '$message'"
           kill "$pid"
+
+      # unmark-1793451444246-41-143393c8's acceptance criteria for Sparkle: no error dialog when the feed can't be
+      # reached, the Settings toggle drives SUEnableAutomaticChecks, and Check for Updates… offers a newer version.
+      - name: Check Sparkle updates
+        timeout-minutes: 5
+        run: scripts/ci/check-updates.sh "$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
