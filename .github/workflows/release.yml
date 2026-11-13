@@ -16,6 +16,22 @@ permissions:
   contents: read
 
 jobs:
+  notary-status:
+    runs-on: macos-15
+    steps:
+      - env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          key="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$NOTARY_KEY_P8" > "$key"
+          auth=(--key "$key" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
+          xcrun notarytool history "${auth[@]}"
+          for id in 451cfa7c-324d-4c46-a77e-4e8b369cbdc5 bf3fe057-fc1b-44b0-a6e5-e87480a3d9a8; do
+            xcrun notarytool info "$id" "${auth[@]}" || true
+            xcrun notarytool log "$id" "${auth[@]}" || true
+          done
   dmg:
     strategy:
       fail-fast: false
