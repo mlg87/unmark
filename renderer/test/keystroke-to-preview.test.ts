@@ -5,20 +5,21 @@
 // a render's first screen, on the renderer's own entry point with the whole document on the
 // page (unmark-1793451427066-4-97884ee7.10).
 //
-// jsdom understates WebKit. On a 2019 i9 MacBook Pro, of the oldest generation macOS 14
-// supports, this test's keystrokes took a median 77-80 ms here, while in a WKWebView
-// (scripts/perf/keystroke-to-preview.swift) the same render took 99-121 ms, and 123-161 ms
-// with the 1 MB of text passed through callAsyncJavaScript and the frame painted
-// (unmark-1793451427523-5-478d1806.8). A median at this test's budget would miss q47 in the app
-// (unmark-1793451427523-5-478d1806.10).
+// jsdom understates WebKit, and no CI check holds q47: scripts/perf/keystroke-to-preview.swift
+// does, in a WKWebView, run on a Mac of the oldest generation macOS 14 supports
+// (unmark-1793451427523-5-478d1806.10). On a 2019 i9 MacBook Pro of that generation, this
+// test's median keystroke took 77-87 ms while the WKWebView's, with the 1 MB of text passed
+// through callAsyncJavaScript and the frame painted, took 123-161 ms: 1.5-2x
+// (unmark-1793451427523-5-478d1806.8). Holding this test to q47 by that ratio, about 115 ms,
+// would fail CI's runner with no regression: its medians here range 111-237 ms between runs.
+// So the median's budget is a coarse guard, and the sharper check is the first keystroke's.
 
 import { beforeAll, expect, test, vi } from "vitest";
 import "../src/index.ts";
 
-const KEYSTROKE_TO_PREVIEW_MS = 250;
-// App/DocumentWindow.swift's editRenderDebounce: how long the app waits after a keystroke
-// before it asks for the render.
-const EDIT_RENDER_DEBOUNCE_MS = 40;
+// Above the slowest median CI's runner has shown (237 ms) and about 3.5 times the i9's, so it
+// catches only a renderer doing several times the work per keystroke.
+const MEDIAN_KEYSTROKE_BUDGET_MS = 300;
 const KEYSTROKES = 7;
 // Every top-level block's height in the layout model below.
 const BLOCK_HEIGHT = 100;
@@ -125,7 +126,7 @@ async function openAndType(
   return durations;
 }
 
-test("typing in a 1 MB document shows the edit in the Preview within q47's budget", async () => {
+test("typing in a 1 MB document shows each edit's first screen without redoing the page", async () => {
   // The first edit runs the edit path's code for the first time, and V8 compiling it added up
   // to 130 ms to that keystroke, on CI's runner and a 2019 i9 MacBook Pro alike, against the
   // renderer's own 150-200 ms per keystroke on both (unmark-1793451427523-5-478d1806.7). So a
@@ -141,7 +142,7 @@ test("typing in a 1 MB document shows the edit in the Preview within q47's budge
   const median = [...durations].sort((a, b) => a - b)[Math.floor(KEYSTROKES / 2)] ?? 0;
   // The median, so a garbage collection or the test files running alongside landing on one
   // keystroke doesn't fail the test; a renderer doing more per keystroke slows them all.
-  expect(median, measured).toBeLessThan(KEYSTROKE_TO_PREVIEW_MS - EDIT_RENDER_DEBOUNCE_MS);
+  expect(median, measured).toBeLessThan(MEDIAN_KEYSTROKE_BUDGET_MS);
   // The first keystroke after the document finished rendering is the one that would read the
   // whole page's source-line markers if they weren't read as they landed: about three times
   // the others' time (unmark-1793451427066-4-97884ee7.10).

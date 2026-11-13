@@ -1,7 +1,16 @@
 // Times the renderer's share of q47's keystroke-to-preview (under 250 ms for a 1 MB file) in a real WKWebView, with
-// WebKit's layout and paint, for comparison with renderer/test/keystroke-to-preview.test.ts's jsdom figure
-// (unmark-1793451427523-5-478d1806.8). It types the way that test does, into the same 1 MB document, and calls the
-// renderer the way PreviewView does: the whole text through `callAsyncJavaScript` on every keystroke.
+// WebKit's layout and paint, for comparison with renderer/test/keystroke-to-preview.test.ts's jsdom figure, which
+// understates WebKit by 1.5-2x (unmark-1793451427523-5-478d1806.8). It types the way that test does, into the same 1 MB
+// document, and calls the renderer the way PreviewView does: the whole text through `callAsyncJavaScript` on every
+// keystroke.
+//
+// It exits 1 when the median keystroke, from `callAsyncJavaScript` to the painted frame, takes the debounce's 40 ms
+// off q47's 250 ms or more. That gates q47 only on a Mac of the oldest generation macOS 14 supports, such as the
+// 2019 i9 MacBook Pro the figures here come from (unmark-1793451427523-5-478d1806.10). CI runs it and prints the
+// figure without gating on it: for the same renderer, the runner's medians ranged 88-206 ms between runs, against the
+// i9's 128-143 ms. Timing a renderer-free workload alongside to scale the runner's figure to the i9's didn't help.
+// The runner ran that workload twice as fast as the i9 but the keystrokes no faster, so the scaled medians came out
+// at 170-201 ms.
 //
 // usage: sh scripts/build-renderer.sh && swift scripts/perf/keystroke-to-preview.swift [options]
 //   --width W --height H  the Preview's size in points (default 360x760: the Preview in Split mode at the
@@ -11,8 +20,7 @@
 //
 // The window must be visible and the app active for the whole run: WebKit throttles the timers of a page in a
 // window that isn't, and the renderer's background work then stalls `outline()` after the open. The script
-// activates itself; leave the window in front until it exits. Not part of CI: a GitHub runner has no window server
-// session to activate in.
+// activates itself; leave the window in front until it exits. A GitHub macOS runner's session activates it too.
 import AppKit
 import WebKit
 
@@ -155,6 +163,11 @@ func format(_ values: [Double]) -> String {
     values.map { String(Int($0.rounded())) }.joined(separator: ", ")
 }
 
+func report(_ label: String, _ values: [Double]) {
+    let column = label.padding(toLength: 34, withPad: " ", startingAt: 0)
+    print("  \(column)\(format(values)) ms, median \(Int(median(values).rounded()))")
+}
+
 func milliseconds(since start: ContinuousClock.Instant) -> Double {
     let elapsed = start.duration(to: .now).components
     return Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
@@ -294,14 +307,20 @@ Task { @MainActor in
         let painted = typed.map { $0.renderMs + $0.paintMs }
         let call = typed.map(\.callMs)
         let shown = typed.map { $0.callMs + $0.paintMs }
-        print("  render (jsdom test's figure):     \(format(render)) ms, median \(Int(median(render).rounded()))")
-        print("  render to painted:                \(format(painted)) ms, median \(Int(median(painted).rounded()))")
-        print("  PreviewView's call (1 MB text):   \(format(call)) ms, median \(Int(median(call).rounded()))")
-        print("  call to painted:                  \(format(shown)) ms, median \(Int(median(shown).rounded()))")
+        report("render (jsdom test's figure):", render)
+        report("render to painted:", painted)
+        report("PreviewView's call (1 MB text):", call)
+        report("call to painted:", shown)
         let budget = keystrokeToPreviewMs - editRenderDebounceMs
         print("  q47 budget after the \(Int(editRenderDebounceMs)) ms debounce: \(Int(budget)) ms")
         print("still active at the end: app \(NSApp.isActive), window key \(window.isKeyWindow)")
         ProcessInfo.processInfo.endActivity(activity)
+        // The median, as the jsdom test holds its own, so one keystroke a garbage collection lands on doesn't fail.
+        guard median(shown) < budget else {
+            FileHandle.standardError.write(
+                Data("keystroke-to-preview: median call to painted is over the \(Int(budget)) ms budget\n".utf8))
+            exit(1)
+        }
         exit(0)
     } catch {
         FileHandle.standardError.write(Data("keystroke-to-preview: \(error)\n".utf8))
