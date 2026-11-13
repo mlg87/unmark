@@ -11,7 +11,8 @@ set -euo pipefail
 
 app="$1"
 domain=com.mlg87.unmark
-work="$(mktemp -d)"
+# Resolved, since LaunchServices starts the copies from /private/var, which pgrep has to match.
+work="$(cd "$(mktemp -d)" && pwd -P)"
 doc="$work/doc.md"
 printf '# doc\n' > "$doc"
 pid=""
@@ -45,7 +46,7 @@ launch() {
     pid="$(pgrep -nf "^$1/Contents/MacOS/Unmark")" && break
     sleep 0.5
   done
-  [[ -n $pid ]] || fail "$1 didn't launch"
+  [[ -n $pid ]] || fail "$1 didn't launch; running: $(pgrep -lf Unmark)"
   # Past launch, so the menu bar and Sparkle's scheduler are both up.
   sleep 3
 }
@@ -186,7 +187,8 @@ offered=false
 for _ in {1..15}; do
   sleep 2
   text="$(window_text)"
-  if grep -q "is available" <<< "$text"; then
+  # Sparkle's headline for an installable update; its "is available but…" texts mean it can't be installed.
+  if grep -q "A new version of Unmark is available!" <<< "$text"; then
     offered=true
     break
   fi
