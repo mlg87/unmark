@@ -4,6 +4,13 @@
 // `keystroke-to-preview` signpost needs Instruments, so this times the renderer's share of it,
 // a render's first screen, on the renderer's own entry point with the whole document on the
 // page (unmark-1793451427066-4-97884ee7.10).
+//
+// jsdom understates WebKit. On a 2019 i9 MacBook Pro, of the oldest generation macOS 14
+// supports, this test's keystrokes took a median 77-80 ms here, while in a WKWebView
+// (scripts/perf/keystroke-to-preview.swift) the same render took 100-121 ms, and 124-161 ms
+// with the 1 MB of text passed through callAsyncJavaScript and the frame painted
+// (unmark-1793451427523-5-478d1806.8). A median at this test's budget would miss q47 in the app
+// (unmark-1793451427523-5-478d1806.10).
 
 import { beforeAll, expect, test, vi } from "vitest";
 import "../src/index.ts";
