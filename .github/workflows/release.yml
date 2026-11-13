@@ -9,12 +9,18 @@ on:
         description: Marketing version, like 1.2.3 or 1.2.3-beta.1
         required: true
         type: string
+  push:
+    branches: [bead/unmark-1793451443787-40-b4c49f84-developer-id-signing-notarization-and-dm]
 
 permissions:
   contents: read
 
 jobs:
   dmg:
+    strategy:
+      fail-fast: false
+      matrix:
+        max_mb: ["30", "1"]
     # Same runner and Xcode as ci.yml.
     runs-on: macos-15
     # Notarization usually takes minutes, but Apple's queue can take much longer.
@@ -74,7 +80,8 @@ jobs:
 
       - name: Build, sign, and notarize the DMG
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || '0.0.1-test' }}
+          UNMARK_DMG_MAX_MB: ${{ matrix.max_mb }}
           NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
@@ -82,8 +89,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: Unmark-${{ inputs.version }}.dmg
-          path: build/release/Unmark-${{ inputs.version }}.dmg
+          name: Unmark-0.0.1-test.dmg-${{ matrix.max_mb }}
+          path: build/release/Unmark-0.0.1-test.dmg
           if-no-files-found: error
 
       - name: Delete the temporary keychain
