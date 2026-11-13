@@ -1,9 +1,16 @@
 import AppKit
+import Sparkle
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Sparkle (q29), started before launch finishes as its programmatic setup does. Scheduled checks that fail, such
+    /// as with no network, stay silent; only Check for Updates… reports errors.
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    private lazy var settingsWindowController = SettingsWindowController(updater: updaterController.updater)
+
     func applicationWillFinishLaunching(_ notification: Notification) {
-        NSApp.mainMenu = MainMenu.make()
+        NSApp.mainMenu = MainMenu.make(updaterController: updaterController)
         // Before AppKit opens the launch's documents, so the Preview's web view loads while they're read (q47).
         PreviewWebViewPool.shared.prepare()
         // Before the launch's documents open, so `unmark --wait` gets answers about them from the start (#37).
@@ -13,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Settings… (⌘,), sent up the responder chain to the app's delegate. Showing the window again brings it to the
     /// front, so there's only ever one.
     @objc func showSettings(_ sender: Any?) {
-        SettingsWindowController.shared.showWindow(sender)
+        settingsWindowController.showWindow(sender)
     }
 
     /// Unmark opens existing files only (q21): an empty launch shows the Open panel instead of an Untitled

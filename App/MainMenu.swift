@@ -1,14 +1,15 @@
 import AppKit
+import Sparkle
 
 /// The menu bar, built in code because the AppKit lifecycle has no SwiftUI `commands` (ADR-0003).
 @MainActor
 enum MainMenu {
-    static func make() -> NSMenu {
+    static func make(updaterController: SPUStandardUpdaterController) -> NSMenu {
         let windowMenu = windowMenu()
         NSApp.windowsMenu = windowMenu
 
         let mainMenu = NSMenu()
-        for submenu in [appMenu(), fileMenu(), editMenu(), viewMenu(), windowMenu] {
+        for submenu in [appMenu(updaterController: updaterController), fileMenu(), editMenu(), viewMenu(), windowMenu] {
             let item = NSMenuItem()
             item.submenu = submenu
             mainMenu.addItem(item)
@@ -21,11 +22,16 @@ enum MainMenu {
             ?? ProcessInfo.processInfo.processName
     }
 
-    private static func appMenu() -> NSMenu {
+    private static func appMenu(updaterController: SPUStandardUpdaterController) -> NSMenu {
         let menu = NSMenu(title: appName)
         menu.addItem(
             withTitle: String(localized: "About \(appName)"),
             action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        // The controller greys the item out while a check is already under way (`canCheckForUpdates`).
+        menu.addItem(
+            withTitle: String(localized: "Check for Updates…"),
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: ""
+        ).target = updaterController
         menu.addItem(.separator())
         menu.addItem(
             withTitle: String(localized: "Settings…"), action: #selector(AppDelegate.showSettings(_:)),
