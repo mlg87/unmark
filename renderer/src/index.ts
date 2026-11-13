@@ -225,6 +225,9 @@ async function render(markdown: string, { documentBaseURL }: RenderOptions): Pro
       // A keystroke meanwhile replaces this render, dropping its build-out with the rest of
       // its background work, so the build-out only ever runs in a gap in the typing.
       await new Promise((resolve) => setTimeout(resolve, TYPING_PAUSE_MS));
+      // Every piece is rendered by now unless a newer render replaced this one, and then the
+      // merge is done and removes nothing.
+      if (rendering.complete) await merge.removeOldTail(rendering.blocks);
       await mergeInBackground(merge);
     },
     () => {},

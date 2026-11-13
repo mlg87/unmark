@@ -31,7 +31,10 @@ const KEPT_PER_STEP = 512;
 // The one range every removal goes through. WebKit updates every live range on each change to
 // the DOM, and a range stays live until it's collected: with a range per removal, hundreds of
 // them made inserting and removing pieces 1.2 s of the 1.7 s a 1 MB document replacing another
-// took to its first screen, and 0.06 s with this one (unmark-1793451427523-5-478d1806.9).
+// took to its first screen, and 0.06 s with this one (unmark-1793451427523-5-478d1806.9). Each
+// removal leaves it at the document's start rather than in the article: left where it removed
+// pieces, inserting a 1 MB document's build-out took 3.4 s in WKWebView rather than 0.25 s
+// (unmark-1793451427523-5-478d1806.12).
 const REMOVAL = document.createRange();
 
 /** Where a new piece goes; `undefined` for the old piece the page shows, kept as it is. */
@@ -47,7 +50,7 @@ type Placement =
 
 export class BlockMerge {
   readonly #article: Element;
-  readonly #old: readonly PageBlock[];
+  #old: readonly PageBlock[];
   readonly #blocks: Iterator<Block>;
   readonly #isCurrent: () => boolean;
   readonly #drawDiagrams: (containers: Element[]) => Promise<void>;
@@ -118,6 +121,28 @@ export class BlockMerge {
       while (!this.done && !enough()) await this.#step(chunkLength);
     });
     // A call that failed (a lazy chunk that didn't load) mustn't block the ones after it.
+    this.#lastCall = call.catch(() => {});
+    return call;
+  }
+
+  /**
+   * Removes the old pieces after the last one that has the text of any of `blocks`, the render's
+   * every piece, without waiting for the merge to reach them: no piece lines up with them, so
+   * the merge would only remove them once it ends. Every piece merged until then went in above
+   * them, and inserting above an old piece takes WebKit longer to lay out than adding at the
+   * end: a 1 MB document replacing another, which left one old piece at the bottom, took 14.2 s
+   * to build out in WKWebView rather than 12.4 s (unmark-1793451427523-5-478d1806.12).
+   */
+  removeOldTail(blocks: readonly Block[]): Promise<void> {
+    const call = this.#lastCall.then(() => {
+      if (this.done || this.#cursor === this.#old.length) return;
+      const texts = new Set<string>();
+      for (const block of blocks) texts.add(block.text);
+      let end = this.#old.length;
+      while (end > this.#cursor && !texts.has((this.#old[end - 1] as PageBlock).block.text)) end--;
+      this.#remove(end, this.#old.length);
+      this.#old = this.#old.slice(0, end);
+    });
     this.#lastCall = call.catch(() => {});
     return call;
   }
@@ -244,6 +269,8 @@ export class BlockMerge {
     REMOVAL.setStartBefore(first);
     REMOVAL.setEndAfter(last);
     REMOVAL.deleteContents();
+    REMOVAL.setStart(document, 0);
+    REMOVAL.collapse(true);
   }
 
   #firstOldNode(): ChildNode | null {

@@ -210,6 +210,31 @@ test("a long document replacing another renders only its first screen before the
   expect(article.innerHTML).toBe(renderedAllAtOnce(replacement));
 });
 
+test("a document replacing another removes the old pieces nothing lines up with before its build-out puts pieces above them", async () => {
+  vi.useFakeTimers();
+  await renderOnEmptyPage(plainDocument);
+  await vi.runAllTimersAsync();
+  // Each top-level block a viewport tall, so the first screen ends at the first new block.
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const index = this.parentElement === article ? [...article.children].indexOf(this) : 0;
+    return new DOMRect(0, index * 1e6, 100, 1e6);
+  });
+  const replacement = Array.from({ length: 400 }, (_, n) => plainSection(1000 + n)).join("\n");
+  await render(replacement);
+  // plainDocument's last piece, a <details> numbered apart from every new piece, which no new
+  // piece lines up with; and a piece of the replacement's that only its build-out merges.
+  const oldLastPiece = "Hidden markdown 59.";
+  const builtOut = "Part 1200";
+  while (!article.textContent?.includes(builtOut)) {
+    await vi.advanceTimersToNextTimerAsync();
+  }
+  // Inserting the build-out above it took WebKit 14.2 s for a 1 MB document rather than 12.4 s
+  // (unmark-1793451427523-5-478d1806.12).
+  expect(article.textContent).not.toContain(oldLastPiece);
+  await vi.runAllTimersAsync();
+  expect(article.innerHTML).toBe(renderedAllAtOnce(replacement));
+});
+
 test("scrolling to an element in a later chunk renders up to it, not the whole document", async () => {
   vi.useFakeTimers();
   tallBlocks();
