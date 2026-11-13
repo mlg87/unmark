@@ -58,6 +58,12 @@ jobs:
       - name: Renderer build
         run: pnpm --dir renderer build
 
+      # TEMPORARY (unmark-1793451427523-5-478d1806.10): calibration data, removed before merge.
+      - name: TEMP calibrated harness runs
+        continue-on-error: true
+        timeout-minutes: 6
+        run: for i in 1 2 3; do swift scripts/perf/keystroke-to-preview.swift || true; done
+
       # q47: keystroke-to-preview under 250 ms for a 1 MB file, gated in WebKit rather than by the jsdom test, whose
       # figure on this runner (median 111-144 ms) already exceeds the 115 ms that WebKit's 1.5-2x would leave it
       # (unmark-1793451427523-5-478d1806.10). This runner's WebKit is no faster than the 2019 i9's, so passing here

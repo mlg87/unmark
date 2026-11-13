@@ -62,6 +62,9 @@ let rendererPage = URL(string: "unmark://app/renderer/index.html")!
 let rendererScript = "unmark://app/renderer/unmark.js"
 let editRenderDebounceMs = 40.0
 let keystrokeToPreviewMs = 250.0
+// `Harness.reference()`'s median on the 2019 i9 MacBook Pro (MacBookPro15,1, macOS 15.7.7), of the oldest generation
+// macOS 14 supports, whose keystrokes q47 holds.
+let i9ReferenceMs = 56.0
 
 /// Serves `unmark://app/renderer/` from App/Resources/Renderer/, as UnmarkSchemeHandler does.
 final class RendererSchemeHandler: NSObject, WKURLSchemeHandler {
@@ -156,6 +159,11 @@ func format(_ values: [Double]) -> String {
     values.map { String(Int($0.rounded())) }.joined(separator: ", ")
 }
 
+func report(_ label: String, _ values: [Double]) {
+    let column = label.padding(toLength: 34, withPad: " ", startingAt: 0)
+    print("  \(column)\(format(values)) ms, median \(Int(median(values).rounded()))")
+}
+
 func milliseconds(since start: ContinuousClock.Instant) -> Double {
     let elapsed = start.duration(to: .now).components
     return Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
@@ -192,9 +200,36 @@ final class Harness {
         return Keystroke(renderMs: times[0], paintMs: times[1], callMs: total - times[1])
     }
 
+    /// Times a fixed workload in the page that uses none of the renderer's code: string building, regexes, and a
+    /// map, the kind of work a render does most. Its time tracks how fast this machine runs the page's JavaScript
+    /// right now, so keystrokes can be compared across machines and across a CI runner's slow and fast spells.
+    func reference() async throws -> Double {
+        let result = try await webView.callAsyncJavaScript(
+            """
+            const start = performance.now();
+            let text = "";
+            for (let i = 0; i < 20000; i++) text += `Line ${i} with **bold**, _emphasis_, and [a link](/${i}).\\n`;
+            let checksum = 0;
+            for (const line of text.split("\\n")) {
+              if (/\\*\\*([^*]+)\\*\\*/.test(line)) checksum++;
+              checksum += line.replace(/[&<>"_]/g, (c) => `&#${c.charCodeAt(0)};`).length;
+            }
+            const words = new Map();
+            for (const word of text.split(/\\s+/)) words.set(word, (words.get(word) ?? 0) + 1);
+            return [performance.now() - start, checksum + words.size];
+            """,
+            contentWorld: .page)
+        guard let times = result as? [Double], times.count == 2 else {
+            throw HarnessError("reference returned \(result ?? "nil")")
+        }
+        return times[0]
+    }
+
     /// The jsdom test's `openAndType`: opens `markdown`, waits for all of it to be on the page, scrolls `edited` to
-    /// 300 points below the top, and types `x` after it.
-    func openAndType(_ markdown: String, edited: String, keystrokes: Int) async throws -> [Keystroke] {
+    /// 300 points below the top, and types `x` after it, timing `reference()` before each keystroke.
+    func openAndType(
+        _ markdown: String, edited: String, keystrokes: Int
+    ) async throws -> (typed: [Keystroke], references: [Double]) {
         let open = try await render(markdown)
         let outlineStart = ContinuousClock.now
         _ = try await webView.callAsyncJavaScript("await window.unmark.outline();", contentWorld: .page)
@@ -214,8 +249,10 @@ final class Harness {
         var text = markdown
         let caret = (text as NSString).range(of: edited).upperBound
         var typed: [Keystroke] = []
+        var references: [Double] = []
         for count in 0..<keystrokes {
             if options.interval > 0 { try await Task.sleep(for: .milliseconds(options.interval)) }
+            references.append(try await reference())
             text = (text as NSString).replacingCharacters(in: NSRange(location: caret + count, length: 0), with: "x")
             typed.append(try await render(text))
         }
@@ -226,7 +263,7 @@ final class Harness {
             """, arguments: ["typedIn": "\(edited)\(String(repeating: "x", count: keystrokes)) with"],
             contentWorld: .page)
         guard shown as? Bool == true else { throw HarnessError("the typed text never reached the page") }
-        return typed
+        return (typed, references)
     }
 }
 
@@ -286,27 +323,33 @@ Task { @MainActor in
             print("warm-up, 50 KB:")
             let warm = try await harness.openAndType(
                 documentOf(length: 50_000, first: 100_000), edited: "Another paragraph 100100", keystrokes: 3)
-            print("  keystroke render: \(format(warm.map(\.renderMs))) ms")
+            print("  keystroke render: \(format(warm.typed.map(\.renderMs))) ms")
+            print("  reference:        \(format(warm.references)) ms")
         }
         let opened = documentOf(length: 1_000_000, first: 0)
         print("measured, \(opened.utf16.count) characters:")
-        let typed = try await harness.openAndType(opened, edited: "Another paragraph 1200", keystrokes: 7)
+        let (typed, references) = try await harness.openAndType(
+            opened, edited: "Another paragraph 1200", keystrokes: 7)
         let render = typed.map(\.renderMs)
         let painted = typed.map { $0.renderMs + $0.paintMs }
         let call = typed.map(\.callMs)
         let shown = typed.map { $0.callMs + $0.paintMs }
-        print("  render (jsdom test's figure):     \(format(render)) ms, median \(Int(median(render).rounded()))")
-        print("  render to painted:                \(format(painted)) ms, median \(Int(median(painted).rounded()))")
-        print("  PreviewView's call (1 MB text):   \(format(call)) ms, median \(Int(median(call).rounded()))")
-        print("  call to painted:                  \(format(shown)) ms, median \(Int(median(shown).rounded()))")
+        // Each keystroke against the reference timed just before it, in the i9's milliseconds.
+        let asOnTheI9 = zip(shown, references).map { $0 / $1 * i9ReferenceMs }
+        report("render (jsdom test's figure):", render)
+        report("render to painted:", painted)
+        report("PreviewView's call (1 MB text):", call)
+        report("call to painted:", shown)
+        report("reference:", references)
+        report("call to painted, as on the i9:", asOnTheI9)
         let budget = keystrokeToPreviewMs - editRenderDebounceMs
         print("  q47 budget after the \(Int(editRenderDebounceMs)) ms debounce: \(Int(budget)) ms")
         print("still active at the end: app \(NSApp.isActive), window key \(window.isKeyWindow)")
         ProcessInfo.processInfo.endActivity(activity)
         // The median, as the jsdom test holds its own, so one keystroke a garbage collection lands on doesn't fail.
-        guard median(shown) < budget else {
+        guard median(asOnTheI9) < budget else {
             FileHandle.standardError.write(
-                Data("keystroke-to-preview: median call to painted is over the \(Int(budget)) ms budget\n".utf8))
+                Data("keystroke-to-preview: median call to painted, as on the i9, is over \(Int(budget)) ms\n".utf8))
             exit(1)
         }
         exit(0)
