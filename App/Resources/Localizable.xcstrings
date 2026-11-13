@@ -98,6 +98,9 @@
     "Cut" : {
 
     },
+    "Defaults" : {
+
+    },
     "Done" : {
 
     },
@@ -135,6 +138,9 @@
 
     },
     "Hide Source (⇧⌘E)" : {
+
+    },
+    "Make Unmark the Default Markdown App" : {
 
     },
     "Minimize" : {
@@ -228,6 +234,9 @@
 
     },
     "Zoom Out" : {
+
+    },
+    "✓ Unmark opens markdown files" : {
 
     }
   },
