@@ -10,6 +10,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OpenDocumentsBroadcaster.shared.start()
     }
 
+    /// Settings… (⌘,), sent up the responder chain to the app's delegate. Showing the window again brings it to the
+    /// front, so there's only ever one.
+    @objc func showSettings(_ sender: Any?) {
+        SettingsWindowController.shared.showWindow(sender)
+    }
+
     /// Unmark opens existing files only (q21): an empty launch shows the Open panel instead of an Untitled
     /// document, and Cancel leaves the app running with no windows.
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {

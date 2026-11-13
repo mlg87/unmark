@@ -21,12 +21,16 @@ public enum PreviewZoom {
     }
 }
 
-/// The Source's font size. Zooming the Source changes this size rather than a separate zoom factor, so Settings and
-/// zoom edit the same value (q43).
+/// The Source's font. Zooming the Source changes this size rather than a separate zoom factor, so Settings and zoom
+/// edit the same value (q43).
 public enum SourceFont {
     public static let sizeKey = "sourceFontSize"
     public static let defaultSize = 13.0
     public static let sizeRange = 9.0...36.0
+    /// Chosen in Settings (q37, unmark-1793451442395-37-75cf72d7).
+    public static let familyKey = "sourceFontFamily"
+    /// The system's monospaced font, and the fallback for a chosen family that's no longer installed.
+    public static let defaultFamily = "SF Mono"
 
     /// `size` a point larger or smaller, kept in `sizeRange`, or the default size for Actual Size.
     public static func size(after step: ZoomStep, from size: Double) -> Double {
@@ -37,7 +41,8 @@ public enum SourceFont {
         }
     }
 
-    private static func clamped(_ size: Double) -> Double {
+    /// `size` kept in `sizeRange`, for a size typed into Settings as much as one zoomed to.
+    public static func clamped(_ size: Double) -> Double {
         min(max(size, sizeRange.lowerBound), sizeRange.upperBound)
     }
 }

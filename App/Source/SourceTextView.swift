@@ -7,6 +7,8 @@ import UnmarkCore
 /// registered would message that text view, which is gone once Split mode hides the Source.
 struct SourceTextView: NSViewRepresentable {
     @Binding var text: String
+    /// From Settings and zoom, app-wide (q37, q43).
+    let fontFamily: String
     let fontSize: Double
     /// Called before the text view applies an edit, to start the `keystroke-to-preview` interval (q47).
     let willEdit: @MainActor () -> Void
@@ -35,7 +37,7 @@ struct SourceTextView: NSViewRepresentable {
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.textContainerInset = NSSize(width: 8, height: 8)
-        textView.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        textView.font = SourceFont.font(family: fontFamily, size: fontSize)
         // Set before the text, so the first edit colors the whole document.
         textView.textStorage?.delegate = context.coordinator.highlighting
         textView.string = text
@@ -64,7 +66,7 @@ struct SourceTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? SourceNSTextView else { return }
         textView.willEdit = willEdit
-        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        let font = SourceFont.font(family: fontFamily, size: fontSize)
         if textView.font != font {
             textView.font = font
         }
