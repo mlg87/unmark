@@ -31,6 +31,7 @@ struct GeneralSettingsView: View {
                     }
                 }
             }
+            DefaultMarkdownAppSection()
         }
         .formStyle(.grouped)
         .scrollDisabled(true)
