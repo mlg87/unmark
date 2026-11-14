@@ -29,10 +29,21 @@ For a tag `v<version>`, the workflow builds the DMG for `<version>`, then:
 
 1. `scripts/release/generate-appcast.sh <version>` downloads the latest release's `appcast.xml` (the feed every installed copy reads, `SUFeedURL` in `project.yml`) and runs Sparkle's `generate_appcast` with `SPARKLE_ED_PRIVATE_KEY`. That adds an item for the new DMG, signed with EdDSA and pointing at `https://github.com/mlg87/unmark/releases/download/v<version>/Unmark-<version>.dmg`. Earlier items keep their own URLs; Sparkle keeps the newest three. The script fails if the item is unsigned, which is how `generate_appcast` reacts to a key that doesn't match `SUPublicEDKey`, or if `sign_update --verify` rejects its signature.
 2. A separate job, the only one whose token can write to the repo, runs `gh release create v<version> --generate-notes` with the DMG and `appcast.xml` attached.
+3. A third job runs `scripts/release/bump-tap-cask.sh`, which downloads the published DMG and sets `version` and `sha256` in `Casks/unmark.rb` of [mlg87/homebrew-tap](https://github.com/mlg87/homebrew-tap) to it, then commits and pushes to the tap's `main` with the `TAP_DEPLOY_KEY` deploy key. `brew install mlg87/tap/unmark` installs that version from then on. The script rejects a version that isn't like `1.2.3` or `1.2.3-rc1`, and the cask's `livecheck` accepts the same shapes.
 
 The release is never marked as a prerelease, even for a tag like `v1.2.3-rc1`: GitHub doesn't count prereleases as the latest release, so their appcast would never reach users. Every tag is therefore offered to every installed copy, so push one only for a build you want users to get.
 
-If the publish job fails, fix the cause and re-run the failed jobs. If the release was already created, delete it (`gh release delete v1.2.3`) before re-running.
+If the publish job fails, fix the cause and re-run the failed jobs. If the release was already created, delete it (`gh release delete v1.2.3`) before re-running. Re-running the tap job is safe: it commits nothing when the cask is already at the version.
+
+### Homebrew tap
+
+[mlg87/homebrew-tap](https://github.com/mlg87/homebrew-tap) is our own tap because homebrew/cask only accepts apps with at least 75 stars and a repository older than 30 days ([Acceptable Casks](https://docs.brew.sh/Acceptable-Casks), q5, q57). Its `Casks/unmark.rb` installs `Unmark.app` and links `binary "#{appdir}/Unmark.app/Contents/Helpers/unmark"` as `unmark` into Homebrew's `bin`. It sets `auto_updates true` because Sparkle updates the app, so `brew upgrade` leaves it alone unless run with `--greedy`.
+
+Check the cask after editing anything other than `version` and `sha256`:
+
+```sh
+brew tap mlg87/tap && brew audit --cask --strict --online mlg87/tap/unmark
+```
 
 ### Dry run
 
@@ -89,8 +100,11 @@ The Account Holder set these up outside the repo on 2026-11-13.
 | `NOTARY_KEY_ID` | `MW96UZNAUH` | The API key's Key ID |
 | `NOTARY_ISSUER_ID` | `84f05c5e-87e3-4275-97e6-77267e7642fd` | Issuer ID on the API keys page |
 | `SPARKLE_ED_PRIVATE_KEY` | The Sparkle EdDSA private key whose public half is `SUPublicEDKey` in `project.yml` | `generate_keys -x sparkle-key.txt`, run with Sparkle 2.10.1's `bin/generate_keys` on the maintainer's Mac, exports it from the login keychain |
+| `TAP_DEPLOY_KEY` | Private half of an ed25519 SSH key added to [mlg87/homebrew-tap](https://github.com/mlg87/homebrew-tap/settings/keys) as a deploy key with write access, titled `mlg87/unmark Release workflow (TAP_DEPLOY_KEY)` | Created 2026-11-14 with `ssh-keygen -t ed25519 -N ''`; the key file was deleted after `gh secret set` |
 
 Set them with `gh secret set <NAME> < file` (or `--body`), never with the value on a command line that lands in shell history. Secrets can't be read back, so a wrong `.p12` password first shows up as a failed `security import` in the Release workflow.
+
+`TAP_DEPLOY_KEY` is a deploy key rather than a fine-grained personal access token: it grants the same push access to the tap and nothing else, but belongs to the repository instead of a person, doesn't expire, and can be created with `gh`. To replace it, generate a new key, `gh repo deploy-key add key.pub --repo mlg87/homebrew-tap --allow-write`, `gh secret set TAP_DEPLOY_KEY < key`, delete the old deploy key, and delete both key files.
 
 Keychain Access exports the legacy PKCS#12 format (RC2 certificate bag, 3DES key bag, SHA-1 MAC). `security import` reads it; OpenSSL 3 needs `-legacy` to inspect it, e.g. `openssl pkcs12 -legacy -info -in Unmark.p12 -noout`.
 
