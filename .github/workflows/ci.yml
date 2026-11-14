@@ -121,10 +121,7 @@ jobs:
           cache: true
           cache_dependency_path: renderer/pnpm-lock.yaml
 
-      # Linting is the checks job's, so this one skips the Brewfile's SwiftLint.
       - name: Install XcodeGen
-        env:
-          HOMEBREW_BUNDLE_BREW_SKIP: swiftlint
         run: make bootstrap
 
       - name: Generate Xcode project
