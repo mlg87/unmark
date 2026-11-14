@@ -15,13 +15,43 @@ Notarization usually takes minutes but can take much longer: on 2026-11-13 the t
 
 ## In GitHub Actions
 
-Run the **Release** workflow (`.github/workflows/release.yml`) from the Actions tab, or `gh workflow run release.yml -f version=1.2.3`. It imports the certificate into a temporary keychain, runs `build-dmg.sh`, and uploads `Unmark-<version>.dmg` as a workflow artifact. It publishes nothing.
+The **Release** workflow (`.github/workflows/release.yml`) imports the certificate into a temporary keychain and runs `build-dmg.sh`. It uploads `Unmark-<version>.dmg` as a workflow artifact, so every run's DMG can be downloaded from the run's page.
 
-To check a downloaded DMG on any Mac, including one with only the Command Line Tools:
+### Publishing a release
+
+Tag the commit on `main` and push the tag:
+
+```sh
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+For a tag `v<version>`, the workflow builds the DMG for `<version>`, then:
+
+1. `scripts/release/generate-appcast.sh <version>` downloads the latest release's `appcast.xml` (the feed every installed copy reads, `SUFeedURL` in `project.yml`) and runs Sparkle's `generate_appcast` with `SPARKLE_ED_PRIVATE_KEY`. That adds an item for the new DMG, signed with EdDSA and pointing at `https://github.com/mlg87/unmark/releases/download/v<version>/Unmark-<version>.dmg`. Earlier items keep their own URLs; Sparkle keeps the newest three. The script fails if the item is unsigned, which is how `generate_appcast` reacts to a key that doesn't match `SUPublicEDKey`, or if `sign_update --verify` rejects its signature.
+2. A separate job, the only one whose token can write to the repo, runs `gh release create v<version> --generate-notes` with the DMG and `appcast.xml` attached.
+
+The release is never marked as a prerelease, even for a tag like `v1.2.3-rc1`: GitHub doesn't count prereleases as the latest release, so their appcast would never reach users. Every tag is therefore offered to every installed copy, so push one only for a build you want users to get.
+
+If the publish job fails, fix the cause and re-run the failed jobs. If the release was already created, delete it (`gh release delete v1.2.3`) before re-running.
+
+### Dry run
+
+Run the workflow from the Actions tab, or `gh workflow run release.yml -f version=1.2.3`. It builds and notarizes the DMG and uploads it as an artifact, but generates no appcast and creates no release or tag.
+
+### Checking a release
+
+On any Mac, including one with only the Command Line Tools:
 
 ```sh
 spctl -a -vv -t install Unmark-1.2.3.dmg   # source=Notarized Developer ID
 xcrun stapler validate Unmark-1.2.3.dmg
+```
+
+`sign_update` comes with Sparkle's release download (`bin/sign_update`). With the private key in your login keychain, where `generate_keys` put it, verify the appcast item's signature for the DMG:
+
+```sh
+curl -sSLO https://github.com/mlg87/unmark/releases/latest/download/appcast.xml
+sign_update --verify Unmark-1.2.3.dmg "<sparkle:edSignature of the Unmark-1.2.3.dmg item>"
 ```
 
 ## On a Mac with Xcode
@@ -58,6 +88,7 @@ The Account Holder set these up outside the repo on 2026-11-13.
 | `NOTARY_KEY_P8` | The API key's `.p8` file, raw PEM text | `AuthKey_MW96UZNAUH.p8` |
 | `NOTARY_KEY_ID` | `MW96UZNAUH` | The API key's Key ID |
 | `NOTARY_ISSUER_ID` | `84f05c5e-87e3-4275-97e6-77267e7642fd` | Issuer ID on the API keys page |
+| `SPARKLE_ED_PRIVATE_KEY` | The Sparkle EdDSA private key whose public half is `SUPublicEDKey` in `project.yml` | `generate_keys -x sparkle-key.txt`, run with Sparkle 2.10.1's `bin/generate_keys` on the maintainer's Mac, exports it from the login keychain |
 
 Set them with `gh secret set <NAME> < file` (or `--body`), never with the value on a command line that lands in shell history. Secrets can't be read back, so a wrong `.p12` password first shows up as a failed `security import` in the Release workflow.
 
