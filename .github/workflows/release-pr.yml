@@ -136,9 +136,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           tag=${HEAD_REF#release/}
+          [[ $tag =~ ^v[0-9]+(\.[0-9]+)+(-[A-Za-z0-9.]+)?$ ]] || {
+            echo "::error::$HEAD_REF doesn't name a version like release/v1.2.3"
+            exit 1
+          }
+
+          # PRs that merged after the release PR was prepared ship in this commit, but its notes miss them, and the next
+          # release's notes start at this tag, so no notes would ever list them (#170).
+          main=$(gh api "repos/$GITHUB_REPOSITORY/commits/$MERGE_SHA" --jq '.parents[0].sha')
+          behind=$(gh api "repos/$GITHUB_REPOSITORY/compare/$main...$HEAD_SHA" --jq .behind_by)
+          if ((behind > 0)); then
+            echo "::error::main gained $behind commit(s) after the release PR was prepared, so its notes miss them. Nothing was tagged; run the Release PR workflow again, which replaces the untagged $tag notes."
+            exit 1
+          fi
+
           gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$MERGE_SHA" > /dev/null
           echo "Tagged $MERGE_SHA as $tag"
           # A tag created with GITHUB_TOKEN starts no workflow, so release.yml's tag trigger never fires for it; a
