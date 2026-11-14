@@ -22,6 +22,9 @@ import "../src/index.ts";
 // catches only a renderer doing several times the work per keystroke.
 const MEDIAN_KEYSTROKE_BUDGET_MS = 300;
 const KEYSTROKES = 7;
+// The 1 MB document's keystrokes come in rounds, each after the page finished rendering, so a
+// first keystroke the shared runner slowed in one round doesn't fail the test (unmark-njf).
+const ROUNDS = 3;
 // Every top-level block's height in the layout model below.
 const BLOCK_HEIGHT = 100;
 
@@ -99,14 +102,16 @@ beforeAll(() => {
 
 /**
  * Opens `markdown`, waits for all of it to be on the page, as after the reader has had it open
- * a moment, and types `x` after `edited` with it on screen. Returns each keystroke's time to the
- * render's first screen.
+ * a moment, and types `x` after `edited` with it on screen, `keystrokes` at a time in `rounds`
+ * rounds, waiting for all of it to be on the page again before each. Returns each round's
+ * keystrokes' times to the render's first screen.
  */
 async function openAndType(
   markdown: string,
   edited: string,
   keystrokes: number,
-): Promise<number[]> {
+  rounds = 1,
+): Promise<number[][]> {
   await window.unmark.render(markdown, { documentBaseURL: "file:///" });
   await window.unmark.outline();
   const paragraph = [...article.children].find((block) => block.textContent?.startsWith(edited));
@@ -114,15 +119,21 @@ async function openAndType(
   scrollY = blockIndex(paragraph as Element) * BLOCK_HEIGHT - 300;
 
   let text = markdown;
-  const caret = text.indexOf(edited) + edited.length;
-  const durations: number[] = [];
-  for (let typed = 0; typed < keystrokes; typed++) {
-    text = `${text.slice(0, caret + typed)}x${text.slice(caret + typed)}`;
-    const start = performance.now();
-    await window.unmark.render(text, { documentBaseURL: "file:///" });
-    durations.push(performance.now() - start);
+  let caret = text.indexOf(edited) + edited.length;
+  const durations: number[][] = [];
+  for (let round = 0; round < rounds; round++) {
+    await window.unmark.outline();
+    const roundDurations: number[] = [];
+    for (let typed = 0; typed < keystrokes; typed++) {
+      text = `${text.slice(0, caret)}x${text.slice(caret)}`;
+      caret++;
+      const start = performance.now();
+      await window.unmark.render(text, { documentBaseURL: "file:///" });
+      roundDurations.push(performance.now() - start);
+    }
+    durations.push(roundDurations);
   }
-  const typedIn = `${edited}${"x".repeat(keystrokes)} with`;
+  const typedIn = `${edited}${"x".repeat(keystrokes * rounds)} with`;
   expect([...article.children].some((block) => block.textContent?.startsWith(typedIn))).toBe(true);
   return durations;
 }
@@ -137,16 +148,21 @@ test("typing in a 1 MB document shows each edit's first screen without redoing t
 
   const opened = documentOf(1_000_000, 0);
   expect(opened.length).toBeGreaterThanOrEqual(1_000_000);
-  const durations = await openAndType(opened, "Another paragraph 1200", KEYSTROKES);
-  const measured = `keystroke to first screen: ${durations.map(Math.round).join(", ")} ms`;
-  const [first = 0] = durations;
-  const median = [...durations].sort((a, b) => a - b)[Math.floor(KEYSTROKES / 2)] ?? 0;
+  const rounds = await openAndType(opened, "Another paragraph 1200", KEYSTROKES, ROUNDS);
+  const measured = `keystroke to first screen: ${rounds
+    .map((round) => round.map(Math.round).join(", "))
+    .join("; ")} ms`;
+  const durations = rounds.flat().sort((a, b) => a - b);
+  const median = durations[Math.floor(durations.length / 2)] ?? 0;
   // The median, so a garbage collection landing on one keystroke doesn't fail the test; a
   // renderer doing more per keystroke slows them all. vitest.config.ts runs this file after the
   // others, so their work doesn't land on the keystrokes too (unmark-t5a).
   expect(median, measured).toBeLessThan(MEDIAN_KEYSTROKE_BUDGET_MS);
   // The first keystroke after the document finished rendering is the one that would read the
   // whole page's source-line markers if they weren't read as they landed: about three times
-  // the others' time (unmark-1793451427066-4-97884ee7.10).
-  expect(first, measured).toBeLessThan(2 * median);
+  // the others' time (unmark-1793451427066-4-97884ee7.10). That would slow every round's first
+  // keystroke, so the fastest of them is held to the budget: CI's runner, even with the file
+  // running alone, slowed one first keystroke to 2.1 times the median (unmark-njf).
+  const fastestFirst = Math.min(...rounds.map(([first = 0]) => first));
+  expect(fastestFirst, measured).toBeLessThan(2 * median);
 }, 120_000);
