@@ -2,6 +2,32 @@
 
 # unmark
 
+## Install
+
+### Homebrew
+
+```sh
+brew install mlg87/tap/unmark
+```
+
+This installs `/Applications/Unmark.app` and links the `unmark` command into
+Homebrew's `bin` (`/opt/homebrew/bin` on Apple silicon, `/usr/local/bin` on
+Intel). Unmark updates itself, so `brew upgrade` skips it unless you pass
+`--greedy`. The cask lives in [mlg87/homebrew-tap](https://github.com/mlg87/homebrew-tap).
+
+If Unmark is already installed, `brew install` fails with one of these:
+
+- `It seems there is already a Binary at '/usr/local/bin/unmark'`: Settings →
+  Install Command-Line Tool made that link, at the path Intel Homebrew uses
+  too. Remove it with `sudo rm /usr/local/bin/unmark` and run `brew install`
+  again; `--force` doesn't get past this. Settings then shows
+  `Installed at /usr/local/bin/unmark` for Homebrew's link. Remove the link
+  before using `--adopt` below: an `--adopt` that fails on the link deletes the
+  existing app.
+- `It seems there is already an App at '/Applications/Unmark.app'`: you
+  installed it from the DMG. Run `brew install --adopt mlg87/tap/unmark` to
+  hand that copy to Homebrew, or quit Unmark and move it to the Trash first.
+
 ## Development setup
 
 Requirements:
@@ -84,6 +110,9 @@ sudo mkdir -p /usr/local/bin && sudo ln -sf '/Applications/Unmark.app/Contents/H
 Settings also notes when `/usr/local/bin` isn't on the `PATH` that
 `/usr/libexec/path_helper -s` reports.
 
+`brew install mlg87/tap/unmark` links the tool for you; see [Homebrew](#homebrew)
+if you installed it from Settings first.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`
@@ -128,10 +157,12 @@ install-schedule` in the primary checkout; the log is
 
 `scripts/release/build-dmg.sh <version>` builds a universal, Developer ID
 signed, notarized, and stapled `Unmark-<version>.dmg`, and fails if it's 30 MB
-or more. The manually run Release workflow runs it in CI and uploads the DMG as
-an artifact. [docs/releasing.md](docs/releasing.md) covers the certificate, the
-notary credentials and repository secrets, running it on a Mac with Xcode, and
-renewing the certificate before it expires on 2027-12-13.
+or more. The Release workflow runs it in CI. On a `v*` tag it also publishes
+the DMG and Sparkle appcast to a GitHub release and bumps the cask in
+[mlg87/homebrew-tap](https://github.com/mlg87/homebrew-tap).
+[docs/releasing.md](docs/releasing.md) covers the certificate, the notary
+credentials and repository secrets, the tap, running it on a Mac with Xcode,
+and renewing the certificate before it expires on 2027-12-13.
 
 ## License
 
