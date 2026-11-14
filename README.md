@@ -181,8 +181,7 @@ stops waiting on it, and exits 1.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`,
-and on the release branch when the Release PR workflow dispatches it.
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`.
 Three jobs run side by side, so a run takes as long as the slowest of them,
 `app` (#163):
 
