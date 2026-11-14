@@ -137,7 +137,7 @@ Requirements:
 make bootstrap   # install XcodeGen and SwiftLint from the Brewfile
 make project     # generate Unmark.xcodeproj from project.yml
 make build       # universal Release build in build/DerivedData
-make test        # run the UnmarkCore package tests
+make test        # run the Swift package tests (UnmarkCore and UnmarkAppKit)
 make lint        # swift-format, SwiftLint, and Biome checks; run after every change
 make format      # apply swift-format, SwiftLint, and Biome fixes
 ```
@@ -157,7 +157,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `App/Preview/` | The Preview: a WKWebView that loads the renderer and the document's files from the `unmark://app/` scheme |
 | `App/Source/` | The Source: the editable NSTextView shown beside the Preview in Split mode (⇧⌘E), its markdown syntax colored in GitHub's code palette from `App/Resources/Assets.xcassets` |
 | `CLI/` | The `unmark` command-line tool, embedded at `Unmark.app/Contents/Helpers/unmark` |
-| `Packages/UnmarkCore/` | Swift package with pure, unit-tested logic (no AppKit or WebKit) |
+| `Packages/UnmarkCore/` | Swift package: `UnmarkCore`, pure unit-tested logic (no AppKit or WebKit), and `UnmarkAppKit`, the AppKit pieces whose tests drive a real text view, such as the Source's syntax coloring |
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
 | `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
 | `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs, `scripts/release/` the DMG build |
