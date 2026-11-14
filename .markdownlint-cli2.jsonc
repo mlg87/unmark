@@ -1,5 +1,6 @@
 {
   // Generated and rewritten by `bd init` / `bd setup` (managed BEGIN/END BEADS blocks); local lint fixes would be overwritten on the next setup.
   // CHANGELOG.md holds GitHub's generated release notes, with their `*` bullets and bare URLs, as the GitHub release shows them (#165).
-  "ignores": ["AGENTS.md", "CLAUDE.md", ".beads/**", ".agents/skills/beads/**", "CHANGELOG.md"]
+  // docs/screenshots/sample.md shows every element the Preview renders, so it uses raw HTML, bare URLs, back-to-back alerts, indented code, and a list starting at 7 on purpose (#172).
+  "ignores": ["AGENTS.md", "CLAUDE.md", ".beads/**", ".agents/skills/beads/**", "CHANGELOG.md", "docs/screenshots/sample.md"]
 }
