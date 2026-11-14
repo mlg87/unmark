@@ -52,6 +52,9 @@ targets:
         basedOnDependencyAnalysis: false
     dependencies:
       - package: UnmarkCore
+        product: UnmarkCore
+      - package: UnmarkCore
+        product: UnmarkAppKit
       - package: Sparkle
       # The `unmark` command-line tool ships inside the app (#8). It goes in Contents/Helpers, not next to
       # the app's executable in Contents/MacOS: on case-insensitive APFS, the default for macOS volumes,
@@ -165,6 +168,7 @@ schemes:
       config: Debug
       targets:
         - package: UnmarkCore/UnmarkCoreTests
+        - package: UnmarkCore/UnmarkAppKitTests
     profile:
       config: Release
     analyze:

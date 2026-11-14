@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UnmarkAppKit
 import UnmarkCore
 
 /// The editable Source: a plain-text NSTextView (q12). It registers no undo steps of its own: it reports each edit to
@@ -99,7 +100,7 @@ struct SourceTextView: NSViewRepresentable {
         weak var textView: NSTextView?
         var scrollSync: ScrollSync?
         /// Owned here because the text storage holds its delegate weakly.
-        let highlighting = SourceHighlighting()
+        let highlighting = SourceHighlighting(colors: SourceSyntaxColors.fromAssetCatalog())
         /// Built from `lastText` on the first scroll after it changes, not on every keystroke.
         private var cachedLines: SourceLines?
         /// The line at the Source's top as of its latest scroll at `keptWidth`, which a width change keeps there.

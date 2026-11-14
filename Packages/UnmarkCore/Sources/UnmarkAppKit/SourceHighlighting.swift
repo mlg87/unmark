@@ -8,29 +8,23 @@ import UnmarkCore
 /// edits shift it. An edit re-reads the lines around it from the state stored with the first of them, then reads on
 /// only while the state the next line starts in differs from the one stored with it: the edit opened or closed a fence
 /// or front matter.
-final class SourceHighlighting: NSObject, NSTextStorageDelegate {
+public final class SourceHighlighting: NSObject, NSTextStorageDelegate {
     /// The state a line starts in, on every character of the line. Absent means `body`.
     private static let blockStateKey = NSAttributedString.Key("com.mlg87.unmark.markdownBlockState")
 
-    /// Asset catalog colors with GitHub's light and dark values, from highlight.js's GitHub themes, which also color
-    /// the Preview's code blocks (#17). They're dynamic, so the Source recolors when the appearance changes.
     private let colors: [MarkdownHighlighter.TokenKind: NSColor]
 
-    override init() {
-        colors = Dictionary(
-            uniqueKeysWithValues: MarkdownHighlighter.TokenKind.allCases.map { kind in
-                let name = Self.colorName(kind)
-                guard let color = NSColor(named: name) else {
-                    preconditionFailure("Assets.xcassets has no color named \(name)")
-                }
-                return (kind, color)
-            })
+    /// `colors` come from the app's asset catalog, which tests don't have.
+    public init(colors: [MarkdownHighlighter.TokenKind: NSColor]) {
+        self.colors = colors
     }
 
-    /// Changes attributes before the text storage processes the edit, which the delegate may do, so the colors reach
-    /// layout with the edit's characters.
-    func textStorage(
-        _ textStorage: NSTextStorage, willProcessEditing editedMask: NSTextStorageEditActions,
+    /// After the text storage processes the edit rather than before (#159). Attributes changed before it stretch the
+    /// edited range over the whole lines recolored, and NSTextView puts the caret at the end of the edited range, so
+    /// an edit in the middle of a line moved the caret to the line's end. Layout still gets the colors: the text
+    /// storage notifies its layout managers after this.
+    public func textStorage(
+        _ textStorage: NSTextStorage, didProcessEditing editedMask: NSTextStorageEditActions,
         range editedRange: NSRange,
         changeInLength delta: Int
     ) {
@@ -73,23 +67,5 @@ final class SourceHighlighting: NSObject, NSTextStorageDelegate {
     private func storedState(of textStorage: NSTextStorage, at location: Int) -> MarkdownHighlighter.BlockState {
         textStorage.attribute(Self.blockStateKey, at: location, effectiveRange: nil) as? MarkdownHighlighter.BlockState
             ?? .body
-    }
-
-    // The switch is exhaustive, so a new token kind doesn't compile until it has a color.
-    // swiftlint:disable:next cyclomatic_complexity
-    private static func colorName(_ kind: MarkdownHighlighter.TokenKind) -> String {
-        switch kind {
-        case .heading: "SyntaxHeading"
-        case .emphasis: "SyntaxEmphasis"
-        case .strong: "SyntaxStrong"
-        case .inlineCode: "SyntaxInlineCode"
-        case .codeFence: "SyntaxCodeFence"
-        case .linkText: "SyntaxLinkText"
-        case .linkURL: "SyntaxLinkURL"
-        case .listMarker: "SyntaxListMarker"
-        case .blockquoteMarker: "SyntaxBlockquoteMarker"
-        case .htmlTag: "SyntaxHTMLTag"
-        case .frontMatter: "SyntaxFrontMatter"
-        }
     }
 }
