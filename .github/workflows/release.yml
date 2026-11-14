@@ -1,7 +1,7 @@
 # Builds a signed, notarized, and stapled Unmark-<version>.dmg with scripts/release/build-dmg.sh. A v<version> tag
-# push also generates the Sparkle appcast, publishes both to the GitHub release v<version>, and bumps the Homebrew cask
-# in mlg87/homebrew-tap; a manual run (workflow_dispatch) is a dry run that only uploads the DMG as a workflow artifact.
-# docs/releasing.md lists the secrets this reads.
+# push also generates the release notes and the Sparkle appcast, which embeds them, publishes the DMG and appcast to
+# the GitHub release v<version>, and bumps the Homebrew cask in mlg87/homebrew-tap; a manual run (workflow_dispatch) is
+# a dry run that only uploads the DMG as a workflow artifact. docs/releasing.md lists the secrets this reads.
 name: Release
 
 on:
@@ -18,7 +18,33 @@ permissions:
   contents: read
 
 jobs:
+  # Its own job because GitHub's generate-notes endpoint needs a token that can write contents, which the dmg job must
+  # not hold (see publish). Generated before the appcast, so Sparkle's update dialog and the release show the same notes.
+  notes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Generate the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq .body \
+            > release-notes.md
+          cat release-notes.md
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
   dmg:
+    needs: notes
+    # notes is skipped on a dry run; run anyway unless it failed.
+    if: ${{ !cancelled() && !failure() }}
     outputs:
       version: ${{ steps.version.outputs.version }}
     # Same runner and Xcode as ci.yml.
@@ -98,12 +124,21 @@ jobs:
           path: build/release/Unmark-${{ steps.version.outputs.version }}.dmg
           if-no-files-found: error
 
+      # After build-dmg.sh, which empties build/release.
+      - uses: actions/download-artifact@v8
+        if: github.event_name == 'push'
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release-notes
+
       - name: Generate the appcast
         if: github.event_name == 'push'
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
-        run: scripts/release/generate-appcast.sh "$VERSION"
+        run: |
+          cp "$RUNNER_TEMP/release-notes/release-notes.md" "build/release/Unmark-$VERSION.md"
+          scripts/release/generate-appcast.sh "$VERSION"
 
       - uses: actions/upload-artifact@v7
         if: github.event_name == 'push'
@@ -138,9 +173,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.dmg.outputs.version }}
+        # The generate-notes endpoint names a release after its tag, as --title does here.
         run: |
           gh release create "$GITHUB_REF_NAME" "release/Unmark-$VERSION.dmg" release/appcast.xml \
-            --verify-tag --generate-notes
+            --verify-tag --title "$GITHUB_REF_NAME" --notes-file release/release-notes.md
 
   # Bumps the cask in mlg87/homebrew-tap to the new DMG once the release is public, so `brew install mlg87/tap/unmark`
   # gets it. TAP_DEPLOY_KEY is a write deploy key on the tap alone; a separate job keeps it off the runners that hold
