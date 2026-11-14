@@ -38,6 +38,35 @@ copy_with_feed() {
   codesign --force --sign - --options runtime "$2"
 }
 
+# <seconds> <command...>. Retries the command every half second until it succeeds, so a check waits only as long as
+# the app takes, not for the slowest runner a fixed sleep would have to allow for (#163).
+wait_until() {
+  local tries=$(($1 * 2))
+  shift
+  for ((; tries > 0; tries--)); do
+    "$@" > /dev/null 2>&1 && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+# <window name>. Fails until the app has a window of that name.
+window_exists() {
+  osascript - "$pid" "$1" << 'EOF'
+on run argv
+  tell application "System Events"
+    tell (first process whose unix id is (item 1 of argv as integer))
+      if not (exists window (item 2 of argv)) then error "no window named " & (item 2 of argv)
+    end tell
+  end tell
+end run
+EOF
+}
+
+scheduled_check_ran() {
+  [[ "$(defaults read "$domain" SULastCheckTime)" != 2000-01-01* ]]
+}
+
 # <app copy>. Opens the document too, since an empty launch shows the Open panel (q21).
 launch() {
   open -n -a "$1" "$doc"
@@ -47,8 +76,9 @@ launch() {
     sleep 0.5
   done
   [[ -n $pid ]] || fail "$1 didn't launch; running: $(pgrep -lf Unmark)"
-  # Past launch, so the menu bar and Sparkle's scheduler are both up.
-  sleep 3
+  # AppDelegate sets up Sparkle and the menu bar before AppKit opens the launch's document, so its window means both
+  # are up.
+  wait_until 30 window_exists doc.md || fail "$1 never opened $doc"
 }
 
 quit() {
@@ -139,20 +169,21 @@ copy_with_feed "http://127.0.0.1:9/appcast.xml" "$offline"
 defaults write "$domain" SUEnableAutomaticChecks -bool true
 defaults write "$domain" SULastCheckTime -date "2000-01-01 00:00:00 +0000"
 launch "$offline"
-sleep 7
+wait_until 30 scheduled_check_ran || fail "Sparkle never ran its scheduled check"
+# Time for an error dialog to open, had the failed check raised one.
+sleep 2
 text="$(window_text)"
 echo "$text"
 last_check="$(defaults read "$domain" SULastCheckTime)"
 echo "SULastCheckTime: $last_check"
-[[ $last_check != 2000-01-01* ]] || fail "Sparkle never ran its scheduled check"
 [[ "$(grep '^window: ' <<< "$text")" == "window: doc.md" ]] || fail "Windows other than doc.md are open after a failed check"
 quit
 
 echo "== 2. The Settings toggle reflects and changes SUEnableAutomaticChecks"
 defaults write "$domain" SUEnableAutomaticChecks -bool false
 launch "$offline"
-click_app_menu_item "Settings…"
-sleep 2
+wait_until 10 click_app_menu_item "Settings…" || fail "Couldn't click Settings…"
+wait_until 20 settings_toggle value || fail "Settings never showed its Updates toggle"
 [[ "$(settings_toggle value)" == 0 ]] || fail "The toggle is on while SUEnableAutomaticChecks is false"
 [[ "$(settings_toggle click)" == 1 ]] || fail "The toggle didn't turn on"
 [[ "$(automatic_checks_default)" == 1 ]] || fail "Turning the toggle on left SUEnableAutomaticChecks $(automatic_checks_default)"
@@ -186,10 +217,10 @@ online="$work/online/Unmark.app"
 mkdir -p "$(dirname "$online")"
 copy_with_feed "http://127.0.0.1:8765/appcast.xml" "$online"
 launch "$online"
-click_app_menu_item "Check for Updates…"
+wait_until 10 click_app_menu_item "Check for Updates…" || fail "Couldn't click Check for Updates…"
 offered=false
-for _ in {1..15}; do
-  sleep 2
+for _ in {1..60}; do
+  sleep 0.5
   text="$(window_text)"
   # Sparkle's headline for an installable update; its "is available but…" texts mean it can't be installed.
   if grep -q "A new version of Unmark is available!" <<< "$text"; then
