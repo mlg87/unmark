@@ -1,0 +1,5 @@
+# GitHub's generated release notes (scripts/release/prepare-release.sh) leave out the release PRs, which only add the
+# previous release's notes to CHANGELOG.md (#165).
+changelog:
+  exclude:
+    labels: [release]

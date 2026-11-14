@@ -1,0 +1,124 @@
+# Releases go through a pull request, so merges to main reach users only when the maintainer chooses (#165). Running
+# this workflow by hand on main adds the next version's notes to CHANGELOG.md with scripts/release/prepare-release.sh
+# and opens or updates the release PR from release/v<version>. Merging that PR tags its merge commit v<version> and
+# starts release.yml on the tag, which publishes the notes as the PR left them. docs/releasing.md has the details.
+name: Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, like 1.2.3 or 1.2.3-rc1. Leave empty to pick the next one from the commits since the last release.
+        required: false
+        type: string
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Two runs at once would race on the release branch and PR.
+    concurrency: release-pr
+    permissions:
+      # Push the release branch; GitHub's generate-notes endpoint also requires it.
+      contents: write
+      pull-requests: write
+      # Dispatch CI on the release branch.
+      actions: write
+    steps:
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run Release PR on main, not $GITHUB_REF_NAME"
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          # The commits and tags since the last release pick the version and the notes.
+          fetch-depth: 0
+
+      - name: Add the release notes to CHANGELOG.md
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version=$(scripts/release/prepare-release.sh ${INPUT_VERSION:+"$INPUT_VERSION"})
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          branch="release/v$VERSION"
+          title="chore(release): v$VERSION"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "$title"
+          # Rebuilt from main on every run, so a rerun picks up whatever merged since.
+          git push --force origin "HEAD:refs/heads/$branch"
+
+          body="$RUNNER_TEMP/body.md"
+          {
+            echo "Merging this PR tags its merge commit \`v$VERSION\` and publishes it: the Release workflow uploads the DMG and appcast to the GitHub release, Sparkle offers the update to every installed copy, and the Homebrew cask moves to it."
+            echo
+            echo "The notes below are this version's section of \`CHANGELOG.md\`. Edit them there, in this PR, and the release ships them as merged. To pick up PRs merged after this one opened, run the Release PR workflow again."
+            echo
+            echo '---'
+            echo
+            scripts/release/release-notes.sh "$VERSION"
+          } > "$body"
+
+          number=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
+          if [[ -z $number ]]; then
+            url=$(gh pr create --base main --head "$branch" --title "$title" --label release --body-file "$body")
+            number=${url##*/}
+          else
+            gh pr edit "$number" --title "$title" --body-file "$body"
+          fi
+          echo "Release PR: #$number"
+
+          # A rerun that picks a different version supersedes the open release PR for the old one.
+          gh pr list --label release --state open --json number,headRefName \
+            --jq ".[] | select(.headRefName != \"$branch\") | .number" |
+            while read -r other; do
+              gh pr close "$other" --delete-branch --comment "Superseded by #$number."
+            done
+
+          # A push or PR made with GITHUB_TOKEN starts no workflow, so CI would never report the required `ci` check on
+          # the release PR. A dispatch is the exception, and its check counts for the branch's head commit.
+          gh workflow run ci.yml --ref "$branch"
+
+  tag:
+    if: >-
+      github.event_name == 'pull_request' && github.event.pull_request.merged &&
+      startsWith(github.event.pull_request.head.ref, 'release/v') &&
+      contains(github.event.pull_request.labels.*.name, 'release') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # Create the tag.
+      contents: write
+      # Dispatch release.yml on it.
+      actions: write
+    steps:
+      - name: Tag the merge commit and start the Release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          tag=${HEAD_REF#release/}
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$MERGE_SHA" > /dev/null
+          echo "Tagged $MERGE_SHA as $tag"
+          # A tag created with GITHUB_TOKEN starts no workflow, so release.yml's tag trigger never fires for it; a
+          # dispatch on the tag runs the same release.
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$tag"

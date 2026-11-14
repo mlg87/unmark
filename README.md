@@ -181,7 +181,8 @@ stops waiting on it, and exits 1.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`.
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`,
+and on the release branch when the Release PR workflow dispatches it.
 Three jobs run side by side, so a run takes as long as the slowest of them,
 `app` (#163):
 
@@ -234,8 +235,10 @@ install-schedule` in the primary checkout; the log is
 
 `scripts/release/build-dmg.sh <version>` builds a universal, Developer ID
 signed, notarized, and stapled `Unmark-<version>.dmg`, and fails if it's 30 MB
-or more. The Release workflow runs it in CI. On a `v*` tag it also publishes
-the DMG and Sparkle appcast to a GitHub release and bumps the cask in
+or more. The Release workflow runs it in CI. To release, run the **Release PR**
+workflow: it writes the next version's notes into `CHANGELOG.md` and opens a
+release PR. Merging that PR tags it, and the Release workflow publishes the DMG
+and Sparkle appcast to a GitHub release and bumps the cask in
 [mlg87/homebrew-tap](https://github.com/mlg87/homebrew-tap).
 [docs/releasing.md](docs/releasing.md) covers the certificate, the notary
 credentials and repository secrets, the tap, running it on a Mac with Xcode,
