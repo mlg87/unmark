@@ -60,7 +60,7 @@ View → Show Outline (⌃⌘S), or the button beside the window's title, lists 
 
 ### Find
 
-Edit → Find → Find… (⌘F) searches the Preview, or the Source when it has the focus. ⌘G and ⇧⌘G go to the next and previous match, and ⌘E uses the selected text as the search.
+Edit → Find → Find… (⌘F) searches the Preview, or the Source when it has the focus. ⌘G and ⇧⌘G go to the next and previous match. In the Source, ⌘E also uses the selected text as the search; the Preview doesn't support it.
 
 ### Zoom
 
