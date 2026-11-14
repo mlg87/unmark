@@ -40,7 +40,16 @@ before you edit anything.
    primary checkout.
 
 The PR body names the bead ID(s) and contains `Closes #N`, so merging closes
-the issue.
+the issue. Take `N` from the bead's `external_ref`
+(`bd show <id> --json | jq -r '.[0].external_ref'`), never from memory or from
+issue numbers mentioned in the PR's own text. Before writing "no issue covers
+this bead", run that command: most beads have one (#156). A bead with no
+`external_ref` of its own, such as an epic child, writes `Part of #N` with its
+parent's issue instead. Never write `Closes` for an epic's issue, because the
+epic close-out script closes that issue.
+
+A follow-up bead (work left over after its issue closed) gets a new issue. Don't
+point it at the issue a merged PR already closed.
 
 ## Agent Workflow (Team-maintainer opt-in)
 
@@ -54,8 +63,14 @@ whole loop below without asking for approval. A current "do not commit" or
    Never commit to `main`.
 3. **Quality gates:** run lint, tests, and build for everything you changed.
 4. **Ship:** commit, push, and open a PR to `main` whose body contains
-   `Closes #N`. Then queue it: `gh pr merge <pr> --auto --squash`.
-5. **Close out after the merge:** `bd close <id>`, `bd dolt push`, then
+   `Closes #N` for the bead's `external_ref` (see above). Check it before you
+   queue the merge: `gh pr view <pr> --json closingIssuesReferences` must list
+   `N`. Then queue it: `gh pr merge <pr> --auto --squash`.
+5. **Close out after the merge:** confirm the issue closed
+   (`gh issue view N --json state`). `bd close` never touches GitHub. If the
+   issue is still open, close it with
+   `gh issue close N --comment "Done in #<pr>."`. Then `bd close <id>`,
+   `bd dolt push`, then
    `scripts/epic-closeout/epic-closeout.sh` (see "Epics Close Automatically";
    wait for it to finish), then `git worktree remove <path>` and
    `git branch -D <branch>`. If the PR can't merge (failing checks or requested
