@@ -141,8 +141,9 @@ test("typing in a 1 MB document shows each edit's first screen without redoing t
   const measured = `keystroke to first screen: ${durations.map(Math.round).join(", ")} ms`;
   const [first = 0] = durations;
   const median = [...durations].sort((a, b) => a - b)[Math.floor(KEYSTROKES / 2)] ?? 0;
-  // The median, so a garbage collection or the test files running alongside landing on one
-  // keystroke doesn't fail the test; a renderer doing more per keystroke slows them all.
+  // The median, so a garbage collection landing on one keystroke doesn't fail the test; a
+  // renderer doing more per keystroke slows them all. vitest.config.ts runs this file after the
+  // others, so their work doesn't land on the keystrokes too (unmark-t5a).
   expect(median, measured).toBeLessThan(MEDIAN_KEYSTROKE_BUDGET_MS);
   // The first keystroke after the document finished rendering is the one that would read the
   // whole page's source-line markers if they weren't read as they landed: about three times
