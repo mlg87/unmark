@@ -19,21 +19,24 @@ The **Release** workflow (`.github/workflows/release.yml`) imports the certifica
 
 ### Publishing a release
 
-Tag the commit on `main` and push the tag:
+Merges to `main` never release by themselves. A release goes through a release PR (#165):
 
-```sh
-git tag v1.2.3 && git push origin v1.2.3
-```
+1. Run the **Release PR** workflow on `main`, from the Actions tab or with `gh workflow run release-pr.yml`. Leave the version empty to pick it from the Conventional Commit subjects since the last `v*` tag: a breaking change (`type!:` or a `BREAKING CHANGE:` footer) bumps the major version (the minor below 1.0.0), a `feat` the minor, anything else the patch. After a prerelease like `v0.0.1-rc1`, a patch bump releases `0.0.1`. Pass a version (`-f version=1.2.3-rc1`) to choose it yourself.
+2. `scripts/release/prepare-release.sh` asks GitHub to generate the notes (`POST /repos/mlg87/unmark/releases/generate-notes`: the pull requests merged since the last tag, without the `release`-labelled release PRs, per `.github/release.yml`) and adds them to `CHANGELOG.md` under `## v<version>`. The workflow pushes that commit to `release/v<version>` and opens a PR labelled `release`, or updates the open one. Running it again rebuilds the branch from `main`, so it picks up later merges, and closes a release PR for a different version.
+3. Review the PR. Edit the notes in `CHANGELOG.md` there; what merges is what ships.
+4. Merge it. The workflow tags the merge commit `v<version>` and dispatches the Release workflow on the tag.
 
-For a tag `v<version>`, a job whose token can write to the repo asks GitHub to generate the release notes (`POST /repos/mlg87/unmark/releases/generate-notes`: the pull requests merged since the previous release). The workflow builds the DMG for `<version>`, then:
+The workflow uses `GITHUB_TOKEN`, so it needs the repository's Actions setting **Allow GitHub Actions to create and approve pull requests**. A push or PR made with that token starts no workflow, so the workflow dispatches CI on the release branch to report the required `ci` check, and dispatches the Release workflow rather than relying on its tag trigger. Pushing a tag yourself (`git tag v1.2.3 && git push origin v1.2.3`) still releases, but only a commit whose `CHANGELOG.md` has a `## v1.2.3` section.
+
+For a tag `v<version>`, the workflow reads that section with `scripts/release/release-notes.sh <version>` before building, so a tag without notes fails before notarizing. It builds the DMG for `<version>`, then:
 
 1. `scripts/release/generate-appcast.sh <version>` downloads the latest release's `appcast.xml` (the feed every installed copy reads, `SUFeedURL` in `project.yml`) and runs Sparkle's `generate_appcast` with `SPARKLE_ED_PRIVATE_KEY`. That adds an item for the new DMG, signed with EdDSA and pointing at `https://github.com/mlg87/unmark/releases/download/v<version>/Unmark-<version>.dmg`. The item embeds the release notes, which the script reads from `build/release/Unmark-<version>.md`, as Markdown (`<description sparkle:format="markdown">`), so Sparkle's update dialog shows them. Earlier items keep their own URLs and notes; Sparkle keeps the newest three. The script fails if the item is unsigned, which is how `generate_appcast` reacts to a key that doesn't match `SUPublicEDKey`, or if `sign_update --verify` rejects its signature.
-2. A separate publish job runs `gh release create v<version>` with the same notes, attaching the DMG and `appcast.xml`. Like the notes job, it holds a token that can write to the repo and never shares a runner with the build or the signing secrets.
+2. A separate publish job runs `gh release create v<version>` with the same notes, attaching the DMG and `appcast.xml`. It holds a token that can write to the repo and never shares a runner with the build or the signing secrets.
 3. A tap job runs `scripts/release/bump-tap-cask.sh`, which downloads the published DMG and sets `version` and `sha256` in `Casks/unmark.rb` of [mlg87/homebrew-tap](https://github.com/mlg87/homebrew-tap) to it, then commits and pushes to the tap's `main` with the `TAP_DEPLOY_KEY` deploy key. `brew install mlg87/tap/unmark` installs that version from then on. The script rejects a version that isn't like `1.2.3` or `1.2.3-rc1`, and the cask's `livecheck` accepts the same shapes.
 
-To run `generate-appcast.sh` yourself, write the notes first: `gh api repos/mlg87/unmark/releases/generate-notes -f tag_name=v1.2.3 --jq .body > build/release/Unmark-1.2.3.md`.
+To run `generate-appcast.sh` yourself, write the notes first: `scripts/release/release-notes.sh 1.2.3 > build/release/Unmark-1.2.3.md`.
 
-The release is never marked as a prerelease, even for a tag like `v1.2.3-rc1`: GitHub doesn't count prereleases as the latest release, so their appcast would never reach users. Every tag is therefore offered to every installed copy, so push one only for a build you want users to get.
+The release is never marked as a prerelease, even for a tag like `v1.2.3-rc1`: GitHub doesn't count prereleases as the latest release, so their appcast would never reach users. Every tag is therefore offered to every installed copy, so merge a release PR only for a build you want users to get.
 
 If the publish job fails, fix the cause and re-run the failed jobs. If the release was already created, delete it (`gh release delete v1.2.3`) before re-running. Re-running the tap job is safe: it commits nothing when the cask is already at the version.
 
@@ -49,7 +52,7 @@ brew tap mlg87/tap && brew audit --cask --strict --online mlg87/tap/unmark
 
 ### Dry run
 
-Run the workflow from the Actions tab, or `gh workflow run release.yml -f version=1.2.3`. It builds and notarizes the DMG and uploads it as an artifact, but generates no release notes or appcast and creates no release or tag.
+Run the Release workflow on a branch from the Actions tab, or `gh workflow run release.yml -f version=1.2.3`. It builds and notarizes the DMG and uploads it as an artifact, but reads no release notes, generates no appcast, and creates no release or tag.
 
 ### Checking a release
 
