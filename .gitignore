@@ -15,3 +15,5 @@ App/Resources/Renderer/
 # already holds the same history. Kept here, not in .beads/.gitignore, because
 # bd regenerates that file.
 .beads/interactions.jsonl
+# Finder metadata, written into any directory it opens (#175).
+.DS_Store
