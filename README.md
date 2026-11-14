@@ -181,11 +181,21 @@ stops waiting on it, and exits 1.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`
-on a `macos-15` runner with Xcode 16.4. A single job, `ci`, runs `make lint`, the
-renderer tests, the renderer build (which fails if a dependency exceeds its
-entry-chunk size budget in `renderer/build.mjs`), `make test`, and an ad-hoc signed
-universal Release build. It then fails unless `lipo -archs` reports both `x86_64`
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`.
+Three jobs run side by side, so a run takes as long as the slowest of them,
+`app` (#163):
+
+- `renderer`, on `ubuntu-latest`, runs the renderer tests except the timed one,
+  then the renderer build (which fails if a dependency exceeds its entry-chunk
+  size budget in `renderer/build.mjs`).
+- `checks`, on `macos-15` with Xcode 16.4, runs `make lint`, `make test`, the
+  timed renderer test (`test/keystroke-to-preview.test.ts`, whose budget is
+  calibrated to this runner), and `scripts/perf/keystroke-to-preview.swift` for
+  the record: its figure never fails the build (see below).
+- `app`, on `macos-15` with Xcode 16.4, makes an ad-hoc signed universal Release
+  build and runs every check that needs it.
+
+`app` fails unless `lipo -archs` reports both `x86_64`
 and `arm64` for the app and the embedded `unmark` tool, and checks the tool's exit
 statuses for usage errors and missing files. Then it launches the app with
 `unmark a.md b.md` and fails unless the tool exits 0 within 10 s and the app then
@@ -199,6 +209,7 @@ unreachable feed opens no dialog, the Settings toggle reads and writes
 `SUEnableAutomaticChecks`, and Check for Updates… offers a newer version from an
 appcast served on `127.0.0.1`.
 
+A fourth job, `ci`, waits for those three and fails unless each one succeeded.
 The `main: baseline` ruleset requires the `ci` check (pinned to the GitHub
 Actions app) before a pull request can merge, so red builds can't land on
 `main`. GitHub lists the check as `ci`; pull requests show it as `CI / ci`.

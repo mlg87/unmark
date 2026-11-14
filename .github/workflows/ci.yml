@@ -1,4 +1,5 @@
-# The `ci` job is the required status check for `main` (see README "Continuous integration").
+# Three jobs run side by side so a run takes as long as its slowest, app (#163). The `ci` job at the end is the
+# required status check for `main` (see README "Continuous integration").
 name: CI
 
 on:
@@ -15,10 +16,41 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  ci:
+  # The renderer's jsdom tests need no Mac, so they run on Linux rather than ahead of the app build.
+  renderer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # Vitest needs Node >= 22.12.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: renderer/package.json
+          cache: true
+          cache_dependency_path: renderer/pnpm-lock.yaml
+
+      - name: Install renderer dependencies
+        run: pnpm --dir renderer install --frozen-lockfile
+
+      # Without vitest.config.ts's `timed` project, whose budget is calibrated to the macOS runner (see checks).
+      - name: Renderer tests
+        run: pnpm --dir renderer exec vitest run --project renderer
+
+      # Fails when a dependency exceeds its entry-chunk size budget in build.mjs (#17), or
+      # when KaTeX leaves its lazy chunk (unmark-1793451433078-17-487f189f).
+      - name: Renderer build
+        run: pnpm --dir renderer build
+
+  # Every check that needs a Mac but not the built app, so none of them delays the app job.
+  checks:
     # macos-14 runners are unsupported from 2026-11-02; macos-15 ships Xcode 16.4.
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -44,18 +76,19 @@ jobs:
       - name: Install XcodeGen and SwiftLint
         run: make bootstrap
 
-      - name: Generate Xcode project
-        run: make project
-
       - name: Lint
         run: make lint
 
-      - name: Renderer tests
-        run: pnpm --dir renderer test
+      - name: Swift tests
+        run: make test
 
-      # Fails when a dependency exceeds its entry-chunk size budget in build.mjs (#17), or
-      # when KaTeX leaves its lazy chunk (unmark-1793451433078-17-487f189f).
-      - name: Renderer build
+      # vitest.config.ts's `timed` project. Its budget is calibrated to this runner's medians, and sharing cores with
+      # other tests has failed it with no regression (unmark-t5a), so it runs here as a step of its own.
+      - name: Renderer keystroke-to-preview test
+        run: pnpm --dir renderer exec vitest run --project timed
+
+      # keystroke-to-preview.swift serves the renderer from App/Resources/Renderer/, which is build output.
+      - name: Build the renderer for WebKit
         run: pnpm --dir renderer build
 
       # Prints q47's keystroke-to-preview figure in WebKit for a 1 MB file, for the record, and never fails the build:
@@ -67,15 +100,50 @@ jobs:
         timeout-minutes: 5
         run: swift scripts/perf/keystroke-to-preview.swift
 
-      - name: Swift tests
-        run: make test
+  # The Release build and the checks that launch it. The slowest job, so it holds only what needs the built app.
+  app:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
 
-      # Ad-hoc signed so the build needs no secrets.
+      - name: Select Xcode 16.4
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      # The app target's Build renderer phase runs pnpm, and installs the renderer's dependencies itself.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: renderer/package.json
+          cache: true
+          cache_dependency_path: renderer/pnpm-lock.yaml
+
+      - name: Install XcodeGen
+        run: make bootstrap
+
+      - name: Generate Xcode project
+        run: make project
+
+      # Saves the build cloning Sparkle and downloading its XCFramework: resolving packages took about 26 s without
+      # it and 15 s with it (#163).
+      - uses: actions/cache@v6
+        with:
+          path: build/DerivedData/SourcePackages
+          key: swift-packages-${{ hashFiles('project.yml', 'Packages/UnmarkCore/Package.swift') }}
+
+      # Ad-hoc signed so the build needs no secrets. scripts/ci/open-documents.swift compiles beside it, for the checks
+      # below: as this job's first Swift script, running it with `swift` added 6-15 s to the first of them (#163).
       - name: Universal Release build
         run: |
+          swiftc scripts/ci/open-documents.swift -o "$RUNNER_TEMP/open-documents" &
+          open_documents=$!
           xcodebuild -project Unmark.xcodeproj -scheme Unmark -configuration Release \
             -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData \
             build CODE_SIGN_IDENTITY=-
+          wait "$open_documents"
 
       - name: Check universal binaries
         run: |
@@ -125,7 +193,7 @@ jobs:
         run: |
           app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
           cli="$app/Contents/Helpers/unmark"
-          query="$PWD/scripts/ci/open-documents.swift"
+          query="$RUNNER_TEMP/open-documents"
           dir="$RUNNER_TEMP/open-two"
           mkdir -p "$dir"
           printf '# a\n' > "$dir/a.md"
@@ -149,7 +217,7 @@ jobs:
             echo "::error::Unmark isn't running after 'unmark a.md b.md'"
             exit 1
           }
-          swift "$query" "$pid" "$dir/a.md" "$dir/b.md"
+          "$query" "$pid" "$dir/a.md" "$dir/b.md"
           kill "$pid"
 
       # Epic #8: "`GIT_EDITOR="unmark --wait" git commit` blocks until the window closes"
@@ -160,7 +228,7 @@ jobs:
         timeout-minutes: 5
         run: |
           app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
-          query="$PWD/scripts/ci/open-documents.swift"
+          query="$RUNNER_TEMP/open-documents"
           dir="$RUNNER_TEMP/git-editor"
           bin="$RUNNER_TEMP/bin"
           log="$RUNNER_TEMP/git-commit.log"
@@ -192,7 +260,7 @@ jobs:
             sleep 0.5
           done
           [[ -n $pid ]] || fail "Unmark isn't running after 'GIT_EDITOR=\"unmark --wait\" git commit'"
-          swift "$query" "$pid" "$dir/.git/COMMIT_EDITMSG" || fail "Unmark never reported COMMIT_EDITMSG open"
+          "$query" "$pid" "$dir/.git/COMMIT_EDITMSG" || fail "Unmark never reported COMMIT_EDITMSG open"
           sleep 5
           kill -0 "$git_pid" 2> /dev/null || fail "git commit returned while COMMIT_EDITMSG was still open"
           echo "git commit still blocked 5 s after COMMIT_EDITMSG opened"
@@ -224,3 +292,19 @@ jobs:
       - name: Check Sparkle updates
         timeout-minutes: 5
         run: scripts/ci/check-updates.sh "$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
+
+  # The required status check for `main`, under the name the `main: baseline` ruleset pins. GitHub skips a job whose
+  # dependency failed and counts a skipped required check as passing, so this one always runs and fails unless every
+  # job above succeeded. That includes a cancelled run.
+  ci:
+    needs: [renderer, checks, app]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          jq -e 'all(.[]; .result == "success")' <<< "$NEEDS" > /dev/null
