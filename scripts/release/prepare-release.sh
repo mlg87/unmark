@@ -75,23 +75,35 @@ readonly version
 # The same shapes as bump-tap-cask.sh and the cask's livecheck accept.
 [[ $version =~ ^[0-9]+(\.[0-9]+)+(-[A-Za-z0-9.]+)?$ ]] || fail "$version isn't a version like 1.2.3 or 1.2.3-rc1"
 ! git rev-parse -q --verify "refs/tags/v$version" >/dev/null || fail "the tag v$version already exists"
-! grep -qE "^## v${version//./\\.}( |$)" "$changelog" || fail "$changelog already has a v$version section"
 
 step "Generating the notes for v$version, from ${last_tag:-the first commit} to $(git rev-parse --short HEAD)"
 args=(-f tag_name="v$version" -f target_commitish="$(git rev-parse HEAD)")
 [[ -z $last_tag ]] || args+=(-f previous_tag_name="$last_tag")
 notes=$(gh api "repos/$repo/releases/generate-notes" "${args[@]}" --jq .body)
+# With .github/release.yml in the repo, GitHub starts the notes with an HTML comment naming it, which would otherwise
+# ride along into CHANGELOG.md, the GitHub release, and the Sparkle appcast (#170).
+notes=$(sed -E '/^<!-- Release notes generated .*-->$/d' <<<"$notes" | sed '/./,$!d')
+
+# Sections above the newest tagged version come from release PRs that merged untagged, because the tag job found PRs
+# merged after them (#170). This run's notes cover the same PRs and those, so they replace the drafts.
+drafts=0
+while read -r drafted; do
+    ! git rev-parse -q --verify "refs/tags/v$drafted" >/dev/null || break
+    step "Replacing the untagged v$drafted notes"
+    drafts=$((drafts + 1))
+done < <(sed -nE 's/^## v([^ ]+)( .*)?$/\1/p' "$changelog")
 
 step "Adding v$version to $changelog"
 # One heading level down, so the notes' own `## What's Changed` sits under the version's `##` and release-notes.sh can
 # end the section at the next `## `.
 section=$(printf '## v%s (%s)\n\n%s\n' "$version" "$(date -u +%F)" "$(sed -E 's/^(#{1,5}) /#\1 /' <<<"$notes")")
-# Above the newest version, or at the end while there is none. Passed through the environment, because awk -v would
-# expand backslash escapes in the notes.
-section=$section awk '
-    !done && /^## / { print ENVIRON["section"]; print ""; done = 1 }
-    { print }
-    END { if (!done) { print ""; print ENVIRON["section"] } }
+# Above the newest tagged version, or at the end while there is none. Passed through the environment, because awk -v
+# would expand backslash escapes in the notes.
+section=$section drafts=$drafts awk '
+    /^## / { n++; if (n == ENVIRON["drafts"] + 1) { print ENVIRON["section"]; print ""; done = 1 } }
+    n >= 1 && n <= ENVIRON["drafts"] + 0 { next }
+    { print; last = $0 }
+    END { if (!done) { if (last != "") print ""; print ENVIRON["section"] } }
 ' "$changelog" >"$changelog.new"
 mv -f "$changelog.new" "$changelog"
 
