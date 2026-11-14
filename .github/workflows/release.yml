@@ -1,8 +1,12 @@
-# Builds a signed, notarized, and stapled Unmark-<version>.dmg with scripts/release/build-dmg.sh and uploads it as a
-# workflow artifact. Nothing is published yet; docs/releasing.md lists the secrets this reads.
+# Builds a signed, notarized, and stapled Unmark-<version>.dmg with scripts/release/build-dmg.sh. A v<version> tag
+# push also generates the Sparkle appcast and publishes both to the GitHub release v<version>; a manual run
+# (workflow_dispatch) is a dry run that only uploads the DMG as a workflow artifact. docs/releasing.md lists the
+# secrets this reads.
 name: Release
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       version:
@@ -15,6 +19,8 @@ permissions:
 
 jobs:
   dmg:
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     # Same runner and Xcode as ci.yml.
     runs-on: macos-15
     # build-dmg.sh waits up to 90 minutes for notarization, which usually takes minutes but has taken over 30.
@@ -24,6 +30,17 @@ jobs:
         with:
           # The build number is the commit count, which a shallow clone gets wrong.
           fetch-depth: 0
+
+      - name: Pick the version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ $GITHUB_EVENT_NAME == push ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Select Xcode 16.4
         run: sudo xcode-select -s /Applications/Xcode_16.4.app
@@ -69,7 +86,7 @@ jobs:
 
       - name: Build, sign, and notarize the DMG
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
           NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
@@ -77,10 +94,50 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: Unmark-${{ inputs.version }}.dmg
-          path: build/release/Unmark-${{ inputs.version }}.dmg
+          name: Unmark-${{ steps.version.outputs.version }}.dmg
+          path: build/release/Unmark-${{ steps.version.outputs.version }}.dmg
+          if-no-files-found: error
+
+      - name: Generate the appcast
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: scripts/release/generate-appcast.sh "$VERSION"
+
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'push'
+        with:
+          name: appcast.xml
+          path: build/release/appcast/appcast.xml
           if-no-files-found: error
 
       - name: Delete the temporary keychain
         if: always()
         run: security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true
+
+  # Its own job, so the token that can create releases never shares a runner with the build's third-party code (pnpm
+  # and Swift packages), and the signing secrets never share one with that token.
+  publish:
+    needs: dmg
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: release
+          merge-multiple: true
+
+      # Not a prerelease, even for a tag like v1.2.3-rc1: the app's feed is the latest release's appcast.xml, and
+      # GitHub never counts a prerelease as the latest.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.dmg.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "release/Unmark-$VERSION.dmg" release/appcast.xml \
+            --verify-tag --generate-notes
