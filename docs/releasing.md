@@ -25,10 +25,12 @@ Tag the commit on `main` and push the tag:
 git tag v1.2.3 && git push origin v1.2.3
 ```
 
-For a tag `v<version>`, the workflow builds the DMG for `<version>`, then:
+For a tag `v<version>`, a job whose token can write to the repo asks GitHub to generate the release notes (`POST /repos/mlg87/unmark/releases/generate-notes`: the pull requests merged since the previous release). The workflow builds the DMG for `<version>`, then:
 
-1. `scripts/release/generate-appcast.sh <version>` downloads the latest release's `appcast.xml` (the feed every installed copy reads, `SUFeedURL` in `project.yml`) and runs Sparkle's `generate_appcast` with `SPARKLE_ED_PRIVATE_KEY`. That adds an item for the new DMG, signed with EdDSA and pointing at `https://github.com/mlg87/unmark/releases/download/v<version>/Unmark-<version>.dmg`. Earlier items keep their own URLs; Sparkle keeps the newest three. The script fails if the item is unsigned, which is how `generate_appcast` reacts to a key that doesn't match `SUPublicEDKey`, or if `sign_update --verify` rejects its signature.
-2. A separate job, the only one whose token can write to the repo, runs `gh release create v<version> --generate-notes` with the DMG and `appcast.xml` attached.
+1. `scripts/release/generate-appcast.sh <version>` downloads the latest release's `appcast.xml` (the feed every installed copy reads, `SUFeedURL` in `project.yml`) and runs Sparkle's `generate_appcast` with `SPARKLE_ED_PRIVATE_KEY`. That adds an item for the new DMG, signed with EdDSA and pointing at `https://github.com/mlg87/unmark/releases/download/v<version>/Unmark-<version>.dmg`. The item embeds the release notes, which the script reads from `build/release/Unmark-<version>.md`, as Markdown (`<description sparkle:format="markdown">`), so Sparkle's update dialog shows them. Earlier items keep their own URLs and notes; Sparkle keeps the newest three. The script fails if the item is unsigned, which is how `generate_appcast` reacts to a key that doesn't match `SUPublicEDKey`, or if `sign_update --verify` rejects its signature.
+2. A separate publish job runs `gh release create v<version>` with the same notes, attaching the DMG and `appcast.xml`. Like the notes job, it holds a token that can write to the repo and never shares a runner with the build or the signing secrets.
+
+To run `generate-appcast.sh` yourself, write the notes first: `gh api repos/mlg87/unmark/releases/generate-notes -f tag_name=v1.2.3 --jq .body > build/release/Unmark-1.2.3.md`.
 
 The release is never marked as a prerelease, even for a tag like `v1.2.3-rc1`: GitHub doesn't count prereleases as the latest release, so their appcast would never reach users. Every tag is therefore offered to every installed copy, so push one only for a build you want users to get.
 
@@ -36,7 +38,7 @@ If the publish job fails, fix the cause and re-run the failed jobs. If the relea
 
 ### Dry run
 
-Run the workflow from the Actions tab, or `gh workflow run release.yml -f version=1.2.3`. It builds and notarizes the DMG and uploads it as an artifact, but generates no appcast and creates no release or tag.
+Run the workflow from the Actions tab, or `gh workflow run release.yml -f version=1.2.3`. It builds and notarizes the DMG and uploads it as an artifact, but generates no release notes or appcast and creates no release or tag.
 
 ### Checking a release
 

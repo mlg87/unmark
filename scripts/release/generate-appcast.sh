@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Writes build/release/appcast/appcast.xml, the Sparkle feed for build/release/Unmark-<version>.dmg, which
-# build-dmg.sh must have built. The release workflow publishes both to the GitHub release v<version>; see
-# docs/releasing.md.
+# build-dmg.sh must have built. The new item embeds build/release/Unmark-<version>.md, the release's GitHub-generated
+# notes, so Sparkle's update dialog shows them. The release workflow publishes the DMG and appcast to the GitHub release
+# v<version>; see docs/releasing.md.
 #
 #   generate-appcast.sh <version>
 #
@@ -28,9 +29,11 @@ readonly version=$1
 
 cd "$(dirname "$0")/../.."
 readonly dmg_name="Unmark-$version.dmg"
+readonly notes_name="Unmark-$version.md"
 readonly feed=build/release/appcast
 readonly download_prefix="$releases/download/v$version/"
 [[ -f build/release/$dmg_name ]] || fail "build/release/$dmg_name doesn't exist; run build-dmg.sh $version first"
+[[ -f build/release/$notes_name ]] || fail "build/release/$notes_name doesn't exist (docs/releasing.md)"
 
 if [[ -n ${SPARKLE_BIN:-} ]]; then
     sparkle_bin=$SPARKLE_BIN
@@ -45,7 +48,8 @@ fi
 
 rm -rf "$feed"
 mkdir -p "$feed"
-cp "build/release/$dmg_name" "$feed/"
+# generate_appcast picks up release notes named like the DMG.
+cp "build/release/$dmg_name" "build/release/$notes_name" "$feed/"
 
 step "Fetching the current appcast"
 # generate_appcast adds the new item to the appcast it finds in the folder and keeps the other items as they are. The
@@ -63,8 +67,11 @@ case $status in
 esac
 
 step "Generating the appcast for $dmg_name"
-"$sparkle_bin/generate_appcast" --ed-key-file - --download-url-prefix "$download_prefix" "$feed" \
-    <<<"$SPARKLE_ED_PRIVATE_KEY"
+# Without --embed-release-notes, generate_appcast embeds only HTML notes and links Markdown ones from
+# --release-notes-url-prefix, which the release doesn't upload. Sparkle shows embedded Markdown from 2.9 on macOS 12+;
+# project.yml requires Sparkle 2.10.1 and macOS 14.
+"$sparkle_bin/generate_appcast" --ed-key-file - --download-url-prefix "$download_prefix" --embed-release-notes \
+    "$feed" <<<"$SPARKLE_ED_PRIVATE_KEY"
 
 # generate_appcast only warns when the key doesn't match the app's SUPublicEDKey, and then leaves the item unsigned.
 signature=$(xmllint --xpath "string(//enclosure[@url='$download_prefix$dmg_name']/@*[local-name()='edSignature'])" \
