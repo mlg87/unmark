@@ -1,0 +1,31 @@
+# Throwaway: proves TAP_DEPLOY_KEY can check out and push to mlg87/homebrew-tap. Removed before merge.
+name: Tap probe
+on:
+  push:
+    branches: ['bead/unmark-1793451445649-44-8803ca5d-*']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/release
+      - uses: actions/checkout@v7
+        with:
+          repository: mlg87/homebrew-tap
+          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
+          path: tap
+      - name: Bump, commit, push to a scratch ref, delete it
+        run: |
+          sed -i -e 's/^  version ".*"/  version "0.0.0"/' tap/Casks/unmark.rb
+          scripts/release/bump-tap-cask.sh tap/Casks/unmark.rb 0.0.1-rc1
+          cd tap
+          git diff --exit-code
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m "probe"
+          git push origin HEAD:refs/heads/ci-probe
+          git push origin :refs/heads/ci-probe
