@@ -127,19 +127,23 @@ jobs:
       - name: Generate Xcode project
         run: make project
 
-      # Without it, every build first clones Sparkle and downloads its XCFramework, about 20 s before it compiles
-      # anything (#163).
+      # Saves the build cloning Sparkle and downloading its XCFramework: resolving packages took about 26 s without
+      # it and 15 s with it (#163).
       - uses: actions/cache@v6
         with:
           path: build/DerivedData/SourcePackages
           key: swift-packages-${{ hashFiles('project.yml', 'Packages/UnmarkCore/Package.swift') }}
 
-      # Ad-hoc signed so the build needs no secrets.
+      # Ad-hoc signed so the build needs no secrets. scripts/ci/open-documents.swift compiles beside it, for the checks
+      # below: as this job's first Swift script, running it with `swift` added 6-15 s to the first of them (#163).
       - name: Universal Release build
         run: |
+          swiftc scripts/ci/open-documents.swift -o "$RUNNER_TEMP/open-documents" &
+          open_documents=$!
           xcodebuild -project Unmark.xcodeproj -scheme Unmark -configuration Release \
             -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData \
             build CODE_SIGN_IDENTITY=-
+          wait "$open_documents"
 
       - name: Check universal binaries
         run: |
@@ -189,7 +193,7 @@ jobs:
         run: |
           app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
           cli="$app/Contents/Helpers/unmark"
-          query="$PWD/scripts/ci/open-documents.swift"
+          query="$RUNNER_TEMP/open-documents"
           dir="$RUNNER_TEMP/open-two"
           mkdir -p "$dir"
           printf '# a\n' > "$dir/a.md"
@@ -213,7 +217,7 @@ jobs:
             echo "::error::Unmark isn't running after 'unmark a.md b.md'"
             exit 1
           }
-          swift "$query" "$pid" "$dir/a.md" "$dir/b.md"
+          "$query" "$pid" "$dir/a.md" "$dir/b.md"
           kill "$pid"
 
       # Epic #8: "`GIT_EDITOR="unmark --wait" git commit` blocks until the window closes"
@@ -224,7 +228,7 @@ jobs:
         timeout-minutes: 5
         run: |
           app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
-          query="$PWD/scripts/ci/open-documents.swift"
+          query="$RUNNER_TEMP/open-documents"
           dir="$RUNNER_TEMP/git-editor"
           bin="$RUNNER_TEMP/bin"
           log="$RUNNER_TEMP/git-commit.log"
@@ -256,7 +260,7 @@ jobs:
             sleep 0.5
           done
           [[ -n $pid ]] || fail "Unmark isn't running after 'GIT_EDITOR=\"unmark --wait\" git commit'"
-          swift "$query" "$pid" "$dir/.git/COMMIT_EDITMSG" || fail "Unmark never reported COMMIT_EDITMSG open"
+          "$query" "$pid" "$dir/.git/COMMIT_EDITMSG" || fail "Unmark never reported COMMIT_EDITMSG open"
           sleep 5
           kill -0 "$git_pid" 2> /dev/null || fail "git commit returned while COMMIT_EDITMSG was still open"
           echo "git commit still blocked 5 s after COMMIT_EDITMSG opened"
