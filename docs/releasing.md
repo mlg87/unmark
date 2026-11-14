@@ -26,7 +26,7 @@ Merges to `main` never release by themselves. A release goes through a release P
 3. Review the PR. Edit the notes in `CHANGELOG.md` there; what merges is what ships.
 4. Merge it. The workflow tags the merge commit `v<version>` and dispatches the Release workflow on the tag.
 
-The workflow uses `GITHUB_TOKEN`, so it needs the repository's Actions setting **Allow GitHub Actions to create and approve pull requests**. A push or PR made with that token starts no workflow, so the workflow dispatches CI on the release branch to report the required `ci` check, and dispatches the Release workflow rather than relying on its tag trigger. Pushing a tag yourself (`git tag v1.2.3 && git push origin v1.2.3`) still releases, but only a commit whose `CHANGELOG.md` has a `## v1.2.3` section.
+The workflow uses `GITHUB_TOKEN`, so it needs the repository's Actions setting **Allow GitHub Actions to create and approve pull requests**. GitHub holds a PR's CI run for approval when that token opened or pushed the PR, so the workflow approves the release PR's run itself and the required `ci` check reports as on any PR (#168). A tag created with the token starts no workflow, so the workflow dispatches the Release workflow rather than relying on its tag trigger. Pushing a tag yourself (`git tag v1.2.3 && git push origin v1.2.3`) still releases, but only a commit whose `CHANGELOG.md` has a `## v1.2.3` section.
 
 For a tag `v<version>`, the workflow reads that section with `scripts/release/release-notes.sh <version>` before building, so a tag without notes fails before notarizing. It builds the DMG for `<version>`, then:
 

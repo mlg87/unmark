@@ -29,7 +29,7 @@ jobs:
       # Push the release branch; GitHub's generate-notes endpoint also requires it.
       contents: write
       pull-requests: write
-      # Dispatch CI on the release branch.
+      # Approve the release PR's CI run.
       actions: write
     steps:
       - name: Require main
@@ -53,6 +53,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Open or update the release PR
+        id: pr
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.prepare.outputs.version }}
@@ -92,9 +93,30 @@ jobs:
               gh pr close "$other" --delete-branch --comment "Superseded by #$number."
             done
 
-          # A push or PR made with GITHUB_TOKEN starts no workflow, so CI would never report the required `ci` check on
-          # the release PR. A dispatch is the exception, and its check counts for the branch's head commit.
-          gh workflow run ci.yml --ref "$branch"
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # GitHub holds the PR's CI run for approval (action_required, no jobs) when GITHUB_TOKEN opened or pushed the PR,
+      # so the required `ci` check would wait for the maintainer to approve it (#168). Approve it here instead.
+      - name: Approve the release PR's CI run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
+        run: |
+          # The pull_request event's run shows up a few seconds after the push or PR.
+          for _ in {1..24}; do
+            run=$(gh run list --workflow ci.yml --commit "$HEAD_SHA" --event pull_request \
+              --json databaseId,conclusion --jq '.[0] | select(.) | "\(.databaseId) \(.conclusion)"')
+            [[ -z $run ]] || break
+            sleep 5
+          done
+          [[ -n $run ]] || { echo "::error::CI never started for $HEAD_SHA"; exit 1; }
+          read -r id conclusion <<<"$run"
+          if [[ $conclusion == action_required ]]; then
+            gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/approve"
+            echo "Approved CI run $id"
+          else
+            echo "CI run $id needs no approval"
+          fi
 
   tag:
     if: >-
