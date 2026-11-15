@@ -50,7 +50,7 @@ Only `!` states that a value is never null. Write the type as the schema writes 
 
 ## Headings and links
 
-A heading link uses the heading text in lowercase, so the query `invoice` and the type `Invoice` both get the link `#invoice`. The second heading then gets `#invoice-1`, and that link breaks when the sections move or the page is copied. The kind word in each heading prevents this: the query is `#invoice-query` and the type is `#invoice-type`.
+A heading link uses the heading text in lowercase, so the query `invoice` and the type `Invoice` both get the link `#invoice`. The second heading then gets a number added to its link, and that link breaks when the sections move or the page is copied. The kind word in each heading prevents this: the query is `#invoice-query` and the type is `#invoice-type`.
 
 - Link each type name to its section, such as `` [`Invoice!`](#invoice-type) ``.
 - Do not write a link that ends in `-1`, `-2`, or another number that the heading does not have.
