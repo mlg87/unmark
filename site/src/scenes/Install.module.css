@@ -1,3 +1,73 @@
 .install {
-  max-width: 60rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+  /* Wide enough that each card holds the whole brew command at 1440 px without scrolling it. */
+  max-width: 72rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.cards {
+  display: grid;
+  /* `minmax(0, …)` so the copy command's unbreakable line scrolls inside its pill instead of
+     widening the card past a phone's screen. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  width: 100%;
+  text-align: left;
+}
+
+@media (min-width: 800px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.25rem;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  border-radius: var(--card-radius);
+  background: var(--white);
+  color: var(--navy);
+  box-shadow: var(--shadow);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(1.75rem, 2.5vw, 2.25rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* The version can make the label too long for a phone-width card, so it may wrap there. */
+.download {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.note {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 2.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 600;
 }

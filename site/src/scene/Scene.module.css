@@ -16,6 +16,14 @@
   margin-inline: auto;
 }
 
+/* An ordinary block is at least a window tall in both modes, its content centered as in a pinned
+   sheet: the install section and the 404 page are each a full screen (#191). */
+.unpinned .sheet {
+  display: flex;
+  align-items: center;
+  min-height: 100svh;
+}
+
 /* The wrapper stays transparent: it overlaps the previous scene's last screen, and only its sheet
    may cover that one. */
 :global(html[data-motion="pinned"]) .scene {
@@ -45,6 +53,5 @@
 :global(html[data-motion="pinned"]) .unpinned .sheet {
   position: static;
   height: auto;
-  min-height: 100svh;
   overflow: visible;
 }

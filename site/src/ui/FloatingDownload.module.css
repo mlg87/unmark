@@ -1,0 +1,14 @@
+/* Above every sheet and the footer (z-index 100). */
+.floating {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 200;
+}
+
+/* Navy between two white rings, so the focus ring reads on every block color it floats over. */
+.button:focus-visible {
+  outline: 3px solid var(--navy);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 7px var(--white);
+}
