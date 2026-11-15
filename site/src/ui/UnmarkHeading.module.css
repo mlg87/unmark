@@ -1,0 +1,20 @@
+/* A row, so the mark sits beside the text's first line and the text wraps in the space left over;
+   the mark's width shrinking to zero is what slides the text left into its place. */
+.heading {
+  display: flex;
+  align-items: first baseline;
+}
+
+/* `clip`, not `hidden`: a scroll container would lose its text baseline. */
+.mark {
+  flex: none;
+  overflow: clip;
+  white-space: pre;
+  font-family: var(--mono);
+  font-weight: 400;
+}
+
+.text {
+  min-width: 0;
+  transform-origin: left center;
+}

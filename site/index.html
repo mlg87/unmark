@@ -4,6 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Unmark: Markdown, the way GitHub shows it</title>
+    <!-- Picks pinned scenes before first paint, so the sheet layout never jumps. The prerendered
+         HTML never has the attribute, so without JavaScript every visitor gets the static layout (#183). -->
+    <script>
+      if (matchMedia("(min-width: 900px) and (prefers-reduced-motion: no-preference)").matches) {
+        document.documentElement.dataset.motion = "pinned";
+      }
+    </script>
     <!--app-head-->
   </head>
   <body>
