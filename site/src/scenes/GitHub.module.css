@@ -1,3 +1,96 @@
+/* `minmax(0, 1fr)`: an `auto` column would grow to fit the pinned track, which is meant to overflow. */
 .github {
-  max-width: 60rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(2rem, 4vw, 3rem);
+  width: 100%;
+}
+
+.copy p {
+  max-width: 40rem;
+  margin: 1.5rem 0 0;
+}
+
+/* Static mode, including visitors without JavaScript: the cards in a grid, flat. `min()` keeps a
+   phone's single column inside the sheet. */
+.track {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 32px;
+}
+
+.card {
+  min-width: 0;
+  padding: 20px;
+  border-radius: var(--card-radius);
+  background: var(--block);
+  color: var(--ink);
+  box-shadow: 12px 12px 0 var(--navy);
+}
+
+.title {
+  margin: 0 0 16px;
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* `.card` raises it above github-markdown-css's own `.markdown-body` rule. */
+.card .panel {
+  padding: 20px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+/* Cells stay on one line, except the DMG script's path, the widest cell, which wraps rather than
+   scroll the table. */
+.card .panel :is(th, td) {
+  white-space: nowrap;
+}
+
+.card .panel td code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* highlight.js's GitHub theme, light colors (renderer/src/highlight.css). */
+.keyword {
+  color: #d73a49;
+}
+
+.string {
+  color: #032f62;
+}
+
+.builtIn {
+  color: #e36209;
+}
+
+/* Mermaid's default font for diagram labels. */
+.flowchart {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: "trebuchet ms", verdana, arial, sans-serif;
+  font-size: 16px;
+}
+
+/* Pinned mode: one row that the scene slides sideways. The gallery spans the sheet's inner width,
+   which GitHub.tsx measures into --sheet-inner, so on wide windows the row reaches past the text
+   column. A row that fits centers itself with the auto margins and stays put. */
+:global(html[data-motion="pinned"]) .gallery {
+  margin-inline: calc((100% - var(--sheet-inner, 100%)) / 2);
+}
+
+:global(html[data-motion="pinned"]) .track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  margin-inline: auto;
+}
+
+:global(html[data-motion="pinned"]) .card {
+  flex: none;
+  width: clamp(280px, 30vw, 420px);
 }
