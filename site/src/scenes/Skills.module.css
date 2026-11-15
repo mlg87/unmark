@@ -201,10 +201,20 @@
   }
 }
 
-/* Pinned mode: one row that the scene slides sideways, cards tilting −2° and +2° in turn. The
-   gallery spans the sheet's inner width, which useTrackOverflow measures into --sheet-inner, so on
-   wide windows the row reaches past the text column. */
+/* Pinned mode: one row that the scene slides sideways, cards tilting −2° and +2° in turn. A window
+   too short for the copy and the full-size cards caps the scene 2rem inside the window's edges, the
+   pinned sheet's smallest padding, and the gallery gets the height the copy leaves, which
+   useTrackFit scales the cards into through --card-zoom (#260). The gallery spans the sheet's
+   inner width, which useTrackOverflow measures into --sheet-inner, so on wide windows the row
+   reaches past the text column. */
+:global(html[data-motion="pinned"]) .skills {
+  max-height: calc(100svh - 4rem);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 :global(html[data-motion="pinned"]) .gallery {
+  display: grid;
+  align-items: center;
   margin-inline: calc((100% - var(--sheet-inner, 100%)) / 2);
 }
 
@@ -219,12 +229,15 @@
   flex: none;
   width: clamp(280px, 30vw, 420px);
   rotate: -2deg;
+  zoom: var(--card-zoom, 1);
 }
 
 :global(html[data-motion="pinned"]) .card:nth-child(even) {
   rotate: 2deg;
 }
 
+/* At least 640 px, so the polish example's After panel stays 560 px wide and keeps its steps beside
+   the alert and the table: stacked, the card grows by about 150 px (#260). */
 :global(html[data-motion="pinned"]) .wide {
-  width: clamp(320px, 56vw, 760px);
+  width: clamp(640px, 56vw, 760px);
 }
