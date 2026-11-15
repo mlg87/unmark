@@ -43,8 +43,37 @@ Run every `aws` command for the site with `AWS_PROFILE=unmark`. `deploy.sh` sets
 | `Distribution` | Both names over HTTPS (TLS 1.2 or later, HTTP/2 and HTTP/3, IPv6), HTTP redirected to HTTPS, `index.html` as the root object. Uses the managed `CachingOptimized` cache policy and `SecurityHeadersPolicy` response-headers policy, since the Free plan forbids custom ones. A 403 or 404 from the bucket answers with `/404.html` and status 404, cached for 60 s |
 | `ApexA`, `ApexAAAA`, `WwwA`, `WwwAAAA` | Route 53 alias records for both names, pointing at the distribution |
 | `Plan` | The Free flat-rate plan subscription, covering the distribution, the web ACL, and the hosted zone |
+| `GitHubOidcProvider` | IAM OIDC provider for `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com` |
+| `DeployRole` | `unmark-site-deploy`, assumable only through that provider by a token whose `sub` is `repo:mlg87/unmark:environment:site`. It can list the bucket, put and delete its objects, and create and read invalidations on the distribution, nothing else |
 
-The stack's outputs are `BucketName`, `DistributionId`, and `DistributionDomainName`.
+The stack's outputs are `BucketName`, `DistributionId`, `DistributionDomainName`, and `DeployRoleArn`.
+
+## How the site deploys
+
+The Site workflow, [`.github/workflows/site.yml`](../.github/workflows/site.yml), builds `site/` and publishes it (#181). It runs:
+
+- on every push to `main` that changes `site/` or the workflow itself;
+- after every release: the Release workflow's `site` job dispatches it, so the download button names the new version. A `release` trigger wouldn't fire, because the release is created with `GITHUB_TOKEN`, whose events start no workflows;
+- by hand: `gh workflow run site.yml --ref main`.
+
+Its one job runs in the `site` environment, which allows deployments from `main` alone. It assumes `DeployRole` through OIDC, so no AWS keys are stored in GitHub. Runs share one concurrency group: a second deploy waits for the first instead of interleaving with it or cancelling it.
+
+[`site/infra/publish.sh`](../site/infra/publish.sh) uploads `site/dist` in an order that never leaves a page naming a file that isn't there yet:
+
+1. The new `assets/`, cached for a year (`public,max-age=31536000,immutable`): Vite names them by content hash.
+2. Everything else, deleting pages that are gone, with `public,max-age=0,s-maxage=31536000,must-revalidate`: browsers revalidate every time, and CloudFront keeps them until the next invalidation.
+3. An invalidation of `/*`, waiting for it to complete.
+4. `assets/` again with `--delete`, removing the previous build's files now that no cached page names them.
+
+The workflow reads three repository variables, set from the stack's outputs. They are variables, not secrets, because none is a credential:
+
+| Variable | Stack output |
+| --- | --- |
+| `SITE_DEPLOY_ROLE_ARN` | `DeployRoleArn` |
+| `SITE_BUCKET` | `BucketName` |
+| `SITE_DISTRIBUTION_ID` | `DistributionId` |
+
+After a template change that alters one of those outputs, set the variable again, for example `gh variable set SITE_BUCKET --body <BucketName>`.
 
 ## What it costs
 

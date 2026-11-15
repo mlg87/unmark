@@ -199,6 +199,49 @@ Resources:
         - !GetAtt WebAcl.Arn
         - !Sub arn:${AWS::Partition}:route53:::hostedzone/${HostedZoneId}
 
+  # GitHub Actions deploys the site through OIDC, so no AWS keys are stored in GitHub (#181).
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+
+  # Only a job in the repository's `site` environment, which deploys from main alone, can assume this role.
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: unmark-site-deploy
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: repo:mlg87/unmark:environment:site
+      Policies:
+        - PolicyName: publish-site
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt SiteBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub ${SiteBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
 Outputs:
   BucketName:
     Value: !Ref SiteBucket
@@ -206,3 +249,5 @@ Outputs:
     Value: !Ref Distribution
   DistributionDomainName:
     Value: !GetAtt Distribution.DomainName
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn

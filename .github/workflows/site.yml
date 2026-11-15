@@ -1,0 +1,60 @@
+# Builds the marketing site and publishes it to unmarkeditor.com (#181) whenever site/ changes on main. The Release
+# workflow dispatches it after each release, so the download button names the new version. It assumes the
+# unmark-site-deploy role through OIDC, so GitHub stores no AWS keys. docs/website.md lists the variables it reads.
+name: Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two deploys never interleave; a queued one waits rather than cancelling the one mid-upload.
+concurrency:
+  group: site-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The role trusts only tokens whose subject names this environment, which deploys from main alone.
+    environment: site
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Vite needs Node >= 22.12.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: site/package.json
+          cache: true
+          cache_dependency_path: site/pnpm-lock.yaml
+
+      - name: Install site dependencies
+        run: pnpm --dir site install --frozen-lockfile
+
+      # The token lifts the releases/latest lookup off the runner IP's unauthenticated rate limit.
+      - name: Build the site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm --dir site build
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.SITE_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Publish the site
+        run: site/infra/publish.sh "${{ vars.SITE_BUCKET }}" "${{ vars.SITE_DISTRIBUTION_ID }}"

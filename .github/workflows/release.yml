@@ -1,9 +1,9 @@
 # Builds a signed, notarized, and stapled Unmark-<version>.dmg with scripts/release/build-dmg.sh. A run on a v<version>
 # tag also publishes it: the Release PR workflow dispatches one when its release PR merges, and pushing a tag starts one.
 # It generates the Sparkle appcast, which embeds the notes from CHANGELOG.md's v<version> section, publishes the DMG and
-# appcast to the GitHub release v<version> with those notes, and bumps the Homebrew cask in mlg87/homebrew-tap. A
-# manual run on a branch is a dry run that only uploads the DMG as a workflow artifact. docs/releasing.md lists the
-# secrets this reads.
+# appcast to the GitHub release v<version> with those notes, bumps the Homebrew cask in mlg87/homebrew-tap, and starts
+# the Site workflow so unmarkeditor.com offers the new DMG. A manual run on a branch is a dry run that only uploads the
+# DMG as a workflow artifact. docs/releasing.md lists the secrets this reads.
 name: Release
 
 on:
@@ -199,3 +199,18 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -am "unmark $VERSION"
           git push
+
+  # Rebuilds unmarkeditor.com once the release is public, so its download button names the new version (#181). It
+  # dispatches site.yml rather than relying on that workflow having a `release` trigger: publish creates the release
+  # with GITHUB_TOKEN, and events that token causes start no workflows.
+  site:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Start the Site workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run site.yml --repo "$GITHUB_REPOSITORY" --ref main
