@@ -29,6 +29,7 @@ This skill writes the reference of a REST API, a GraphQL API, or an SDK. Each pa
 4. Use the layout of the repository's existing documentation: its folders, file names, and headings. If it has none, use the default layout in the reference file.
 5. Write each page from the matching file in `assets/`. Choose each element with [`references/syntax.md`](references/syntax.md). Write the sentences with the rules in [`references/plain-language.md`](references/plain-language.md).
    - Keep the layout of the asset. Replace every name, value, and number in it with a fact from the source.
+   - Each sentence of the asset is an example too, even one that sounds general. Keep a sentence only when the source states its fact, such as the format of an ID, the unit of an amount, or the name of the credential.
    - Leave out each part of the asset that the source does not show, such as pagination, rate limits, idempotency, webhooks, or a deprecated operation. Do not write that the API has none, because the source does not say that either.
 6. Check every operation, parameter, field, type, default, limit, and status code against the source. Delete each one that the source does not give. Write `TBD` for a needed fact that the source lacks, and list every `TBD` in the reply.
 7. Do "Show the result".

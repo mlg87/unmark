@@ -20,7 +20,7 @@ The overview page has a `#` title with the name of the API, one sentence on what
 | Base URL | The URL that every path starts with |
 | Authentication | Where the credential goes, with an example header |
 | Versioning | Where the version goes, and what a new version changes |
-| Requests and responses | The format of a body, and of dates, amounts, and IDs |
+| Requests and responses | The media type of a body, and each format of a date, an amount, or an ID that the source states |
 | Pagination | The parameters that select a page, and the fields that point to the next page |
 | Rate limits | The limit, the status code when a client goes over it, and the header that says when to try again |
 | Errors | The body of an error response, and the status codes that every endpoint can return |
