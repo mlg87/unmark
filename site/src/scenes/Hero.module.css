@@ -1,16 +1,9 @@
-/* Static is the default: text and actions, the icon tile, then the window flat beneath them. */
+/* Static is the default: text and actions, then the window flat beneath them, with the 3D mark in
+   the sheet's top right corner behind them. */
 .hero {
   display: flex;
   flex-direction: column;
   gap: clamp(3rem, 8vw, 5rem);
-}
-
-.top {
-  display: grid;
-  /* `minmax(0, …)` so the copy command's unbreakable line scrolls inside its pill instead of
-     widening the column past a phone's screen. */
-  grid-template-columns: minmax(0, 1fr);
-  gap: 3rem;
 }
 
 .copy {
@@ -19,9 +12,23 @@
   gap: 1.5rem;
 }
 
-/* Two lines at 1440 px wide beside the icon, so the text clears the window's top at 55vh. */
 .copy h1 {
   font-size: clamp(3rem, 6vw, 7rem);
+}
+
+/* Leaves the mark room on the right, so no text runs over it (#195). From 900 px that is the column
+   the 280 px icon tile and its gap had, which keeps the headline to two lines at 1440 px. Phones
+   put the mark above the headline instead (below). */
+@media (min-width: 600px) {
+  .copy {
+    max-width: calc(100% - 26vw);
+  }
+}
+
+@media (min-width: 900px) {
+  .copy {
+    max-width: calc(100% - 22.5rem);
+  }
 }
 
 .details {
@@ -48,29 +55,30 @@
   opacity: 0.75;
 }
 
-.tileDrop {
-  justify-self: center;
+/* Where the 280 px icon tile stood (#195). */
+.mark {
+  --mark-width: min(38vw, 560px);
+  top: 16vh;
+  right: 6vw;
 }
 
-.tile img {
-  box-shadow: 16px 16px 0 var(--blue);
+/* A phone's column has no room beside the text, where the headline's ragged edge decides what the
+   mark would overlap, so the mark sits above the headline and the hero starts below it. The 28vw is
+   the mark's 30.4vw static width less its transparent margin, plus room for its tilt. */
+@media (max-width: 599px) {
+  .hero {
+    padding-top: calc(28vw - 2rem);
+  }
+
+  .mark {
+    top: 1.5rem;
+  }
 }
 
 .window {
   width: min(1100px, 80vw, 100%);
   margin-inline: auto;
   transform-origin: 50% 0;
-}
-
-@media (min-width: 900px) {
-  .top {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
-
-  .tileDrop {
-    padding-right: 2rem;
-  }
 }
 
 /* Pinned: the hero fills the sheet's padded box, so the text sits at the top, and the window hangs
@@ -88,7 +96,7 @@
   pointer-events: none;
 }
 
-/* Load: words rise one by one, then the rest fades in; the tile drops in and the window rises. */
+/* Load: words rise one by one, then the rest fades in; the mark drops in and the window rises. */
 @media (prefers-reduced-motion: no-preference) {
   .copy h1 [data-word] {
     display: inline-block;
@@ -99,7 +107,7 @@
     animation: fade 600ms ease-out 300ms both;
   }
 
-  .tileDrop {
+  .mark {
     animation: drop var(--spring) 150ms both;
   }
 
@@ -111,7 +119,7 @@
      sequence waits for that instead of playing twice. */
   :global(html[data-motion="pinned"]:not([data-hydrated])) .copy h1 [data-word],
   :global(html[data-motion="pinned"]:not([data-hydrated])) .details,
-  :global(html[data-motion="pinned"]:not([data-hydrated])) .tileDrop,
+  :global(html[data-motion="pinned"]:not([data-hydrated])) .mark,
   :global(html[data-motion="pinned"]:not([data-hydrated])) .windowRise {
     animation-play-state: paused;
   }

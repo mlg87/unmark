@@ -60,6 +60,18 @@ test('render("home") puts both install paths and the facts in the install sectio
   }
 });
 
+test('render("home") draws the 3D mark on four sheets, hidden from screen readers', () => {
+  const html = render("home");
+  const marks = html.match(/<picture[^>]*aria-hidden="true"[\s\S]*?<\/picture>/g) ?? [];
+  expect(marks).toHaveLength(4);
+  for (const mark of marks) {
+    expect(mark).toMatch(/<img [^>]*alt=""/);
+  }
+  for (const angle of ["front-left", "front", "top"]) {
+    expect(html).toContain(`mark-${angle}-960`);
+  }
+});
+
 test("the footer links GitHub, the release notes, and the license on both pages", () => {
   for (const page of ["home", "not-found"] as const) {
     const footer = render(page).split("<footer")[1];
