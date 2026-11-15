@@ -1,3 +1,83 @@
 .unmark {
-  max-width: 60rem;
+  display: grid;
+  gap: clamp(3rem, 6vw, 5rem);
+  align-items: center;
+  width: 100%;
+}
+
+/* Side by side once the card leaves the copy a readable column, so the pinned sheet fits a laptop
+   window's height. */
+@media (min-width: 75rem) {
+  .unmark {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.copy p {
+  max-width: 36rem;
+  margin: 1.5rem 0 0;
+}
+
+/* 100% keeps the card inside the sheet's padding on phones, where 90vw is wider than the space. */
+.card {
+  position: relative;
+  display: grid;
+  gap: 1.25rem;
+  width: min(720px, 90vw, 100%);
+  margin-top: 2.5rem;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  border-radius: var(--card-radius);
+  background: var(--white);
+  color: var(--navy);
+  box-shadow: 16px 16px 0 var(--navy);
+}
+
+/* Sits above the card's top-left corner; both words share one cell so they cross-fade in place. */
+.label {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  display: grid;
+  margin: 0 0 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.label > * {
+  grid-area: 1 / 1;
+}
+
+.line {
+  display: grid;
+  align-items: start;
+}
+
+.line > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.source {
+  font-family: var(--mono);
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* inline-block so the scale applies; `pre` keeps the trailing space that separates it from the
+   text. */
+.mark {
+  display: inline-block;
+  color: var(--coral);
+  white-space: pre;
+  transform-origin: left center;
+}
+
+/* Static mode, including visitors without JavaScript: the rendered lines only, so the card is no
+   taller than they are. */
+:global(html:not([data-motion="pinned"])) .source {
+  display: none;
 }
