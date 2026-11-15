@@ -1,17 +1,12 @@
 import { easeInOut, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
-import {
-  type HTMLAttributes,
-  type ReactNode,
-  type RefObject,
-  useLayoutEffect,
-  useRef,
-} from "react";
-import type { MotionMode } from "../scene/math.ts";
+import { type HTMLAttributes, type ReactNode, useLayoutEffect, useRef } from "react";
 import type { Block } from "../scene/Scene.tsx";
 import { useScene } from "../scene/Scene.tsx";
 import { useMotionMode } from "../scene/useMotionMode.ts";
+import { useTrackOverflow } from "../scene/useTrackOverflow.ts";
 import { Mark, useMarkScroll } from "../ui/Mark.tsx";
 import { MarkdownBody } from "../ui/MarkdownBody.tsx";
+import { Alert, TaskItem } from "../ui/MarkdownParts.tsx";
 import { UnmarkHeading } from "../ui/UnmarkHeading.tsx";
 import styles from "./GitHub.module.css";
 
@@ -28,12 +23,6 @@ declare module "react" {
     }
   }
 }
-
-// github.com's 16px octicons for the Note and Warning alert titles (renderer/src/alerts.css).
-const INFO =
-  "M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z";
-const ALERT =
-  "M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z";
 
 // Degrees each card's tilt travels, toward the opposite sign, over the scene.
 const TILT_TRAVEL = 3;
@@ -91,10 +80,8 @@ const CARDS: CardDefinition[] = [
     frame: "pink",
     content: (
       <>
-        <Alert kind="note" title="Note" icon={INFO}>
-          Unmark updates itself through Sparkle.
-        </Alert>
-        <Alert kind="warning" title="Warning" icon={ALERT}>
+        <Alert kind="note">Unmark updates itself through Sparkle.</Alert>
+        <Alert kind="warning">
           The appcast must list the new version before the DMG goes live.
         </Alert>
       </>
@@ -201,46 +188,6 @@ export function GitHubMark() {
   );
 }
 
-// How far the track runs past the sheet's inner width, in pixels; 0 when it fits or in static mode.
-// The gallery also stretches to the sheet's inner width, wider than the page's text column on large
-// windows, so the cards use the whole sheet.
-function useTrackOverflow(
-  galleryRef: RefObject<HTMLDivElement | null>,
-  trackRef: RefObject<HTMLDivElement | null>,
-  mode: MotionMode,
-): MotionValue<number> {
-  const overflow = useMotionValue(0);
-
-  useLayoutEffect(() => {
-    const gallery = galleryRef.current;
-    const track = trackRef.current;
-    // The sheet is the section's only child (Scene.tsx).
-    const sheet = gallery?.closest("section")?.firstElementChild;
-    if (mode !== "pinned" || !gallery || !track || !(sheet instanceof HTMLElement)) {
-      overflow.set(0);
-      return;
-    }
-    const measure = () => {
-      const { paddingLeft, paddingRight } = getComputedStyle(sheet);
-      const inner =
-        sheet.clientWidth - Number.parseFloat(paddingLeft) - Number.parseFloat(paddingRight);
-      gallery.style.setProperty("--sheet-inner", `${inner}px`);
-      overflow.set(Math.max(0, track.scrollWidth - inner));
-    };
-    // The sheet resizes with the window; the track when the fonts arrive.
-    const observer = new ResizeObserver(measure);
-    observer.observe(sheet);
-    observer.observe(track);
-    return () => {
-      observer.disconnect();
-      gallery.style.removeProperty("--sheet-inner");
-      overflow.set(0);
-    };
-  }, [galleryRef, trackRef, mode, overflow]);
-
-  return overflow;
-}
-
 interface CardProps {
   card: CardDefinition;
   index: number;
@@ -263,51 +210,6 @@ function Card({ card, index, slide, pinned }: CardProps) {
       <h3 className={styles.title}>{card.title}</h3>
       <MarkdownBody className={styles.panel}>{card.content}</MarkdownBody>
     </motion.div>
-  );
-}
-
-interface AlertProps {
-  kind: "note" | "warning";
-  title: string;
-  icon: string;
-  children: string;
-}
-
-function Alert({ kind, title, icon, children }: AlertProps) {
-  return (
-    <div className={`markdown-alert markdown-alert-${kind}`}>
-      <p className="markdown-alert-title">
-        <svg
-          className={`octicon ${kind === "note" ? "octicon-info" : "octicon-alert"} mr-2`}
-          viewBox="0 0 16 16"
-          width="16"
-          height="16"
-          aria-hidden="true"
-        >
-          <path d={icon} />
-        </svg>
-        {title}
-      </p>
-      <p>{children}</p>
-    </div>
-  );
-}
-
-// github.com's task list markup; its checkboxes are disabled outside an editable view. The label
-// names each checkbox for screen readers, as the Unmark scene's task list does.
-function TaskItem({ checked, children }: { checked: boolean; children: ReactNode }) {
-  return (
-    <li className="task-list-item">
-      <label>
-        <input
-          type="checkbox"
-          className="task-list-item-checkbox"
-          defaultChecked={checked}
-          disabled
-        />{" "}
-        {children}
-      </label>
-    </li>
   );
 }
 
