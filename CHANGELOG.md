@@ -4,11 +4,6 @@ Each release's notes, newest first. The Release PR workflow adds them from GitHu
 
 ## v0.2.0 (2026-11-15)
 
-### Agent Skills
-* **Five documentation skills for coding agents.** Unmark now ships `unmark-docs`, `unmark-api-docs`, `unmark-meeting-docs`, `unmark-planning-docs`, and `unmark-polish`. They teach Claude Code, Codex, Gemini CLI, and Qwen Code to write technical docs, API references, meeting documents, and planning documents, or to polish an existing document, in markdown that reads well in Unmark and on GitHub.
-* **Settings → Agent Skills.** Install Skills links the skills into `~/.agents/skills`, and into `~/.claude/skills` when you use Claude Code. The links point into the app, so the skills update with it. Remove takes them out again. A skill folder that Unmark didn't create is never replaced.
-* **`unmark --install-skills`** does the same from Terminal and prints each linked path. `unmark --uninstall-skills` removes the links.
-
 ### What's Changed
 * docs(screenshots): show every rich element the Preview renders in sample.md by @mlg87 in https://github.com/mlg87/unmark/pull/173
 * chore: ignore macOS .DS_Store files by @mlg87 in https://github.com/mlg87/unmark/pull/176
@@ -47,6 +42,8 @@ Each release's notes, newest first. The Release PR workflow adds them from GitHu
 * docs(skills): check the five skills in Claude Code (unmark-c6y.6) by @mlg87 in https://github.com/mlg87/unmark/pull/253
 * feat(settings): Agent Skills section installs and removes the skills (unmark-bhp.3) by @mlg87 in https://github.com/mlg87/unmark/pull/252
 * fix(skills): collision-free GraphQL operation and type headings (unmark-c6y.8) by @mlg87 in https://github.com/mlg87/unmark/pull/254
+* docs(skills): drop the literal -1 fragment from graphql.md prose (unmark-c6y.9) by @mlg87 in https://github.com/mlg87/unmark/pull/257
+* docs(readme): Agent skills section with the five skills and three install routes (unmark-bhp.4) by @mlg87 in https://github.com/mlg87/unmark/pull/258
 
 
 **Full Changelog**: https://github.com/mlg87/unmark/compare/v0.1.0...v0.2.0
