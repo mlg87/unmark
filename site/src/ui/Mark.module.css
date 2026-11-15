@@ -1,0 +1,17 @@
+/* Static mode draws the mark at 80% of its pinned width and holds it still (#195). Each scene's
+   class sets `--mark-width` and the mark's corner. */
+.mark {
+  position: absolute;
+  display: block;
+  width: calc(var(--mark-width) * 0.8);
+  pointer-events: none;
+  user-select: none;
+}
+
+:global(html[data-motion="pinned"]) .mark {
+  width: var(--mark-width);
+}
+
+.mark img {
+  width: 100%;
+}

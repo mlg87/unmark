@@ -18,8 +18,15 @@ export function App() {
       <FloatingDownload />
       <Header />
       <main>
-        {SCENES.map(({ id, block, length, Component }, index) => (
-          <Scene key={id} id={id} block={block} length={length} index={index}>
+        {SCENES.map(({ id, block, length, Component, Mark }, index) => (
+          <Scene
+            key={id}
+            id={id}
+            block={block}
+            length={length}
+            index={index}
+            backdrop={Mark && <Mark />}
+          >
             <Component />
           </Scene>
         ))}

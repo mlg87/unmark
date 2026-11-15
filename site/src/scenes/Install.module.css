@@ -71,3 +71,26 @@
   list-style: none;
   font-weight: 600;
 }
+
+/* Two rows of two wherever the mark shows, so the list ends short of the corner the mark sits in;
+   in one row it ran over the mark (#195). */
+@media (min-width: 600px) {
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    justify-content: center;
+  }
+}
+
+/* Low in the right corner (#195). Phones get no room for it. */
+.mark {
+  --mark-width: min(26vw, 380px);
+  right: 4vw;
+  bottom: -6vh;
+}
+
+@media (max-width: 599px) {
+  .mark {
+    display: none;
+  }
+}

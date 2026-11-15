@@ -81,3 +81,16 @@
   white-space: pre;
   border: 0;
 }
+
+/* Cut off by the bottom left corner, the sheet's edge (#195). Phones get no room for it. */
+.mark {
+  --mark-width: min(30vw, 440px);
+  bottom: -8vh;
+  left: -6vw;
+}
+
+@media (max-width: 599px) {
+  .mark {
+    display: none;
+  }
+}

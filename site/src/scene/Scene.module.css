@@ -4,10 +4,24 @@
   position: relative;
 }
 
+/* `isolation` makes each sheet its own stacking context, so the backdrop's negative z-index puts it
+   behind the content but still in front of the sheet's color. */
 .sheet {
+  isolation: isolate;
   background: var(--block);
   color: var(--ink);
   padding: clamp(4rem, 10vw, 8rem);
+}
+
+/* Fills the sheet in both modes: the section is the containing block when the sheet isn't sticky,
+   and the two share a box. It clips decoration at the sheet's edges, even where the sheet itself
+   doesn't (#195). */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .content {

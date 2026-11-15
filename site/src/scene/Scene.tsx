@@ -45,10 +45,13 @@ interface SceneProps {
   length: number | null;
   // Position in the page: stacks later sheets above earlier ones and alternates the tilt.
   index: number;
+  // Decoration behind the content, such as the 3D mark (#195). It sits outside the static-mode
+  // reveal, whose transform would otherwise move it off the sheet's corner while it plays.
+  backdrop?: ReactNode;
   children: ReactNode;
 }
 
-export function Scene({ id, block, length, index, children }: SceneProps) {
+export function Scene({ id, block, length, index, backdrop, children }: SceneProps) {
   const mode = useMotionMode();
   const ref = useRef<HTMLElement>(null);
   const values = useSceneValues(ref, mode, length, index === 0);
@@ -68,6 +71,7 @@ export function Scene({ id, block, length, index, children }: SceneProps) {
     >
       <motion.div className={styles.sheet} style={sheetStyle}>
         <SceneContext value={values}>
+          {backdrop && <div className={styles.backdrop}>{backdrop}</div>}
           <Reveal mode={mode}>{children}</Reveal>
         </SceneContext>
       </motion.div>
