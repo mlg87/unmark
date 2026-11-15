@@ -1,9 +1,14 @@
 import AppKit
 import UnmarkCore
 
-/// The colors `SourceHighlighting` gives each token kind: asset catalog colors with GitHub's light and dark values,
-/// from highlight.js's GitHub themes (#17). The Preview's code blocks have since moved to github.com's current colors
-/// (unmark-78h). They're dynamic, so the Source recolors when the appearance changes.
+/// The colors `SourceHighlighting` gives each token kind: asset catalog colors with light and dark values, so the
+/// Source recolors when the appearance changes. Each kind keeps the hue it had from highlight.js's GitHub themes (#17),
+/// taken from github.com's current Primer prettylights colors, which the Preview's code blocks also use (unmark-78h).
+/// Every color clears WCAG AA's 4.5:1 on the Source's light and dark text backgrounds (unmark-zj9).
+///
+/// Two departures from github.com: the dark heading takes the constant color #79c0ff, as the Preview's does, because
+/// markup-heading #1f6feb is under 4.5:1; and light HTML tags and blockquote markers take markup-inserted #116329
+/// instead of entity-tag #0550ae, so they stay green as in dark rather than matching the headings' blue.
 enum SourceSyntaxColors {
     static func fromAssetCatalog() -> [MarkdownHighlighter.TokenKind: NSColor] {
         Dictionary(
