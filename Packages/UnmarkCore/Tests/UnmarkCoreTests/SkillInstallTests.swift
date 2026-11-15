@@ -62,7 +62,8 @@ struct SkillInstallTests {
         let expected = scratch.targets.flatMap { target in
             scratch.skills.map { target.skillsDirectory.appending(path: $0.lastPathComponent) }
         }
-        #expect(outcome == SkillInstall.InstallOutcome(linked: expected, conflicts: []))
+        #expect(outcome.linked == expected)
+        #expect(outcome.conflicts.isEmpty)
         let link = scratch.agentsSkills.appending(path: "unmark-docs")
         #expect(
             try FileManager.default.destinationOfSymbolicLink(atPath: link.path)
