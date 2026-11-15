@@ -1,5 +1,97 @@
 /*
- * highlight.js's light GitHub theme alone, for print output (#34), which is light in either
- * appearance. index.ts swaps it in for highlight.css while printing.
+ * GitHub's light code colors, for the light appearance and for print output (#34), which is
+ * light in either appearance; index.ts swaps this file in for highlight.css while printing.
+ *
+ * highlight.js's github.css still carries GitHub's 2021 colors, and its keyword (#d73a49) and
+ * built-in (#e36209) fall below WCAG AA's 4.5:1 on the code-block grey #f6f8fa (unmark-78h).
+ * These are github.com's current Primer prettylights colors instead, from github-markdown-css
+ * 5.9.0's --color-prettylights-syntax-* light values, mapped onto highlight.js's token classes
+ * the way github.css maps them. Every color clears 4.5:1 on #f6f8fa.
  */
-@import "@highlightjs/cdn-assets/styles/github.css";
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+  /* prettylights-syntax-keyword */
+  color: #cf222e;
+}
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  /* prettylights-syntax-entity */
+  color: #6639ba;
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  /* prettylights-syntax-constant */
+  color: #0550ae;
+}
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+  /* prettylights-syntax-string */
+  color: #0a3069;
+}
+.hljs-built_in,
+.hljs-symbol {
+  /* prettylights-syntax-variable */
+  color: #953800;
+}
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  /* prettylights-syntax-comment */
+  color: #59636e;
+}
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  /* prettylights-syntax-entity-tag */
+  color: #0550ae;
+}
+.hljs-subst {
+  /* prettylights-syntax-storage-modifier-import */
+  color: #1f2328;
+}
+.hljs-section {
+  /* prettylights-syntax-markup-heading */
+  color: #0550ae;
+  font-weight: bold;
+}
+.hljs-bullet {
+  /* prettylights-syntax-markup-list */
+  color: #3b2300;
+}
+.hljs-emphasis {
+  /* prettylights-syntax-markup-italic */
+  color: #1f2328;
+  font-style: italic;
+}
+.hljs-strong {
+  /* prettylights-syntax-markup-bold */
+  color: #1f2328;
+  font-weight: bold;
+}
+.hljs-addition {
+  /* prettylights-syntax-markup-inserted */
+  color: #116329;
+  background-color: #dafbe1;
+}
+.hljs-deletion {
+  /* prettylights-syntax-markup-deleted */
+  color: #82071e;
+  background-color: #ffebe9;
+}
