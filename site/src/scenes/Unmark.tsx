@@ -42,7 +42,9 @@ export function Unmark() {
           <motion.span style={{ opacity: previewLabel }}>Preview</motion.span>
         </p>
         <Line index={0} source={[{ mark: "# ", text: "Release checklist" }]}>
-          <h1>Release checklist</h1>
+          {/* An <h3> under the scene's <h2>, dressed as github.com's <h1>: a second <h1> on the page
+              would compete with the headline (#210). */}
+          <h3 className={styles.title}>Release checklist</h3>
         </Line>
         <Line
           index={1}
