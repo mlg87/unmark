@@ -16,10 +16,12 @@ for (const placeholder of ["<!--app-head-->", "<!--app-html-->"]) {
 const { render } = await import(new URL("../dist-server/entry-server.js", import.meta.url).href);
 
 function page(name, head) {
+  // Function replacers, because a string replacement expands $&, $', $$ and the like found in
+  // the markup (#199).
   return template
-    .replace("<!--app-head-->", head)
+    .replace("<!--app-head-->", () => head)
     .replace('<div id="app">', `<div id="app" data-page="${name}">`)
-    .replace("<!--app-html-->", render(name));
+    .replace("<!--app-html-->", () => render(name));
 }
 
 writeFileSync(`${dist}index.html`, page("home", ""));
