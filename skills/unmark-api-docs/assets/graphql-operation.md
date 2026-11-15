@@ -6,7 +6,7 @@ The queries, mutations, and subscriptions of the Example Invoices API for invoic
 
 ## Queries
 
-### invoice
+### invoice query
 
 Returns one invoice by its ID.
 
@@ -20,7 +20,7 @@ type Query {
 | --- | --- | --- | --- |
 | `id` | `ID!` | None | The ID of the invoice. |
 
-Returns: [`Invoice`](#invoice-1), or `null` when no invoice has the ID.
+Returns: [`Invoice`](#invoice-type), or `null` when no invoice has the ID.
 
 Query:
 
@@ -56,7 +56,7 @@ Response:
 }
 ```
 
-### invoices
+### invoices query
 
 Returns a page of invoices, newest first. See [Pagination](README.md#pagination).
 
@@ -70,9 +70,9 @@ type Query {
 | --- | --- | --- | --- |
 | `first` | `Int` | `10` | The number of invoices on the page. Maximum `50`. |
 | `after` | `String` | None | The cursor after which the page starts. |
-| `status` | [`InvoiceStatus`](#invoicestatus) | None | Return only invoices with this status. |
+| `status` | [`InvoiceStatus`](#invoicestatus-type) | None | Return only invoices with this status. |
 
-Returns: [`InvoiceConnection!`](#invoiceconnection).
+Returns: [`InvoiceConnection!`](#invoiceconnection-type).
 
 Query:
 
@@ -121,7 +121,7 @@ Response:
 
 ## Mutations
 
-### createInvoice
+### createInvoice mutation
 
 Creates an invoice with the status `DRAFT`.
 
@@ -133,9 +133,9 @@ type Mutation {
 
 | Name | Type | Default | Description |
 | --- | --- | --- | --- |
-| `input` | [`CreateInvoiceInput!`](#createinvoiceinput) | None | The fields of the new invoice. |
+| `input` | [`CreateInvoiceInput!`](#createinvoiceinput-type) | None | The fields of the new invoice. |
 
-Returns: [`Invoice!`](#invoice-1), the new invoice.
+Returns: [`Invoice!`](#invoice-type), the new invoice.
 
 Query:
 
@@ -178,7 +178,7 @@ Response:
 
 ## Subscriptions
 
-### invoicePaid
+### invoicePaid subscription
 
 Sends an event each time the status of an invoice changes to `PAID`.
 
@@ -192,7 +192,7 @@ type Subscription {
 | --- | --- | --- | --- |
 | `customerId` | `ID` | None | Send events only for the invoices of this customer. |
 
-Returns: [`Invoice!`](#invoice-1), the paid invoice.
+Returns: [`Invoice!`](#invoice-type), the paid invoice.
 
 Query:
 
@@ -223,7 +223,7 @@ Event:
 
 ## Types
 
-### Invoice
+### Invoice type
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -231,11 +231,11 @@ Event:
 | `customerId` | `ID!` | The ID of the customer who pays the invoice. |
 | `amountDue` | `Int!` | The amount to pay, in the smallest unit of the currency. |
 | `currency` | `String!` | The three-letter ISO 4217 code of the currency, in lowercase. |
-| `status` | [`InvoiceStatus!`](#invoicestatus) | The status of the invoice. |
+| `status` | [`InvoiceStatus!`](#invoicestatus-type) | The status of the invoice. |
 | `dueDate` | `String` | The date by which the customer must pay, as `YYYY-MM-DD`. |
 | ~~`total`~~ | `Int` | Deprecated: "Use amountDue." The field returns the same value as `amountDue`. |
 
-### InvoiceStatus
+### InvoiceStatus type
 
 | Value | Description |
 | --- | --- |
@@ -244,7 +244,7 @@ Event:
 | `PAID` | The customer paid the invoice. |
 | `VOID` | The invoice was canceled. |
 
-### CreateInvoiceInput
+### CreateInvoiceInput type
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -253,18 +253,18 @@ Event:
 | `currency` | `String!` | None | The three-letter ISO 4217 code of the currency, in lowercase. |
 | `dueDate` | `String` | None | The date by which the customer must pay, as `YYYY-MM-DD`. |
 
-### InvoiceConnection
+### InvoiceConnection type
 
 A page of invoices. See [Pagination](README.md#pagination).
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `edges` | [`[InvoiceEdge!]!`](#invoiceedge) | The invoices on the page. |
+| `edges` | [`[InvoiceEdge!]!`](#invoiceedge-type) | The invoices on the page. |
 | `pageInfo` | `PageInfo!` | Whether another page follows, and the cursor to get it. |
 
-### InvoiceEdge
+### InvoiceEdge type
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `cursor` | `String!` | The cursor of this invoice. Send it as `after` to start the next page after it. |
-| `node` | [`Invoice!`](#invoice-1) | The invoice. |
+| `node` | [`Invoice!`](#invoice-type) | The invoice. |
