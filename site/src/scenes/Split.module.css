@@ -1,3 +1,74 @@
+/* Static is the default: the copy, then the whole window beneath it. */
 .split {
-  max-width: 60rem;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 5vw, 4rem);
+}
+
+.copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+/* Heading beside the details once both get a readable column, so the copy takes as little of the
+   pinned sheet's height as it can and leaves the rest to the window. */
+@media (min-width: 75rem) {
+  .copy {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 4rem;
+    align-items: end;
+  }
+}
+
+.details p {
+  max-width: 36rem;
+  margin: 0;
+}
+
+.details .shortcut {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  font-weight: 600;
+}
+
+.keys {
+  display: flex;
+  gap: 0.6rem;
+}
+
+/* inline-block so the pop's scale applies to the whole keycap. */
+.key {
+  display: inline-block;
+}
+
+/* 100% keeps the window inside the sheet's padding on phones, where 86vw is wider than the space. */
+.window {
+  width: min(1200px, 86vw, 100%);
+  margin-inline: auto;
+}
+
+/* Pinned: the scene fills the sheet's padded box, and the stage takes the height the copy leaves.
+   The whole window must show before the next sheet arrives (#187), and at 1200 px it is 833 px
+   tall, more than a laptop leaves under the copy, so the width is also capped at the stage's
+   height times split-dark's 1600:1111 ratio. The sheet's padding is Scene.module.css's. */
+:global(html[data-motion="pinned"]) .split {
+  height: calc(100svh - 2 * clamp(2rem, 5vw, 5rem));
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+:global(html[data-motion="pinned"]) .stage {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: flex;
+  align-items: center;
+}
+
+:global(html[data-motion="pinned"]) .window {
+  flex: none;
+  width: min(1200px, 86vw, 100%, 100cqh * 1600 / 1111);
 }
