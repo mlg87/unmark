@@ -1,8 +1,10 @@
-import { motion, useInView, type Variants } from "motion/react";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { animate, motion, useInView, useMotionValue, type Variants } from "motion/react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useMotionMode } from "../scene/useMotionMode.ts";
 import { AppIconTile } from "../ui/AppIconTile.tsx";
 import { Button } from "../ui/Button.tsx";
 import { CopyCommand } from "../ui/CopyCommand.tsx";
+import { Mark } from "../ui/Mark.tsx";
 import { UnmarkHeading } from "../ui/UnmarkHeading.tsx";
 import styles from "./Install.module.css";
 
@@ -62,6 +64,34 @@ export function Install() {
         <li>Free and open source</li>
       </ul>
     </div>
+  );
+}
+
+// Sits low in the right corner and turns once, from 6° to −4°, as the section comes into view
+// (#195). Static mode holds it at 6°.
+export function InstallMark() {
+  const mode = useMotionMode();
+  const ref = useRef<HTMLElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.3 });
+  const rotate = useMotionValue(6);
+  const y = useMotionValue("0vh");
+  useEffect(() => {
+    if (mode === "pinned" && inView) {
+      const controls = animate(rotate, -4, { type: "spring", stiffness: 120, damping: 16 });
+      return () => controls.stop();
+    }
+    rotate.set(6);
+  }, [mode, inView, rotate]);
+
+  return (
+    <Mark
+      ref={ref}
+      angle="front"
+      className={styles.mark}
+      sizes="min(26vw, 380px)"
+      rotate={rotate}
+      y={y}
+    />
   );
 }
 

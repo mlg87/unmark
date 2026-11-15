@@ -13,11 +13,11 @@ interface AppIconTileProps {
   size: number;
   // Empty by default: the icon usually sits beside the word "unmark", which already names it.
   alt?: string;
-  // For a tile visible on load: fetched eagerly and first. Every other tile loads lazily.
-  priority?: boolean;
 }
 
-export function AppIconTile({ size, alt = "", priority = false }: AppIconTileProps) {
+// Lazy everywhere: only the hero's screenshot and mark load eagerly (unmark-2rg.12), and the
+// header's 40 px tile still arrives at once, since it is on screen when the page lays out.
+export function AppIconTile({ size, alt = "" }: AppIconTileProps) {
   const sizes = `${size}px`;
   return (
     <picture>
@@ -30,8 +30,7 @@ export function AppIconTile({ size, alt = "", priority = false }: AppIconTilePro
         width={size}
         height={size}
         alt={alt}
-        loading={priority ? undefined : "lazy"}
-        fetchPriority={priority ? "high" : undefined}
+        loading="lazy"
         decoding="async"
       />
     </picture>

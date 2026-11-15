@@ -10,6 +10,7 @@ import type { MotionMode } from "../scene/math.ts";
 import type { Block } from "../scene/Scene.tsx";
 import { useScene } from "../scene/Scene.tsx";
 import { useMotionMode } from "../scene/useMotionMode.ts";
+import { Mark, useMarkScroll } from "../ui/Mark.tsx";
 import { MarkdownBody } from "../ui/MarkdownBody.tsx";
 import { UnmarkHeading } from "../ui/UnmarkHeading.tsx";
 import styles from "./GitHub.module.css";
@@ -189,6 +190,14 @@ export function GitHub() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+// Hangs off the sheet's top right corner, turning and sinking as the sheet arrives (#195).
+export function GitHubMark() {
+  const { rotate, y } = useMarkScroll(10, -6, 6);
+  return (
+    <Mark angle="front" className={styles.mark} sizes="min(24vw, 360px)" rotate={rotate} y={y} />
   );
 }
 

@@ -96,3 +96,16 @@
   flex: none;
   width: clamp(280px, 30vw, 420px);
 }
+
+/* Hangs off the top right corner, cut off by the sheet's edge (#195). Phones get no room for it. */
+.mark {
+  --mark-width: min(24vw, 360px);
+  top: -6vh;
+  right: -5vw;
+}
+
+@media (max-width: 599px) {
+  .mark {
+    display: none;
+  }
+}

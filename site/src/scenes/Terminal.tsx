@@ -3,6 +3,7 @@ import { useLayoutEffect } from "react";
 import { stagger, typed } from "../scene/math.ts";
 import { useScene } from "../scene/Scene.tsx";
 import { useMotionMode } from "../scene/useMotionMode.ts";
+import { Mark, useMarkScroll } from "../ui/Mark.tsx";
 import { UnmarkHeading } from "../ui/UnmarkHeading.tsx";
 import styles from "./Terminal.module.css";
 
@@ -62,6 +63,15 @@ export function Terminal() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Seen from above, cut off by the sheet's bottom left corner, turning and rising as the sheet
+// arrives (#195).
+export function TerminalMark() {
+  const { rotate, y } = useMarkScroll(-12, 4, -6);
+  return (
+    <Mark angle="top" className={styles.mark} sizes="min(30vw, 440px)" rotate={rotate} y={y} />
   );
 }
 
