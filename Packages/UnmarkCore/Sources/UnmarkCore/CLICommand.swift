@@ -1,9 +1,14 @@
 import Foundation
 
-/// What the `unmark` command-line tool was asked to do: `unmark [--wait] <path>...`, `--help`/`-h`, or `--version`.
+/// What the `unmark` command-line tool was asked to do: `unmark [--wait] <path>...`, `--install-skills`,
+/// `--uninstall-skills`, `--help`/`-h`, or `--version`.
 public enum CLICommand: Equatable, Sendable {
     /// Open `paths`, as typed, in Unmark. With `wait`, return only once every opened document's window closes.
     case open(paths: [String], wait: Bool)
+    /// Link the bundled skills into the folders agents read skills from (#237).
+    case installSkills
+    /// Remove the links `installSkills` made (#237).
+    case uninstallSkills
     case help
     case version
 
@@ -14,11 +19,13 @@ public enum CLICommand: Equatable, Sendable {
 
     public static let usage = """
         usage: unmark [--wait] <path>...
+               unmark --install-skills | --uninstall-skills
                unmark --help | --version
         """
 
-    /// Parses the arguments after the executable name. `--help` and `--version` win as soon as they're seen,
-    /// and `--` ends option parsing so a file named like `-notes.md` can still be opened.
+    /// Parses the arguments after the executable name. `--install-skills`, `--uninstall-skills`, `--help`, and
+    /// `--version` win as soon as they're seen, and `--` ends option parsing so a file named like `-notes.md` can
+    /// still be opened.
     public static func parse(_ arguments: [String]) throws(UsageError) -> CLICommand {
         var paths: [String] = []
         var wait = false
@@ -36,6 +43,10 @@ public enum CLICommand: Equatable, Sendable {
                 return .help
             case "--version":
                 return .version
+            case "--install-skills":
+                return .installSkills
+            case "--uninstall-skills":
+                return .uninstallSkills
             case "--wait":
                 wait = true
             default:
