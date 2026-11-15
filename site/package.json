@@ -7,8 +7,8 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "predev": "node scripts/optimize-images.mjs",
-    "prebuild": "node scripts/optimize-images.mjs",
+    "predev": "node scripts/optimize-images.mjs && node scripts/brand-images.mjs",
+    "prebuild": "node scripts/optimize-images.mjs && node scripts/brand-images.mjs",
     "pretest": "node scripts/optimize-images.mjs",
     "dev": "vite",
     "build": "vite build && vite build --ssr src/entry-server.tsx --outDir dist-server && node scripts/prerender.mjs",

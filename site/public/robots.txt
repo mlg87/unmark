@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://unmarkeditor.com/sitemap.xml

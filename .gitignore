@@ -15,6 +15,11 @@ site/dist/
 site/dist-server/
 # Responsive images, rebuilt by site/scripts/optimize-images.mjs before dev, build, and test (#183).
 site/src/assets/generated/
+# Social card and favicons, rebuilt by site/scripts/brand-images.mjs before dev and build (#192).
+site/public/og.png
+site/public/favicon-32.png
+site/public/favicon-192.png
+site/public/apple-touch-icon.png
 # bd appends to this audit log on every bead change, always in the main checkout,
 # which left main permanently dirty. The Dolt DB (synced via `bd dolt push`)
 # already holds the same history. Kept here, not in .beads/.gitignore, because
