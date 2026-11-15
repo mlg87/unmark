@@ -169,13 +169,14 @@ git config --global core.editor "unmark --wait"   # for every commit
 
 ## Settings
 
-Unmark → Settings… (<kbd>⌘,</kbd>) has four sections:
+Unmark → Settings… (<kbd>⌘,</kbd>) has five sections:
 
 | Section | What it does |
 | --- | --- |
 | **Source** | The Source's font, from the monospaced fonts installed (SF Mono by default), and its size, 9 to 36 pt. Open windows follow each change. |
 | **Defaults** | Make Unmark the Default Markdown App, so Finder opens markdown files in Unmark. |
 | **Command-Line Tool** | Install Command-Line Tool links `/usr/local/bin/unmark` to the tool inside the running copy of Unmark, after the standard administrator password prompt. It shows `Installed at /usr/local/bin/unmark` only while that link resolves to this copy's tool; a link left behind when the app moved shows `Not installed` and a Reinstall button. |
+| **Agent Skills** | Install Skills links Unmark's documentation skills into `~/.agents/skills`, which Codex, Gemini CLI, and Qwen Code read, and into `~/.claude/skills` when you use Claude Code. The links point into the app, so the skills update with it. Remove takes them out again. A skill folder that Unmark didn't create is never replaced. |
 | **Updates** | Automatically check for updates. Unmark → Check for Updates… checks now. |
 
 If you cancel the password prompt or the install fails, a sheet gives the command to run in Terminal instead, and notes when `/usr/local/bin` isn't on your `PATH`:

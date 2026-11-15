@@ -89,6 +89,9 @@
     "Add %@ to your PATH" : {
 
     },
+    "Agent Skills" : {
+
+    },
     "Automatically check for updates" : {
 
     },
@@ -105,6 +108,12 @@
 
     },
     "Copy" : {
+
+    },
+    "Couldn’t install the skills" : {
+
+    },
+    "Couldn’t remove the skills" : {
 
     },
     "Cut" : {
@@ -155,7 +164,13 @@
     "Install Command-Line Tool" : {
 
     },
+    "Install Skills" : {
+
+    },
     "Installed at %@" : {
+
+    },
+    "Installed in %@" : {
 
     },
     "Make Unmark the Default Markdown App" : {
@@ -173,10 +188,16 @@
     "Not installed" : {
 
     },
+    "OK" : {
+
+    },
     "Open…" : {
 
     },
     "Page Setup…" : {
+
+    },
+    "Partly installed" : {
 
     },
     "Paste" : {
@@ -198,6 +219,9 @@
 
     },
     "Reinstall" : {
+
+    },
+    "Remove" : {
 
     },
     "Revert to Saved" : {
@@ -231,6 +255,12 @@
 
     },
     "Size" : {
+
+    },
+    "Skills that teach coding agents to write documentation, for Claude Code, Codex, Gemini CLI, Qwen Code, and others." : {
+
+    },
+    "Skipped %@ in %@: another skill has that name." : {
 
     },
     "Source" : {
