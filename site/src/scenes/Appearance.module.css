@@ -1,3 +1,55 @@
-.appearance {
-  max-width: 60rem;
+/* Pinned: each copy covers the whole sheet with the same padding and layout, so the two line up
+   pixel for pixel wherever the wipe's edge falls. The sticky sheet is their containing block. */
+.layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: clamp(2rem, 5vw, 5rem);
+  background: var(--block);
+  color: var(--ink);
+}
+
+/* The picture is `min(72vh, 820px)` square (#190); the 50vw cap leaves the copy a column in the
+   narrowest pinned windows, and is wider than 72vh from 1440 × 900 up. */
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(72vh, 820px, 50vw);
+  gap: clamp(2rem, 5vw, 5rem);
+  align-items: center;
+  width: 100%;
+  max-width: 90rem;
+  margin-inline: auto;
+}
+
+.paragraph {
+  max-width: 36rem;
+  margin: 1.5rem 0 0;
+}
+
+/* Static: one heading and paragraph, then both pictures side by side, stacked on phones. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+}
+
+@media (min-width: 700px) {
+  .pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.figure {
+  margin: 0;
+}
+
+.caption {
+  margin-top: 1rem;
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
