@@ -161,6 +161,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
 | `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
 | `site/` | pnpm package for the marketing site: Vite and React, prerendered to static HTML in `site/dist/` with the latest release's DMG link fetched at build time |
+| `site/infra/` | CloudFormation stack that hosts the site on S3 and CloudFront's Free plan at `unmarkeditor.com`, and its deploy script; see [`docs/website.md`](docs/website.md) |
 | `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs, `scripts/release/` the DMG build |
 | `Artwork/` | The owner's app icon artwork, square and at least 1024 px; `swift scripts/generate-app-icon.swift` renders `AppIcon.appiconset` from it |
 | `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
