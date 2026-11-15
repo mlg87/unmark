@@ -1,0 +1,15 @@
+.keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2em;
+  padding: 0.3em 0.6em;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--navy);
+  box-shadow: 4px 4px 0 var(--navy);
+  font-family: var(--mono);
+  font-weight: 600;
+  line-height: 1;
+}

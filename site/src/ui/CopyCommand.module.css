@@ -1,0 +1,30 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 1.5rem;
+  border-radius: 999px;
+  background: var(--navy);
+  color: var(--white);
+  box-shadow: 4px 4px 0 var(--white);
+}
+
+.command {
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 1rem;
+  white-space: pre;
+}
+
+.copy {
+  flex: none;
+  min-width: 6.5em;
+  padding: 0.6em 1.1em;
+  border: 0;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--navy);
+  font: 600 1rem var(--body);
+  cursor: pointer;
+}

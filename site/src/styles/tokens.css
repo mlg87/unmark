@@ -1,0 +1,54 @@
+/* The Poster direction (#183): flat blocks of the app icon's colors, oversized type, hard edges.
+   Colors are sampled from Artwork/AppIcon.png. */
+:root {
+  --navy: #02163b;
+  --pink: #fe3995;
+  --coral: #fd4548;
+  --blue: #2934fc;
+  --white: #ffffff;
+  /* The only gradient on the site, and only on the primary button. */
+  --gradient: linear-gradient(90deg, #fe3995, #fd4548);
+  /* Shows around a sheet while it shrinks under the next one, so even a navy sheet's edge reads. */
+  --night: #000b1e;
+
+  --display: "Fredoka Variable", ui-rounded, system-ui, sans-serif;
+  --body: "Figtree Variable", system-ui, sans-serif;
+  --mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  --h1-size: clamp(3rem, 9vw, 9rem);
+  --h1-leading: 0.95;
+  --h2-size: clamp(2.5rem, 6vw, 6rem);
+  --h2-leading: 1;
+  --body-size: clamp(1.125rem, 1.4vw, 1.5rem);
+  --body-leading: 1.45;
+
+  --card-radius: 24px;
+  /* Hard offsets only: no blurred shadows anywhere. */
+  --shadow: 12px 12px 0 var(--navy);
+}
+
+/* Text color follows the block. White on pink or coral is only 3.4:1, so those take navy. */
+[data-block="navy"] {
+  --block: var(--navy);
+  --ink: var(--white);
+}
+
+[data-block="blue"] {
+  --block: var(--blue);
+  --ink: var(--white);
+}
+
+[data-block="pink"] {
+  --block: var(--pink);
+  --ink: var(--navy);
+}
+
+[data-block="coral"] {
+  --block: var(--coral);
+  --ink: var(--navy);
+}
+
+[data-block="white"] {
+  --block: var(--white);
+  --ink: var(--navy);
+}

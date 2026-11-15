@@ -1,0 +1,50 @@
+/* Static is the default: ordinary stacked blocks. Pinned layout applies only under
+   html[data-motion="pinned"], which the inline script in index.html sets (#183). */
+.scene {
+  position: relative;
+}
+
+.sheet {
+  background: var(--block);
+  color: var(--ink);
+  padding: clamp(4rem, 10vw, 8rem);
+}
+
+.content {
+  width: 100%;
+  max-width: 90rem;
+  margin-inline: auto;
+}
+
+/* The wrapper stays transparent: it overlaps the previous scene's last screen, and only its sheet
+   may cover that one. */
+:global(html[data-motion="pinned"]) .scene {
+  height: var(--scene-height);
+  z-index: var(--scene-index);
+}
+
+:global(html[data-motion="pinned"]) .scene + .scene {
+  margin-top: -100svh;
+}
+
+:global(html[data-motion="pinned"]) .sheet {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: clamp(2rem, 5vw, 5rem);
+}
+
+/* A scene with no length of its own still slides over the previous one, then scrolls normally. */
+:global(html[data-motion="pinned"]) .unpinned {
+  height: auto;
+}
+
+:global(html[data-motion="pinned"]) .unpinned .sheet {
+  position: static;
+  height: auto;
+  min-height: 100svh;
+  overflow: visible;
+}

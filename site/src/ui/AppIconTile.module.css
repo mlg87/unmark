@@ -1,0 +1,4 @@
+/* The macOS icon squircle's corner, as a share of the tile's width. */
+.icon {
+  border-radius: 22.37%;
+}
