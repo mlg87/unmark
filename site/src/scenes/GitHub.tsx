@@ -293,17 +293,20 @@ function Alert({ kind, title, icon, children }: AlertProps) {
   );
 }
 
-// github.com's task list markup; its checkboxes are disabled outside an editable view.
+// github.com's task list markup; its checkboxes are disabled outside an editable view. The label
+// names each checkbox for screen readers, as the Unmark scene's task list does.
 function TaskItem({ checked, children }: { checked: boolean; children: ReactNode }) {
   return (
     <li className="task-list-item">
-      <input
-        type="checkbox"
-        className="task-list-item-checkbox"
-        defaultChecked={checked}
-        disabled
-      />{" "}
-      {children}
+      <label>
+        <input
+          type="checkbox"
+          className="task-list-item-checkbox"
+          defaultChecked={checked}
+          disabled
+        />{" "}
+        {children}
+      </label>
     </li>
   );
 }

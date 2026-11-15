@@ -1,3 +1,4 @@
+import headlineFont from "@fontsource-variable/fredoka/files/fredoka-latin-wght-normal.woff2?url";
 import { renderToString } from "react-dom/server";
 import { PAGES, type Page } from "./pages.ts";
 
@@ -8,11 +9,16 @@ export function render(page: Page): string {
 
 const SITE_URL = "https://unmarkeditor.com/";
 
+// Both pages open on a Fredoka headline. Without the preload, the browser finds the font only once
+// the stylesheet is parsed, and the headline reflows when it swaps in (unmark-2rg.12). The URL is
+// the client build's: Vite names the file by its content in both builds.
+const PRELOAD_HEADLINE_FONT = `<link rel="preload" href="${headlineFont}" as="font" type="font/woff2" crossorigin />`;
+
 // The tags each page adds to the shared <head>; prerender.mjs writes them into <!--app-head-->.
 // Only the home page describes the app to search engines (#192).
 export function head(page: Page): string {
   if (page === "not-found") {
-    return '<meta name="robots" content="noindex" />';
+    return `${PRELOAD_HEADLINE_FONT}<meta name="robots" content="noindex" />`;
   }
   const app = {
     "@context": "https://schema.org",
@@ -27,5 +33,5 @@ export function head(page: Page): string {
   };
   // Escaping "<" keeps a "</script>" anywhere in the data from closing the tag early.
   const json = JSON.stringify(app).replace(/</g, "\\u003c");
-  return `<script type="application/ld+json">${json}</script>`;
+  return `${PRELOAD_HEADLINE_FONT}<script type="application/ld+json">${json}</script>`;
 }

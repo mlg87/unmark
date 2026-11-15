@@ -49,7 +49,8 @@ jobs:
   # The marketing site (#182). Its build fetches the latest release, so it fails when that lookup does.
   site:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Lighthouse's six page loads take about two minutes of it (unmark-2rg.12).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -73,11 +74,19 @@ jobs:
       - name: Site tests
         run: pnpm --dir site test
 
-      # The token lifts the releases/latest lookup off the runner IP's unauthenticated rate limit.
+      # The token lifts the releases/latest lookup off the runner IP's unauthenticated rate limit. The build ends with
+      # scripts/check-budget.mjs, which fails it when the scripts or the page outgrow their size budget (unmark-2rg.12).
       - name: Site build
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: pnpm --dir site build
+
+      # Three Lighthouse runs of each built page, against site/lighthouserc.json (unmark-2rg.12). Accessibility, best
+      # practices, and SEO fail the job below 0.95, as does any contrast, heading-order, or alt-text failure. Performance
+      # only warns: its score swings between runs on a shared runner, and this job is part of the required check.
+      - name: Site Lighthouse
+        working-directory: site
+        run: pnpm dlx @lhci/cli@0.16.1 autorun
 
   # Every check that needs a Mac but not the built app, so none of them delays the app job.
   checks:

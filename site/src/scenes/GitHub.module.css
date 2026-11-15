@@ -54,17 +54,19 @@
   overflow-wrap: anywhere;
 }
 
-/* highlight.js's GitHub theme, light colors (renderer/src/highlight.css). */
+/* github.com's current light syntax colors (Primer's prettylights keyword, string, and variable).
+   The app's highlight.js theme (renderer/src/highlight.css) uses older ones, whose keyword and
+   built-in fall short of 4.5:1 on the code block's grey at this size (unmark-2rg.12). */
 .keyword {
-  color: #d73a49;
+  color: #cf222e;
 }
 
 .string {
-  color: #032f62;
+  color: #0a3069;
 }
 
 .builtIn {
-  color: #e36209;
+  color: #953800;
 }
 
 /* Mermaid's default font for diagram labels. */

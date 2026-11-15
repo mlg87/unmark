@@ -11,7 +11,7 @@
     "prebuild": "node scripts/optimize-images.mjs && node scripts/brand-images.mjs",
     "pretest": "node scripts/optimize-images.mjs",
     "dev": "vite",
-    "build": "vite build && vite build --ssr src/entry-server.tsx --outDir dist-server && node scripts/prerender.mjs",
+    "build": "vite build && vite build --ssr src/entry-server.tsx --outDir dist-server && node scripts/prerender.mjs && node scripts/check-budget.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

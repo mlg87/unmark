@@ -8,7 +8,7 @@ const LINKS = [
 
 export function Footer() {
   return (
-    <footer className={styles.footer}>
+    <footer className={styles.footer} data-block="navy">
       <div className={styles.inner}>
         <span className={styles.wordmark}>unmark</span>
         <nav className={styles.links}>

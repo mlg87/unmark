@@ -15,6 +15,8 @@ interface AppIconTileProps {
   alt?: string;
 }
 
+// Lazy everywhere: only the hero's screenshot and mark load eagerly (unmark-2rg.12), and the
+// header's 40 px tile still arrives at once, since it is on screen when the page lays out.
 export function AppIconTile({ size, alt = "" }: AppIconTileProps) {
   const sizes = `${size}px`;
   return (
@@ -28,6 +30,8 @@ export function AppIconTile({ size, alt = "" }: AppIconTileProps) {
         width={size}
         height={size}
         alt={alt}
+        loading="lazy"
+        decoding="async"
       />
     </picture>
   );

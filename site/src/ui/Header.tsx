@@ -6,7 +6,7 @@ import styles from "./Header.module.css";
 // away with it.
 export function Header() {
   return (
-    <header className={styles.header}>
+    <header className={styles.header} data-block="navy">
       <a className={styles.brand} href="/">
         <AppIconTile size={40} />
         <span className={styles.wordmark}>unmark</span>

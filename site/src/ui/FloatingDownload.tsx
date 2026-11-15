@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, type Transition, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Button } from "./Button.tsx";
 import styles from "./FloatingDownload.module.css";
@@ -34,16 +34,20 @@ export function FloatingDownload() {
     return () => observer.disconnect();
   }, []);
 
-  const offset = reduce ? 0 : -20;
+  // With "Reduce motion" on, it appears and disappears at once: even a fade is movement
+  // (unmark-2rg.12).
+  const transition: Transition = reduce
+    ? { duration: 0 }
+    : { type: "spring", stiffness: 400, damping: 30 };
   return (
     <AnimatePresence>
       {visible && (
         <motion.div
           className={styles.floating}
-          initial={{ opacity: 0, y: offset }}
+          initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: offset }}
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={transition}
         >
           <Button className={styles.button} size="small" href={__RELEASE__.dmgUrl}>
             Download

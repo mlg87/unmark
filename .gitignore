@@ -20,6 +20,8 @@ site/public/og.png
 site/public/favicon-32.png
 site/public/favicon-192.png
 site/public/apple-touch-icon.png
+# Lighthouse CI's reports, written by `pnpm dlx @lhci/cli autorun` in site/ (unmark-2rg.12).
+site/.lighthouseci/
 # bd appends to this audit log on every bead change, always in the main checkout,
 # which left main permanently dirty. The Dolt DB (synced via `bd dolt push`)
 # already holds the same history. Kept here, not in .beads/.gitignore, because
