@@ -1,4 +1,4 @@
-# Three jobs run side by side so a run takes as long as its slowest, app (#163). The `ci` job at the end is the
+# Four jobs run side by side so a run takes as long as its slowest, app (#163). The `ci` job at the end is the
 # required status check for `main` (see README "Continuous integration").
 name: CI
 
@@ -45,6 +45,39 @@ jobs:
       # when KaTeX leaves its lazy chunk (unmark-1793451433078-17-487f189f).
       - name: Renderer build
         run: pnpm --dir renderer build
+
+  # The marketing site (#182). Its build fetches the latest release, so it fails when that lookup does.
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # Vite and Vitest need Node >= 22.12.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: site/package.json
+          cache: true
+          cache_dependency_path: site/pnpm-lock.yaml
+
+      - name: Install site dependencies
+        run: pnpm --dir site install --frozen-lockfile
+
+      - name: Site typecheck
+        run: pnpm --dir site typecheck
+
+      - name: Site tests
+        run: pnpm --dir site test
+
+      # The token lifts the releases/latest lookup off the runner IP's unauthenticated rate limit.
+      - name: Site build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm --dir site build
 
   # Every check that needs a Mac but not the built app, so none of them delays the app job.
   checks:
@@ -297,7 +330,7 @@ jobs:
   # dependency failed and counts a skipped required check as passing, so this one always runs and fails unless every
   # job above succeeded. That includes a cancelled run.
   ci:
-    needs: [renderer, checks, app]
+    needs: [renderer, site, checks, app]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

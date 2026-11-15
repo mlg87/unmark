@@ -25,9 +25,9 @@ SWIFT_SOURCES := App CLI Packages scripts
 lint:
 	swift format lint -s -r $(SWIFT_SOURCES)
 	swiftlint lint --strict --quiet
-	pnpm --dir renderer exec biome check --error-on-warnings .
+	pnpm --dir renderer exec biome check --error-on-warnings . ../site
 
 format:
 	swift format format -i -r $(SWIFT_SOURCES)
 	swiftlint lint --fix --quiet
-	pnpm --dir renderer exec biome check --write .
+	pnpm --dir renderer exec biome check --write . ../site
