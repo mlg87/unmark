@@ -155,7 +155,16 @@ describe.each(skills)("%s", (skill) => {
     expect(frontmatter.name).toBe(skill);
     expect(frontmatter.name).toMatch(/^unmark-[a-z0-9]+(-[a-z0-9]+)*$/);
     expect(typeof frontmatter.description).toBe("string");
-    expect(frontmatter.description).not.toMatch(/\n/);
+    // YAML folds a plain scalar that wraps over several lines into one line, so only the raw
+    // text shows whether the description fits on one line (#243).
+    const yamlLines = (yaml ?? "").split("\n");
+    const afterDescription =
+      yamlLines[yamlLines.findIndex((line) => line.startsWith("description:")) + 1];
+    if (afterDescription !== undefined) {
+      expect(afterDescription, "the next key follows the description line").toMatch(
+        /^[a-z][\w-]*:/,
+      );
+    }
     expect(frontmatter.description.length).toBeLessThanOrEqual(1024);
     expect(frontmatter.description).toContain("Use when");
     expect(frontmatter.license).toBe("MIT");
