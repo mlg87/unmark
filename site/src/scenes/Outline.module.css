@@ -1,3 +1,87 @@
 .outline {
-  max-width: 60rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3rem;
+  align-items: center;
+  width: 100%;
+}
+
+/* Side by side wherever the scene can pin, so it fits a laptop window's height. The frame's track
+   grows to its 900px before the copy takes what is left, and the copy keeps a readable column by
+   squeezing the frame instead on narrower windows. */
+@media (min-width: 900px) {
+  .outline {
+    grid-template-columns: minmax(20rem, 1fr) minmax(0, 900px);
+  }
+}
+
+/* Smaller than the shared h2 so the headline wraps to two lines in the narrow copy column. */
+.copy h2 {
+  font-size: clamp(2.5rem, 3.6vw, 4.5rem);
+}
+
+.copy p {
+  max-width: 36rem;
+  margin: 1.5rem 0 0;
+}
+
+.shortcuts {
+  display: grid;
+  gap: 1rem;
+  margin: 2rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 600;
+}
+
+.shortcuts li {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.keys {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.875em;
+}
+
+/* 100% keeps the frame inside the sheet's padding on phones, where 80vw is wider than the space. */
+.frame {
+  width: min(900px, 80vw, 100%);
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 16px 16px 0 var(--navy);
+}
+
+/* The picture at the frame's full width; the zoom scales it toward this corner. */
+.layer {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+/* Square corners: the frame rounds them, and WindowShot's own radius would grow with the zoom. */
+.layer .shot {
+  width: 100%;
+  border-radius: 0;
+}
+
+/* Placed by fractions of the picture: the Outline is its left 22%, and `Release checklist` is the
+   2.8%-tall row starting 6.2% down (#188). Outline.tsx moves it down one row height at a time. */
+.highlight {
+  position: absolute;
+  top: 6.2%;
+  left: 0.5%;
+  width: 21%;
+  height: 2.8%;
+  border-radius: 6px;
+  outline: 3px solid var(--navy);
+  background: color-mix(in srgb, var(--coral) 25%, transparent);
+}
+
+/* Static mode, including visitors without JavaScript, shows the plain picture. */
+:global(html:not([data-motion="pinned"])) .highlight {
+  display: none;
 }
