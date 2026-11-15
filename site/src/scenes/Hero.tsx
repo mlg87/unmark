@@ -79,7 +79,9 @@ export function Hero() {
         </motion.div>
         <div className={styles.tileDrop} data-scene-visual="">
           <motion.div className={styles.tile} style={{ y: tileY, rotate: tileRotate }}>
-            <AppIconTile size={280} />
+            {/* On phones the tile is the largest thing on screen when the page loads, so it is the
+                page's Largest Contentful Paint (unmark-2rg.12). */}
+            <AppIconTile size={280} priority />
           </motion.div>
         </div>
       </div>

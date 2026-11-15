@@ -32,8 +32,8 @@
   gap: 1.25rem;
   padding: clamp(1.5rem, 3vw, 2.5rem);
   border-radius: var(--card-radius);
-  background: var(--white);
-  color: var(--navy);
+  background: var(--block);
+  color: var(--ink);
   box-shadow: var(--shadow);
 }
 

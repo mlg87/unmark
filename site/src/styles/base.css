@@ -38,6 +38,13 @@ img {
   height: auto;
 }
 
+/* One focus ring for every link and button (unmark-2rg.12): the block's text color, which the text
+   color rules (#183) already hold to contrast with the block it sits on. */
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
 /* Pinned scenes draw their visuals from scroll values that only exist once React runs, so they
    stay hidden until then instead of flashing their unscrolled state. Headings stay visible. */
 html[data-motion="pinned"]:not([data-hydrated]) [data-scene-visual] {

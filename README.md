@@ -192,7 +192,12 @@ Four jobs run side by side, so a run takes as long as the slowest of them,
   size budget in `renderer/build.mjs`).
 - `site`, on `ubuntu-latest`, typechecks and tests the site, then builds it
   (which fails if the latest GitHub release has no `Unmark-*.dmg` asset or the
-  lookup fails, so the site never ships a dead download button).
+  lookup fails, so the site never ships a dead download button, or if the
+  page's JavaScript passes 150 KB gzipped or `index.html` passes 60 KB, the
+  budgets in `site/scripts/check-budget.mjs`). Then it runs Lighthouse on the
+  built pages (`site/lighthouserc.json`), which fails the job if accessibility,
+  best practices, or SEO score below 0.95; performance is reported but never
+  fails it.
 - `checks`, on `macos-15` with Xcode 16.4, runs `make lint`, `make test`, the
   timed renderer test (`test/keystroke-to-preview.test.ts`, whose budget is
   calibrated to this runner), and `scripts/perf/keystroke-to-preview.swift` for

@@ -42,8 +42,9 @@ export function CopyCommand({ command }: { command: string }) {
     selection.addRange(range);
   }
 
+  // Navy wherever it sits, so its button's focus ring takes navy's text color (base.css).
   return (
-    <div className={styles.pill}>
+    <div className={styles.pill} data-block="navy">
       <code ref={commandRef} className={styles.command}>
         {command}
       </code>

@@ -76,6 +76,7 @@ function Card({ index, animate, title, children }: CardProps) {
   return (
     <motion.div
       className={styles.card}
+      data-block="white"
       custom={index}
       variants={CARD}
       initial={false}
