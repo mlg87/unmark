@@ -13,20 +13,20 @@ for (const placeholder of ["<!--app-head-->", "<!--app-html-->"]) {
   }
 }
 
-const { render } = await import(new URL("../dist-server/entry-server.js", import.meta.url).href);
+const { head, render } = await import(
+  new URL("../dist-server/entry-server.js", import.meta.url).href
+);
 
-function page(name, head) {
+// Replacer functions, so a "$" in the head or markup is never read as a replacement pattern.
+function page(name) {
   return template
-    .replace("<!--app-head-->", head)
+    .replace("<!--app-head-->", () => head(name))
     .replace('<div id="app">', `<div id="app" data-page="${name}">`)
-    .replace("<!--app-html-->", render(name));
+    .replace("<!--app-html-->", () => render(name));
 }
 
-writeFileSync(`${dist}index.html`, page("home", ""));
+writeFileSync(`${dist}index.html`, page("home"));
 writeFileSync(
   `${dist}404.html`,
-  page("not-found", '<meta name="robots" content="noindex" />').replace(
-    /<title>.*<\/title>/,
-    "<title>Page not found · Unmark</title>",
-  ),
+  page("not-found").replace(/<title>.*<\/title>/, "<title>Page not found · Unmark</title>"),
 );

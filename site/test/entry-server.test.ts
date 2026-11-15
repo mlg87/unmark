@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { render } from "../src/entry-server.tsx";
+import { head, render } from "../src/entry-server.tsx";
 
 test('render("home") has one <h1>, the headline, and links the release DMG', () => {
   const html = render("home");
@@ -27,4 +27,18 @@ test('render("home") has every scene and leaves the motion mode to the browser',
   }
   // The inline script in index.html sets it; prerendered markup must stay static for no-JS visitors.
   expect(html).not.toContain("data-motion");
+});
+
+test('head("home") carries JSON-LD for the release, and head("not-found") only noindex', () => {
+  const jsonLd = head("home").match(/<script type="application\/ld\+json">(.*)<\/script>/);
+  const app = JSON.parse(jsonLd?.[1] ?? "");
+  expect(app).toMatchObject({
+    "@type": "SoftwareApplication",
+    softwareVersion: "0.0.0",
+    downloadUrl: "https://example.invalid/Unmark-0.0.0.dmg",
+  });
+
+  const notFound = head("not-found");
+  expect(notFound).not.toContain("application/ld+json");
+  expect(notFound).toContain('<meta name="robots" content="noindex" />');
 });
