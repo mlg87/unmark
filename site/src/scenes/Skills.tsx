@@ -3,6 +3,7 @@ import { type ReactNode, useRef } from "react";
 import type { Block } from "../scene/Scene.tsx";
 import { useScene } from "../scene/Scene.tsx";
 import { useMotionMode } from "../scene/useMotionMode.ts";
+import { useTrackFit } from "../scene/useTrackFit.ts";
 import { useTrackOverflow } from "../scene/useTrackOverflow.ts";
 import { CopyCommand } from "../ui/CopyCommand.tsx";
 import { MarkdownBody } from "../ui/MarkdownBody.tsx";
@@ -221,6 +222,7 @@ export function Skills() {
   const { progress } = useScene();
   const galleryRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
+  useTrackFit(galleryRef, trackRef, mode);
   const overflow = useTrackOverflow(galleryRef, trackRef, mode);
   // Starts with the first card at the left edge and ends with the last card at the right edge.
   const x = useTransform([progress, overflow], ([p = 0, o = 0]: number[]) => -p * o);
