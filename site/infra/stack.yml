@@ -207,7 +207,10 @@ Resources:
       ClientIdList:
         - sts.amazonaws.com
 
-  # Only a job in the repository's `site` environment, which deploys from main alone, can assume this role.
+  # Only a job in the repository's `site` environment, which deploys from main alone, can assume this role. The
+  # repository issues immutable OIDC subjects, which add the owner's and repository's IDs to their names (`gh api
+  # repos/mlg87/unmark/actions/oidc/customization/sub`), so a later account or repository named `mlg87/unmark` can't
+  # match them.
   DeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -222,7 +225,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: repo:mlg87/unmark:environment:site
+                token.actions.githubusercontent.com:sub: repo:mlg87@10038207/unmark@1440804257:environment:site
       Policies:
         - PolicyName: publish-site
           PolicyDocument:
