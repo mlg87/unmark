@@ -143,6 +143,7 @@ The Preview follows GitHub Flavored Markdown and the extras github.com adds. [`d
 
 ```sh
 unmark [--wait] <file>...
+unmark --install-skills | --uninstall-skills
 unmark --help | --version
 ```
 
@@ -158,10 +159,12 @@ git config --global core.editor "unmark --wait"   # for every commit
 > [!IMPORTANT]
 > Save with <kbd>⌘S</kbd> before you close the window: git reads the saved file.
 
+`--install-skills` links each of Unmark's skills into `~/.agents/skills`, and into `~/.claude/skills` when `~/.claude` exists, so agents can use them. Each link points at the skill inside this copy of Unmark, and each linked path is printed. A file or folder that Unmark didn't create is never replaced: `unmark: <path>: another skill has this name`. `--uninstall-skills` removes Unmark's links from both folders and leaves everything else. Neither option starts the app.
+
 | Exit status | Meaning |
 | :---: | --- |
 | `0` | Every file opened, and with `--wait`, every window closed |
-| `1` | A file doesn't exist (the others still open), Unmark couldn't launch, or with `--wait`, a file couldn't be opened: `unmark: <file>: could not be opened` |
+| `1` | A file doesn't exist (the others still open), Unmark couldn't launch, with `--wait`, a file couldn't be opened: `unmark: <file>: could not be opened`, or with `--install-skills`, another skill has a skill's name |
 | `2` | Usage error, such as an unknown option |
 
 ## Settings

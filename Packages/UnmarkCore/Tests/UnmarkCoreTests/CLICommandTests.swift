@@ -36,6 +36,27 @@ struct CLICommandTests {
         #expect(try CLICommand.parse(["--version"]) == .version)
     }
 
+    @Test(arguments: [
+        (["--install-skills"], CLICommand.installSkills),
+        (["a.md", "--install-skills"], .installSkills),
+        (["--install-skills", "--bogus"], .installSkills),
+        (["--uninstall-skills"], .uninstallSkills),
+        (["a.md", "--uninstall-skills"], .uninstallSkills),
+        (["--uninstall-skills", "--bogus"], .uninstallSkills),
+    ])
+    func skillOptionsWinOverPathsAndLaterOptions(arguments: [String], expected: CLICommand) throws {
+        #expect(try CLICommand.parse(arguments) == expected)
+    }
+
+    @Test(arguments: ["--install-skills", "--uninstall-skills"])
+    func unknownOptionBeforeSkillOptionIsAnError(option: String) {
+        #expect(throws: CLICommand.UsageError.unknownOption("--bogus")) { try CLICommand.parse(["--bogus", option]) }
+    }
+
+    @Test func skillOptionAfterDoubleDashIsAPath() throws {
+        #expect(try CLICommand.parse(["--", "--install-skills"]) == .open(paths: ["--install-skills"], wait: false))
+    }
+
     @Test func doubleDashEndsOptions() throws {
         #expect(try CLICommand.parse(["--", "--help", "-x.md"]) == .open(paths: ["--help", "-x.md"], wait: false))
     }

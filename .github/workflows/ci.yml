@@ -231,6 +231,58 @@ jobs:
           version="$(defaults read "$app/Contents/Info" CFBundleShortVersionString)"
           [[ "$("$RUNNER_TEMP/unmark" --version)" == "unmark $version" ]]
 
+      # `unmark --install-skills` links every bundled skill into both folders, never replaces a folder it didn't make,
+      # and `--uninstall-skills` removes the links again (#237). A scratch HOME keeps the runner's own folders out of it.
+      - name: Check CLI installs and removes skills
+        run: |
+          app="$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
+          cli="$app/Contents/Helpers/unmark"
+          home="$RUNNER_TEMP/skills-home"
+          mkdir -p "$home/.claude"
+          HOME="$home" "$cli" --install-skills
+          for skill in skills/*/; do
+            name="$(basename "$skill")"
+            bundled="$(cd "$app/Contents/Resources/skills/$name" && pwd -P)"
+            for target in "$home/.agents/skills" "$home/.claude/skills"; do
+              if [[ ! -f "$target/$name/SKILL.md" ]]; then
+                echo "::error::$target/$name/SKILL.md is missing"
+                exit 1
+              fi
+              resolved="$(cd "$target/$name" && pwd -P)"
+              if [[ "$resolved" != "$bundled" ]]; then
+                echo "::error::$target/$name resolves to $resolved, expected $bundled"
+                exit 1
+              fi
+            done
+          done
+
+          taken="$RUNNER_TEMP/skills-home-taken"
+          mkdir -p "$taken/.agents/skills/unmark-docs"
+          touch "$taken/.agents/skills/unmark-docs/mine"
+          status=0
+          stderr="$(HOME="$taken" "$cli" --install-skills 2>&1 >/dev/null)" || status=$?
+          if [[ $status != 1 ]]; then
+            echo "::error::--install-skills over a taken name exited $status, expected 1"
+            exit 1
+          fi
+          if [[ "$stderr" != *"another skill has this name"* ]]; then
+            echo "::error::--install-skills over a taken name printed: $stderr"
+            exit 1
+          fi
+          if [[ -L "$taken/.agents/skills/unmark-docs" || ! -f "$taken/.agents/skills/unmark-docs/mine" ]]; then
+            echo "::error::--install-skills replaced a folder it didn't create"
+            exit 1
+          fi
+
+          HOME="$home" "$cli" --uninstall-skills
+          for target in "$home/.agents/skills" "$home/.claude/skills"; do
+            left="$(ls -A "$target")"
+            if [[ -n "$left" ]]; then
+              echo "::error::--uninstall-skills left in $target: $left"
+              exit 1
+            fi
+          done
+
       # Epic #8: "`unmark a.md b.md` opens both and exits 0 immediately" (unmark-1793451428486-7-de60d292.1). Exiting
       # 0 within seconds while both documents are still open afterwards shows the tool returned without waiting on
       # their windows.
