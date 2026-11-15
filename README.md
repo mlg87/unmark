@@ -18,6 +18,7 @@
   <a href="https://github.com/mlg87/unmark/releases/latest"><b>Download</b></a> ·
   <a href="#install"><b>Install</b></a> ·
   <a href="#command-line"><b>Command line</b></a> ·
+  <a href="#agent-skills"><b>Agent skills</b></a> ·
   <a href="CHANGELOG.md"><b>Changelog</b></a>
 </p>
 
@@ -166,6 +167,44 @@ git config --global core.editor "unmark --wait"   # for every commit
 | `0` | Every file opened, and with `--wait`, every window closed |
 | `1` | A file doesn't exist (the others still open), Unmark couldn't launch, with `--wait`, a file couldn't be opened: `unmark: <file>: could not be opened`, or with `--install-skills`, another skill has a skill's name |
 | `2` | Usage error, such as an unknown option |
+
+## Agent skills
+
+Unmark comes with five skills that teach a coding agent to write documentation. They say which markdown element fits each part of a document and how to write it in plain language, in the open [Agent Skills](https://agentskills.io) format that Claude Code, Codex, Gemini CLI, Qwen Code, and other agents read.
+
+| Skill | Writes | Ask your agent |
+| --- | --- | --- |
+| `unmark-docs` | READMEs, guides, and runbooks | "Write a how-to guide for rotating our API signing key." |
+| `unmark-polish` | A clearer version of a file you already have | "Spruce up NOTES.md." |
+| `unmark-api-docs` | REST, GraphQL, and SDK references | "Document the API in openapi.yaml." |
+| `unmark-meeting-docs` | Agendas, recaps, and 1:1 documents | "Write a recap of the meeting in transcript.txt." |
+| `unmark-planning-docs` | Requirements, ADRs, and project plans | "Write an ADR. We decided to replace Postgres with SQLite." |
+
+After an agent writes a document, the skill has it run `unmark <file>`, so the document opens in Unmark.
+
+### Install the skills
+
+1. Unmark → Settings… (<kbd>⌘,</kbd>) → Agent Skills → Install Skills.
+2. `unmark --install-skills` in Terminal.
+3. Without the app:
+
+   ```sh
+   npx skills add mlg87/unmark --global --skill unmark-docs unmark-polish unmark-api-docs unmark-meeting-docs unmark-planning-docs
+   ```
+
+The first two link the skills into these folders:
+
+| Folder | Read by |
+| --- | --- |
+| `~/.agents/skills` | Codex, Gemini CLI, and Qwen Code |
+| `~/.claude/skills` | Claude Code, only when `~/.claude` exists |
+
+The links point into Unmark.app, so the skills update with the app. If you move the app, Settings shows Reinstall. Remove, or `unmark --uninstall-skills`, takes the links out. A skill folder that Unmark didn't create is never replaced.
+
+> [!NOTE]
+> For an agent with a folder of its own, such as Cursor or GitHub Copilot, use the `npx skills add` route: it knows each agent's folder.
+
+The skills are checked in Claude Code: see [`docs/skills-check.md`](docs/skills-check.md).
 
 ## Settings
 
