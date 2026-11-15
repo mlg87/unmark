@@ -1,3 +1,83 @@
 .terminal {
-  max-width: 60rem;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 5vw, 4rem);
+  width: 100%;
+}
+
+.copy p {
+  max-width: 44rem;
+  margin: 1.5rem 0 0;
+}
+
+.flag {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+/* 100% keeps the card inside the sheet's padding on phones, where 90vw is wider than the space. */
+.card {
+  width: min(820px, 90vw, 100%);
+  overflow: hidden;
+  border-radius: 16px;
+  background: #010c24;
+  color: var(--white);
+  box-shadow: 16px 16px 0 var(--blue);
+  font-family: var(--mono);
+}
+
+.title {
+  padding: 0.625rem 1.5rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  font-size: 0.875rem;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.screen {
+  padding: clamp(1.25rem, 3vw, 2rem);
+  font-size: clamp(0.875rem, 1.5vw, 1.25rem);
+  line-height: 1.8;
+}
+
+/* Long commands wrap on phones instead of widening the card. */
+.line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.prompt {
+  color: var(--coral);
+}
+
+.cursor {
+  width: 1ch;
+  height: 1.2em;
+  margin-left: 0.1ch;
+  background: var(--pink);
+  vertical-align: text-bottom;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cursor {
+    animation: blink 1s steps(1) infinite;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: pre;
+  border: 0;
 }

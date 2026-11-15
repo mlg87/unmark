@@ -62,6 +62,15 @@
   min-width: 0;
 }
 
+/* github-markdown-css's <h1> look for the card's <h3> title (Unmark.tsx), in the display font that
+   base.css gave it as an <h1>. `.line .title` outranks the stylesheet's `.markdown-body h3`. */
+.line .title {
+  padding-bottom: 0.3em;
+  font-family: var(--display);
+  font-size: 2em;
+  border-bottom: 1px solid #d1d9e0b3;
+}
+
 .source {
   font-family: var(--mono);
   font-size: 1rem;

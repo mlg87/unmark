@@ -44,7 +44,7 @@ Run every `aws` command for the site with `AWS_PROFILE=unmark`. `deploy.sh` sets
 | `ApexA`, `ApexAAAA`, `WwwA`, `WwwAAAA` | Route 53 alias records for both names, pointing at the distribution |
 | `Plan` | The Free flat-rate plan subscription, covering the distribution, the web ACL, and the hosted zone |
 | `GitHubOidcProvider` | IAM OIDC provider for `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com` |
-| `DeployRole` | `unmark-site-deploy`, assumable only through that provider by a token whose `sub` is `repo:mlg87/unmark:environment:site`. It can list the bucket, put and delete its objects, and create and read invalidations on the distribution, nothing else |
+| `DeployRole` | `unmark-site-deploy`, assumable only through that provider by a token whose `sub` is `repo:mlg87@10038207/unmark@1440804257:environment:site`: the repository issues immutable subjects, which add the owner's and repository's IDs to their names. It can list the bucket, put and delete its objects, and create and read invalidations on the distribution, nothing else |
 
 The stack's outputs are `BucketName`, `DistributionId`, `DistributionDomainName`, and `DeployRoleArn`.
 
