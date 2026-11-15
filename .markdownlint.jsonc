@@ -1,6 +1,8 @@
 {
   // Prose docs (glossary, ADRs) keep one paragraph per line; hard-wrapping at 80 columns makes every edit reflow and bloats diffs.
   "MD013": false,
+  // A 1:1 document repeats the same `###` sections under each dated `##` entry (unmark-c6y.4, #233).
+  "MD024": { "siblings_only": true },
   // The README uses the HTML github.com allows for its centered header, theme-aware screenshots, keyboard shortcuts, and collapsed sections (#226).
   "MD033": {
     "allowed_elements": ["a", "b", "code", "details", "h1", "img", "kbd", "p", "picture", "source", "summary"]
