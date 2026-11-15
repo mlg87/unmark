@@ -1,9 +1,13 @@
 import { expect, test } from "vitest";
 import { render } from "../src/entry-server.tsx";
 
-test('render("home") shows the headline and links the release DMG', () => {
+test('render("home") has one <h1>, the headline, and links the release DMG', () => {
   const html = render("home");
-  expect(html).toContain("Markdown, the way GitHub shows it.");
+  // The headline's words are separate spans (#184), so compare the text without its tags.
+  const headings = html.match(/<h1[\s>][\s\S]*?<\/h1>/g) ?? [];
+  expect(headings.map((heading) => heading.replace(/<[^>]*>/g, ""))).toEqual([
+    "Markdown, the way GitHub shows it.",
+  ]);
   expect(html).toContain("https://example.invalid/Unmark-0.0.0.dmg");
 });
 

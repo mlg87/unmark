@@ -1,3 +1,144 @@
+/* Static is the default: text and actions, the icon tile, then the window flat beneath them. */
 .hero {
-  max-width: 75rem;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(3rem, 8vw, 5rem);
+}
+
+.top {
+  display: grid;
+  /* `minmax(0, …)` so the copy command's unbreakable line scrolls inside its pill instead of
+     widening the column past a phone's screen. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3rem;
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Two lines at 1440 px wide beside the icon, so the text clears the window's top at 55vh. */
+.copy h1 {
+  font-size: clamp(3rem, 6vw, 7rem);
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.lede {
+  max-width: 42ch;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+}
+
+.requirements {
+  margin: 0;
+  font-size: 1rem;
+  opacity: 0.75;
+}
+
+.tileDrop {
+  justify-self: center;
+}
+
+.tile img {
+  box-shadow: 16px 16px 0 var(--blue);
+}
+
+.window {
+  width: min(1100px, 80vw, 100%);
+  margin-inline: auto;
+  transform-origin: 50% 0;
+}
+
+@media (min-width: 900px) {
+  .top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .tileDrop {
+    padding-right: 2rem;
+  }
+}
+
+/* Pinned: the hero fills the sheet's padded box, so the text sits at the top, and the window hangs
+   from the sheet's top edge, placed by the transform Hero.tsx draws from `progress`. The sheet's
+   padding is Scene.module.css's. */
+:global(html[data-motion="pinned"]) .hero {
+  min-height: calc(100svh - 2 * clamp(2rem, 5vw, 5rem));
+}
+
+/* The wrapper's own box starts at the sheet's top, under the text, since only the transform
+   moves the picture down; without this it would swallow clicks on the actions. */
+:global(html[data-motion="pinned"]) .windowRise {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+
+/* Load: words rise one by one, then the rest fades in; the tile drops in and the window rises. */
+@media (prefers-reduced-motion: no-preference) {
+  .copy h1 [data-word] {
+    display: inline-block;
+    animation: rise var(--spring) calc(var(--word-index) * 60ms) both;
+  }
+
+  .details {
+    animation: fade 600ms ease-out 300ms both;
+  }
+
+  .tileDrop {
+    animation: drop var(--spring) 150ms both;
+  }
+
+  .windowRise {
+    animation: riseFar var(--spring) 300ms both;
+  }
+
+  /* Pinned mode re-renders the headline and reveals the visuals when React hydrates, so the whole
+     sequence waits for that instead of playing twice. */
+  :global(html[data-motion="pinned"]:not([data-hydrated])) .copy h1 [data-word],
+  :global(html[data-motion="pinned"]:not([data-hydrated])) .details,
+  :global(html[data-motion="pinned"]:not([data-hydrated])) .tileDrop,
+  :global(html[data-motion="pinned"]:not([data-hydrated])) .windowRise {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 40px;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes drop {
+  from {
+    translate: 0 -60px;
+    rotate: -14deg;
+  }
+}
+
+@keyframes riseFar {
+  from {
+    translate: 0 120px;
+  }
 }
