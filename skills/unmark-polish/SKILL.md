@@ -23,7 +23,7 @@ This skill changes the form of one markdown file and keeps its content. The auth
 4. Find the problems with "What to look for". If the document already follows the rules, say so and change nothing.
 5. Before you rename or remove a heading, search the repository for links to its anchor and update them in the same change.
 6. Edit the file in place. If the file is not under version control, show the planned changes first and wait for a yes.
-7. Compare the result with the list from step 2. Restore anything that is lost.
+7. Compare the result with the list from step 2. Restore anything that is lost. Compare against the committed version, such as the output of `git show HEAD:<file>`, or against the text you read in step 1. Do not save a copy of the original.
 8. Reply with the level, the changes grouped by kind in at most 8 lines, and a list titled "Not changed, for the author": possible errors, content that looks out of date, dead links, and sections that could go.
 9. Do "Show the result".
 
@@ -48,7 +48,7 @@ Restructure may do all of Tidy, and also these:
 - Choose one name for a thing that has several. Use the name that the code, the command line, or the user interface uses. If none of them names it, use the name the document uses most.
 - Turn bold text that acts as a heading into a heading, at the level that fits.
 
-Every sentence in the result restates a sentence of the original. When a rewrite would drop a condition, a hedge, or an example, keep the longer sentence.
+Every sentence in the result restates a sentence of the original. When a rewrite would drop a condition, a hedge, or an example, keep the longer sentence. A sentence with "can" or "may" tells the reader about a choice. It does not become a step in a numbered list. The labels of a diagram follow the same rules as its text.
 
 ## What to look for
 
@@ -80,12 +80,13 @@ Find these too, but do not fix them. List them under "Not changed, for the autho
 
 - Add a fact, a number, a name, a date, a cause, or a piece of advice.
 - Remove a fact.
-- Change a hedge. "May fail" stays "may fail".
+- Change a hedge. "May fail" stays "may fail", and "you can list" stays "you can list", not "list".
 - Change code: the contents of a code block or a code span stay byte for byte the same.
 - Change a link target, except to repair an anchor you renamed.
 - Delete a section. Merge it or move it, but keep all of its content.
 - Touch a file that says it is generated, such as one with "generated" or "do not edit" in its first lines.
 - Rewrite quotes, legal text, or changelog entries.
+- Create a file, or change a file other than the document and the files that link to a heading you renamed.
 
 ## Show the result
 
