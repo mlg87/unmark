@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/mlg87/unmark/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/mlg87/unmark"></a>
   <a href="https://github.com/mlg87/unmark/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/mlg87/unmark/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <img alt="macOS 14 or later, universal" src="https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20universal-000?logo=apple">
+  <img alt="macOS 14 or later, universal" src="https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20universal-blue?logo=apple">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/mlg87/unmark"></a>
 </p>
 
@@ -60,10 +60,10 @@ You installed it from the DMG. Hand that copy to Homebrew, or quit Unmark and mo
 brew install --adopt mlg87/tap/unmark
 ```
 
-> [!CAUTION]
-> Remove the `/usr/local/bin/unmark` link above before using `--adopt`: an `--adopt` that fails on the link deletes the existing app.
-
 </details>
+
+> [!CAUTION]
+> Adopting a DMG copy with `--adopt`? Remove a `/usr/local/bin/unmark` link from Settings first: an `--adopt` that fails on the link deletes the existing app.
 
 ### DMG
 
