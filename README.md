@@ -162,7 +162,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
 | `site/` | pnpm package for the marketing site: Vite and React, prerendered to static HTML in `site/dist/` with the latest release's DMG link fetched at build time |
 | `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs, `scripts/release/` the DMG build |
-| `Artwork/` | The owner's app icon artwork, square and at least 1024 px; `swift scripts/generate-app-icon.swift` renders `AppIcon.appiconset` from it |
+| `Artwork/` | The owner's app icon artwork, square and at least 1024 px; `swift scripts/generate-app-icon.swift` renders `AppIcon.appiconset` from it. `Artwork/mark-3d/` holds 3D renders of the `#` mark (front-left, front, top), 2048 px with transparent backgrounds, for the website (#194) |
 | `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
 | `docs/screenshots/` | This README's screenshots, of the release app showing `sample.md` in a window on a 2x display, scaled to 1600 px wide |
 
