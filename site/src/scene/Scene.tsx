@@ -1,11 +1,4 @@
-import {
-  type MotionValue,
-  motion,
-  useMotionTemplate,
-  useMotionValue,
-  useScroll,
-  useTransform,
-} from "motion/react";
+import { type MotionValue, motion, useMotionValue, useScroll, useTransform } from "motion/react";
 import {
   type CSSProperties,
   createContext,
@@ -59,7 +52,7 @@ export function Scene({ id, block, length, index, children }: SceneProps) {
   const mode = useMotionMode();
   const ref = useRef<HTMLElement>(null);
   const values = useSceneValues(ref, mode, length, index === 0);
-  const sheetStyle = useSheetStyle(values, index);
+  const sheetStyle = useSheetStyle(values, mode, index);
   const layout = {
     "--scene-index": index + 1,
     "--scene-height": length === null ? undefined : `${sceneHeightSvh(length)}svh`,
@@ -73,7 +66,7 @@ export function Scene({ id, block, length, index, children }: SceneProps) {
       className={length === null ? `${styles.scene} ${styles.unpinned}` : styles.scene}
       style={layout}
     >
-      <motion.div className={styles.sheet} style={mode === "pinned" ? sheetStyle : undefined}>
+      <motion.div className={styles.sheet} style={sheetStyle}>
         <SceneContext value={values}>
           <Reveal mode={mode}>{children}</Reveal>
         </SceneContext>
@@ -133,13 +126,26 @@ function useSceneValues(
 
 // The movement between sheets (#183): the entering sheet's slanted top edge flattens as it lands,
 // and the covered sheet shrinks, tilts (alternating direction), and rounds its corners.
-function useSheetStyle({ enter, exit }: SceneValues, index: number) {
-  const slant = useTransform(enter, (value) => (1 - value) * 8);
-  const clipPath = useMotionTemplate`polygon(0 ${slant}vw, 100% 0, 100% 100%, 0 100%)`;
-  const scale = useTransform(exit, [0, 1], [1, 0.92]);
-  const rotate = useTransform(exit, [0, 1], [0, index % 2 === 0 ? 1.5 : -1.5]);
-  const borderRadius = useTransform(exit, [0, 1], [0, 32]);
-  return { clipPath: index === 0 ? undefined : clipPath, scale, rotate, borderRadius };
+// Static mode keeps the style attached but neutral: Motion leaves whatever it last wrote when the
+// style goes away, which left sheets slanted and rounded after a switch to static (#202).
+function useSheetStyle({ enter, exit }: SceneValues, mode: MotionMode, index: number) {
+  const pinned = useMotionValue(0);
+  useLayoutEffect(() => {
+    pinned.set(mode === "pinned" ? 1 : 0);
+  }, [mode, pinned]);
+  const clipPath = useTransform([enter, pinned], ([entered = 1, isPinned = 0]: number[]) =>
+    index === 0 || !isPinned
+      ? "none"
+      : `polygon(0 ${(1 - entered) * 8}vw, 100% 0, 100% 100%, 0 100%)`,
+  );
+  const covered = useTransform(
+    [exit, pinned],
+    ([exited = 0, isPinned = 0]: number[]) => exited * isPinned,
+  );
+  const scale = useTransform(covered, [0, 1], [1, 0.92]);
+  const rotate = useTransform(covered, [0, 1], [0, index % 2 === 0 ? 1.5 : -1.5]);
+  const borderRadius = useTransform(covered, [0, 1], [0, 32]);
+  return { clipPath, scale, rotate, borderRadius };
 }
 
 const NO_REDUCE = "(prefers-reduced-motion: no-preference)";
