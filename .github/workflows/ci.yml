@@ -201,6 +201,10 @@ jobs:
             done
           done
 
+      # The bundle holds the same skills as the repository, in the same layout (#236).
+      - name: Check bundled skills
+        run: diff -r skills build/DerivedData/Build/Products/Release/Unmark.app/Contents/Resources/skills
+
       # Only paths that open nothing, so the check never launches the app on the runner.
       - name: Check CLI exit statuses
         run: |

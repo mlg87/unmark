@@ -45,6 +45,11 @@ targets:
         type: folder
         buildPhase: resources
         optional: true
+      # The documentation skills (#229). A folder reference keeps skills/<name>/SKILL.md's layout in
+      # Contents/Resources/skills/, which agents' skill folders link to.
+      - path: skills
+        type: folder
+        buildPhase: resources
     preBuildScripts:
       - name: Build renderer
         script: '"$SRCROOT/scripts/build-renderer.sh"'
