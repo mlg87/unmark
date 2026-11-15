@@ -1,0 +1,230 @@
+/* `minmax(0, 1fr)`: an `auto` column would grow to fit the pinned track, which is meant to overflow. */
+.skills {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  width: 100%;
+}
+
+.copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+.intro {
+  max-width: 40rem;
+  margin: 0;
+}
+
+.install {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.note {
+  max-width: 28rem;
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* Wide windows put the install command beside the paragraph, so the cards keep the height a pinned
+   sheet has left. */
+@media (min-width: 900px) {
+  .copy {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: 3rem;
+  }
+
+  .copy > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Static mode, including visitors without JavaScript: the cards in a grid, flat, the two with an
+   example across its full width. `dense` lets the three narrow cards share a row instead of each
+   sitting alone beside a gap the wide card after it left. `min()` keeps a phone's single column
+   inside the sheet. */
+.track {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  grid-auto-flow: dense;
+  gap: 32px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px;
+  border-radius: var(--card-radius);
+  background: var(--block);
+  color: var(--ink);
+  box-shadow: 12px 12px 0 var(--navy);
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* A wide card has room for the prompt beside its title. */
+.wide .meta {
+  flex-flow: row wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(1.125rem, 1.5vw, 1.5rem);
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.writes {
+  margin: 4px 0 0;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+/* A chat message from the person at the keyboard: the card's text color as its fill, with a tail at
+   the bottom left. */
+.prompt {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0 0 10px;
+  padding: 10px 16px;
+  border-radius: 18px 18px 18px 0;
+  background: var(--ink);
+  color: var(--block);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.prompt::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 0;
+  border-top: 10px solid var(--ink);
+  border-right: 14px solid transparent;
+}
+
+.example {
+  display: grid;
+  gap: 20px;
+}
+
+/* The label sits on the panel's top border, like a fieldset's legend, so it costs the card no
+   height. */
+.figure {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+}
+
+.label {
+  position: absolute;
+  top: -10px;
+  left: 14px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* `.card` raises it above github-markdown-css's own `.markdown-body` rule. The border sets the panel
+   apart from the white card. The panel is a container so its columns follow its own width, which
+   differs between the pinned row and the static grid. */
+.card .panel {
+  container-type: inline-size;
+  min-width: 0;
+  padding: 16px;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.card .panel :is(p, ol, ul, table, h4):last-child {
+  margin-bottom: 0;
+}
+
+.card .panel :is(th, td) {
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.card .panel h4 {
+  margin: 0 0 8px;
+}
+
+/* The grid's gap spaces the columns, so the first column's list keeps no margin of its own. */
+.columns {
+  display: grid;
+  gap: 16px;
+}
+
+.card .panel .columns > * {
+  margin-bottom: 0;
+}
+
+/* The steps beside the alert and the table, when the panel is wide enough for both. */
+@container (min-width: 560px) {
+  .after {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@container (min-width: 480px) {
+  .recap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Pinned mode: one row that the scene slides sideways, cards tilting −2° and +2° in turn. The
+   gallery spans the sheet's inner width, which useTrackOverflow measures into --sheet-inner, so on
+   wide windows the row reaches past the text column. */
+:global(html[data-motion="pinned"]) .gallery {
+  margin-inline: calc((100% - var(--sheet-inner, 100%)) / 2);
+}
+
+:global(html[data-motion="pinned"]) .track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  margin-inline: auto;
+}
+
+:global(html[data-motion="pinned"]) .card {
+  flex: none;
+  width: clamp(280px, 30vw, 420px);
+  rotate: -2deg;
+}
+
+:global(html[data-motion="pinned"]) .card:nth-child(even) {
+  rotate: 2deg;
+}
+
+:global(html[data-motion="pinned"]) .wide {
+  width: clamp(320px, 56vw, 760px);
+}

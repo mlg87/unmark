@@ -20,6 +20,7 @@ test('render("home") has every scene and leaves the motion mode to the browser',
     "split",
     "outline",
     "terminal",
+    "skills",
     "appearance",
     "install",
   ]) {

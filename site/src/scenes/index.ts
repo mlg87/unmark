@@ -5,6 +5,7 @@ import { GitHub, GitHubMark } from "./GitHub.tsx";
 import { Hero, HeroMark } from "./Hero.tsx";
 import { Install, InstallMark } from "./Install.tsx";
 import { Outline } from "./Outline.tsx";
+import { Skills } from "./Skills.tsx";
 import { Split } from "./Split.tsx";
 import { Terminal, TerminalMark } from "./Terminal.tsx";
 import { Unmark } from "./Unmark.tsx";
@@ -28,6 +29,7 @@ export const SCENES: SceneDefinition[] = [
   { id: "split", block: "blue", length: 1, Component: Split },
   { id: "outline", block: "coral", length: 1, Component: Outline },
   { id: "terminal", block: "navy", length: 1, Component: Terminal, Mark: TerminalMark },
+  { id: "skills", block: "pink", length: 1.5, Component: Skills },
   { id: "appearance", block: "white", length: 1, Component: Appearance },
   { id: "install", block: "blue", length: null, Component: Install, Mark: InstallMark },
 ];
