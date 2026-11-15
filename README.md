@@ -2,6 +2,8 @@
 
 Unmark is a lightweight macOS app for reading and editing markdown files, shown the way GitHub renders them. A file opens in Preview mode: the Preview, styled like github.com, with the Outline of its headings a shortcut away. Split mode puts the Source, the file's markdown, beside the Preview, which updates as you type. Unmark opens only files that exist, saves only when you press ⌘S, and reloads a file when another app changes it.
 
+Website: <https://unmarkeditor.com>
+
 | | Light | Dark |
 | --- | --- | --- |
 | Preview mode, with the Outline | ![Preview mode with the Outline, light appearance](docs/screenshots/preview-light.png) | ![Preview mode with the Outline, dark appearance](docs/screenshots/preview-dark.png) |
