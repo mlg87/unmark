@@ -160,6 +160,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `Packages/UnmarkCore/` | Swift package: `UnmarkCore`, pure unit-tested logic (no AppKit or WebKit), and `UnmarkAppKit`, the AppKit pieces whose tests drive a real text view, such as the Source's syntax coloring |
 | `renderer/` | pnpm package that bundles the markdown renderer into `App/Resources/Renderer/` |
 | `renderer/patches/` | `pnpm patch` fixes to dependencies, applied by `pnpm install` |
+| `site/` | pnpm package for the marketing site: Vite and React, prerendered to static HTML in `site/dist/` with the latest release's DMG link fetched at build time |
 | `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs, `scripts/release/` the DMG build |
 | `Artwork/` | The owner's app icon artwork, square and at least 1024 px; `swift scripts/generate-app-icon.swift` renders `AppIcon.appiconset` from it |
 | `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
@@ -182,12 +183,15 @@ stops waiting on it, and exits 1.
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`.
-Three jobs run side by side, so a run takes as long as the slowest of them,
+Four jobs run side by side, so a run takes as long as the slowest of them,
 `app` (#163):
 
 - `renderer`, on `ubuntu-latest`, runs the renderer tests except the timed one,
   then the renderer build (which fails if a dependency exceeds its entry-chunk
   size budget in `renderer/build.mjs`).
+- `site`, on `ubuntu-latest`, typechecks and tests the site, then builds it
+  (which fails if the latest GitHub release has no `Unmark-*.dmg` asset or the
+  lookup fails, so the site never ships a dead download button).
 - `checks`, on `macos-15` with Xcode 16.4, runs `make lint`, `make test`, the
   timed renderer test (`test/keystroke-to-preview.test.ts`, whose budget is
   calibrated to this runner), and `scripts/perf/keystroke-to-preview.swift` for
@@ -209,7 +213,7 @@ unreachable feed opens no dialog, the Settings toggle reads and writes
 `SUEnableAutomaticChecks`, and Check for Updates… offers a newer version from an
 appcast served on `127.0.0.1`.
 
-A fourth job, `ci`, waits for those three and fails unless each one succeeded.
+A fifth job, `ci`, waits for those four and fails unless each one succeeded.
 The `main: baseline` ruleset requires the `ci` check (pinned to the GitHub
 Actions app) before a pull request can merge, so red builds can't land on
 `main`. GitHub lists the check as `ci`; pull requests show it as `CI / ci`.
