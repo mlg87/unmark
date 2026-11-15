@@ -51,15 +51,24 @@
   margin-inline: auto;
 }
 
-/* Pinned: the scene fills the sheet's padded box and centers in it while it fits. On a laptop the
-   1200 px window is taller than the room under the copy, so `safe` starts it at the top instead
-   and the window runs off the sheet's bottom edge, as the hero's does. The sheet's padding is
-   Scene.module.css's. */
+/* Pinned: the scene fills the sheet's padded box, and the stage takes the height the copy leaves.
+   The whole window must show before the next sheet arrives (#187), and at 1200 px it is 833 px
+   tall, more than a laptop leaves under the copy, so the width is also capped at the stage's
+   height times split-dark's 1600:1111 ratio. The sheet's padding is Scene.module.css's. */
 :global(html[data-motion="pinned"]) .split {
   height: calc(100svh - 2 * clamp(2rem, 5vw, 5rem));
-  justify-content: safe center;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+:global(html[data-motion="pinned"]) .stage {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: flex;
+  align-items: center;
 }
 
 :global(html[data-motion="pinned"]) .window {
   flex: none;
+  width: min(1200px, 86vw, 100%, 100cqh * 1600 / 1111);
 }

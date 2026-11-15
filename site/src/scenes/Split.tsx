@@ -79,13 +79,15 @@ export function Split() {
           </p>
         </div>
       </div>
-      <motion.div className={styles.window} style={{ clipPath, transform }} data-scene-visual>
-        <WindowShot
-          shot="split-dark"
-          sizes="min(1200px, 86vw)"
-          alt="Unmark in Split mode: the markdown Source on the left, the rendered Preview on the right"
-        />
-      </motion.div>
+      <div className={styles.stage}>
+        <motion.div className={styles.window} style={{ clipPath, transform }} data-scene-visual>
+          <WindowShot
+            shot="split-dark"
+            sizes="min(1200px, 86vw)"
+            alt="Unmark in Split mode: the markdown Source on the left, the rendered Preview on the right"
+          />
+        </motion.div>
+      </div>
     </div>
   );
 }
