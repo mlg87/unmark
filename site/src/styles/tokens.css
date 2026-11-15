@@ -40,7 +40,7 @@
 
 [data-block="pink"] {
   --block: var(--pink);
-  --ink: var(--white);
+  --ink: var(--navy);
 }
 
 [data-block="coral"] {
