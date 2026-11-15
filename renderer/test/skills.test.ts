@@ -34,6 +34,8 @@ const AGENT_SYNTAX = [
 // so that the alert check fails on it.
 const ALERT_MARKER = /^\[![A-Za-z]+\][ \t]*(\n|$)/;
 const FRONT_MATTER = /^---\n([\s\S]*?)\n---(\n|$)/;
+const URL_PATTERN = /https?:\/\/[^\s<>()[\]`"']+/g;
+const NUMBER = /\d+(?:[.,]\d+)*/g;
 
 // Parses source structure only. The Preview's own pipeline renders, in renderInPreview.
 const parser = markdownit({ html: true });
@@ -53,6 +55,15 @@ function filesIn(folder: string): string[] {
     const path = join(folder, name);
     return statSync(path).isDirectory() ? filesIn(path) : [path];
   });
+}
+
+/**
+ * A skill's assets/before.md is a document with the faults the skill repairs (#231), so it is
+ * exempt from the checks of what a good document looks like: no semicolons in prose, a language
+ * on every fence, one h1, no skipped heading level, and no broken #fragment link.
+ */
+function isFaultExample(path: string): boolean {
+  return path.endsWith(`${sep}assets${sep}before.md`);
 }
 
 function tokensOf(markdown: string): Token[] {
@@ -195,7 +206,7 @@ describe.each(skills)("%s", (skill) => {
   });
 
   test("no markdown file has a semicolon in its prose", () => {
-    for (const path of markdownFiles) {
+    for (const path of markdownFiles.filter((path) => !isFaultExample(path))) {
       const semicolons = proseOf(readFileSync(path, "utf8")).filter((text) => text.includes(";"));
       expect(semicolons, relative(SKILLS, path)).toEqual([]);
     }
@@ -209,6 +220,7 @@ describe.each(skills)("%s", (skill) => {
         name: relative(folder, path),
         markdown: readFileSync(path, "utf8"),
         asset: true,
+        faults: isFaultExample(path),
       })),
     ...filesIn(join(folder, "references"))
       .filter((path) => path.endsWith(".md"))
@@ -219,12 +231,13 @@ describe.each(skills)("%s", (skill) => {
             name: `${relative(folder, path)}:${(token.map?.[0] ?? 0) + 1}`,
             markdown: token.content,
             asset: false,
+            faults: false,
           })),
       ),
   ];
 
   test.each(documents)("$name renders in the Preview with nothing lost", async (document) => {
-    const { markdown, asset } = document;
+    const { markdown, asset, faults } = document;
     const article = await renderInPreview(markdown);
 
     const markers = alertMarkers(markdown);
@@ -239,7 +252,11 @@ describe.each(skills)("%s", (skill) => {
     );
     expect(
       languages.filter(
-        (language) => language !== "mermaid" && language !== "math" && !hljs.getLanguage(language),
+        (language) =>
+          language !== "mermaid" &&
+          language !== "math" &&
+          !hljs.getLanguage(language) &&
+          !(faults && language === ""),
       ),
       "every fence has a language the Preview highlights",
     ).toEqual([]);
@@ -252,7 +269,7 @@ describe.each(skills)("%s", (skill) => {
     );
     expect(dropped, "the sanitizer keeps every raw HTML element").toEqual([]);
 
-    if (!asset) return;
+    if (!asset || faults) return;
     const headings = [...article.querySelectorAll("h1, h2, h3, h4, h5, h6")];
     const levels = headings.map((heading) => Number(heading.localName[1]));
     expect(
@@ -272,5 +289,55 @@ describe.each(skills)("%s", (skill) => {
       .map((link) => link.getAttribute("href") ?? "")
       .filter((href) => !headingIds.has(`user-content-${decodeURIComponent(href.slice(1))}`));
     expect(brokenFragments, "every #fragment link has its heading").toEqual([]);
+  });
+});
+
+/** What a polished document must keep word for word: its URLs, its code, and its numbers. */
+function keptContentOf(markdown: string) {
+  const tokens = withChildren(tokensOf(markdown));
+  const fences = tokens.filter((token) => token.type === "fence").map((token) => token.content);
+  return {
+    // Trailing punctuation ends the sentence, not the URL.
+    urls: [...markdown.matchAll(URL_PATTERN)].map(([url]) => url.replace(/[.,;:!?]+$/, "")),
+    fences,
+    codeSpans: tokens.filter((token) => token.type === "code_inline").map((token) => token.content),
+    fenceLines: fences.flatMap((fence) => fence.split("\n")),
+    numbers: proseOf(markdown).flatMap((text) => text.match(NUMBER) ?? []),
+  };
+}
+
+// A skill whose assets hold a before.md and an after.md shows a polish of one document (#231).
+// The polish may change the form, so after.md may have more, but never less.
+const polishExamples = skills.filter((skill) =>
+  ["before.md", "after.md"].every((name) =>
+    statSync(join(SKILLS, skill, "assets", name), { throwIfNoEntry: false })?.isFile(),
+  ),
+);
+
+describe.each(polishExamples)("%s: assets/after.md keeps what before.md says", (skill) => {
+  const read = (name: string) =>
+    keptContentOf(readFileSync(join(SKILLS, skill, "assets", name), "utf8"));
+  const before = read("before.md");
+  const after = read("after.md");
+
+  test("every URL", () => {
+    expect(before.urls.filter((url) => !after.urls.includes(url))).toEqual([]);
+  });
+
+  test("every fenced block's contents", () => {
+    expect(before.fences.filter((fence) => !after.fences.includes(fence))).toEqual([]);
+  });
+
+  // Steps written as prose become a numbered list with each command in its own fence.
+  test("every code span, as a code span or as a line of a fenced block", () => {
+    expect(
+      before.codeSpans.filter(
+        (span) => !after.codeSpans.includes(span) && !after.fenceLines.includes(span),
+      ),
+    ).toEqual([]);
+  });
+
+  test("every number in the prose", () => {
+    expect(before.numbers.filter((number) => !after.numbers.includes(number))).toEqual([]);
   });
 });
