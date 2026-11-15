@@ -47,6 +47,8 @@ Each release's notes, newest first. The Release PR workflow adds them from GitHu
 * docs(skills): check the five skills in Claude Code (unmark-c6y.6) by @mlg87 in https://github.com/mlg87/unmark/pull/253
 * feat(settings): Agent Skills section installs and removes the skills (unmark-bhp.3) by @mlg87 in https://github.com/mlg87/unmark/pull/252
 * fix(skills): collision-free GraphQL operation and type headings (unmark-c6y.8) by @mlg87 in https://github.com/mlg87/unmark/pull/254
+* docs(skills): drop the literal -1 fragment from graphql.md prose (unmark-c6y.9) by @mlg87 in https://github.com/mlg87/unmark/pull/257
+* docs(readme): Agent skills section with the five skills and three install routes (unmark-bhp.4) by @mlg87 in https://github.com/mlg87/unmark/pull/258
 
 
 **Full Changelog**: https://github.com/mlg87/unmark/compare/v0.1.0...v0.2.0
