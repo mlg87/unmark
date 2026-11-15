@@ -262,12 +262,14 @@ flowchart LR
     ci -->|required by the main: baseline ruleset| merge(["merge to main"])
 ```
 
-| Job | Runner | What it runs |
-| --- | --- | --- |
-| `renderer` | `ubuntu-latest` | The renderer tests except the timed one, then the renderer build, which fails if a dependency exceeds its entry-chunk size budget in `renderer/build.mjs`. |
-| `site` | `ubuntu-latest` | Typechecks, tests, and builds the site. The build fails if the latest GitHub release has no `Unmark-*.dmg` asset or the lookup fails, so the site never ships a dead download button, or if the page's JavaScript passes 150 KB gzipped or `index.html` passes 60 KB (`site/scripts/check-budget.mjs`). Then Lighthouse runs on the built pages (`site/lighthouserc.json`) and fails the job if accessibility, best practices, or SEO score below 0.95; performance is reported but never fails it. |
-| `checks` | `macos-15`, Xcode 16.4 | `make lint`, `make test`, the timed renderer test (`test/keystroke-to-preview.test.ts`, whose budget is calibrated to this runner), and `scripts/perf/keystroke-to-preview.swift` for the record: its figure never fails the build (see [below](#keystroke-to-preview-on-the-oldest-mac)). |
-| `app` | `macos-15`, Xcode 16.4 | An ad-hoc signed universal Release build, and every check that needs it (below). |
+`renderer` and `site` run on `ubuntu-latest`; `checks` and `app` run on `macos-15` with Xcode 16.4.
+
+| Job | What it runs |
+| --- | --- |
+| `renderer` | The renderer tests except the timed one, then the renderer build, which fails if a dependency exceeds its entry-chunk size budget in `renderer/build.mjs`. |
+| `site` | Typechecks, tests, and builds the site. The build fails if the latest GitHub release has no `Unmark-*.dmg` asset or the lookup fails, so the site never ships a dead download button, or if the page's JavaScript passes 150 KB gzipped or `index.html` passes 60 KB (`site/scripts/check-budget.mjs`). Then Lighthouse runs on the built pages (`site/lighthouserc.json`) and fails the job if accessibility, best practices, or SEO score below 0.95; performance is reported but never fails it. |
+| `checks` | `make lint`, `make test`, the timed renderer test (`test/keystroke-to-preview.test.ts`, whose budget is calibrated to this runner), and `scripts/perf/keystroke-to-preview.swift` for the record: its figure never fails the build (see [below](#keystroke-to-preview-on-the-oldest-mac)). |
+| `app` | An ad-hoc signed universal Release build, and every check that needs it (below). |
 
 `app` fails unless each of these passes, in order:
 
