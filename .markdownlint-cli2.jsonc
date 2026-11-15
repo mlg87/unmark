@@ -3,5 +3,6 @@
   // CHANGELOG.md holds GitHub's generated release notes, with their `*` bullets and bare URLs, as the GitHub release shows them (#165).
   // docs/screenshots/sample.md shows every element the Preview renders, so it uses raw HTML, bare URLs, back-to-back alerts, indented code, and a list starting at 7 on purpose (#172).
   // skills/unmark-polish/assets/before.md is the worked example's input, so it has the faults the skill repairs on purpose (#231).
-  "ignores": ["AGENTS.md", "CLAUDE.md", ".beads/**", ".agents/skills/beads/**", "CHANGELOG.md", "docs/screenshots/sample.md", "skills/unmark-polish/assets/before.md"]
+  // docs/fixtures/skills/polish-before.md is the NOTES.md that unmark-polish improved in the Claude Code check, with its faults on purpose (#235).
+  "ignores": ["AGENTS.md", "CLAUDE.md", ".beads/**", ".agents/skills/beads/**", "CHANGELOG.md", "docs/screenshots/sample.md", "skills/unmark-polish/assets/before.md", "docs/fixtures/skills/polish-before.md"]
 }

@@ -226,7 +226,7 @@ make format      # apply swift-format, SwiftLint, and Biome fixes
 | `scripts/` | Build and release scripts; `scripts/ci/` holds helpers the CI workflow runs, `scripts/release/` the DMG build |
 | `skills/` | The documentation skills for coding agents, one folder each in the Agent Skills format. `renderer/test/skills.test.ts` checks them, and `make sync-skills` copies the two shared references into each. |
 | `Artwork/` | The owner's app icon artwork, square and at least 1024 px; `swift scripts/generate-app-icon.swift` renders `AppIcon.appiconset` from it. `Artwork/mark-3d/` holds 3D renders of the `#` mark (front-left, front, top), 2048 px with transparent backgrounds, for the website (#194) |
-| `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md` |
+| `docs/fixtures/` | Markdown documents for checking the Preview by hand, e.g. `kitchen-sink.md`. `docs/fixtures/skills/` holds documents the skills wrote in the Claude Code check. |
 | `docs/screenshots/` | This README's screenshots, of the release app showing `sample.md` in a window on a 2x display, scaled to 1600 px wide |
 
 </details>
