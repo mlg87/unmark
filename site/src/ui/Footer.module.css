@@ -2,6 +2,43 @@
 .footer {
   position: relative;
   z-index: 100;
-  min-height: 16rem;
+  padding: clamp(3rem, 6vw, 5rem) clamp(1.25rem, 4vw, 3rem);
   background: var(--navy);
+  color: var(--white);
+}
+
+.inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem 3rem;
+  max-width: 90rem;
+  margin-inline: auto;
+}
+
+.wordmark {
+  font-family: var(--display);
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+}
+
+.link {
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.legal {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 1rem;
+  opacity: 0.75;
 }
