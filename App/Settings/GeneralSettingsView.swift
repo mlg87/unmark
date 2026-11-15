@@ -36,6 +36,7 @@ struct GeneralSettingsView: View {
             }
             DefaultMarkdownAppSection()
             CommandLineToolSection()
+            AgentSkillsSection()
             UpdatesSection(updater: updater)
         }
         .formStyle(.grouped)
