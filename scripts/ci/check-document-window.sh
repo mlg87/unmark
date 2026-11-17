@@ -177,18 +177,50 @@ end elementOf
 EOF
 }
 
-# <menu item title>, from the View menu.
+# <window name> <menu item title>, from the View menu. The View menu's items go up the responder chain from the main
+# window, so the window is raised first: clicking one with no window to receive it does nothing and reports no error.
 click_view_menu_item() {
-  osascript - "$pid" "$1" > /dev/null << 'EOF'
+  osascript - "$pid" "$1" "$2" > /dev/null << 'EOF'
 on run argv
   tell application "System Events"
     tell (first process whose unix id is (item 1 of argv as integer))
       set frontmost to true
-      click menu item (item 2 of argv) of menu 1 of menu bar item "View" of menu bar 1
+      perform action "AXRaise" of window (item 2 of argv)
+      delay 0.5
+      click menu item (item 3 of argv) of menu 1 of menu bar item "View" of menu bar 1
     end tell
   end tell
 end run
 EOF
+}
+
+# <menu item title>. Whether the View menu's item is enabled and the names of the app's windows, for a failed
+# check's log.
+describe_view_menu_item() {
+  osascript - "$pid" "$1" << 'EOF' || true
+on run argv
+  tell application "System Events"
+    tell (first process whose unix id is (item 1 of argv as integer))
+      set theItem to menu item (item 2 of argv) of menu 1 of menu bar item "View" of menu bar 1
+      set AppleScript's text item delimiters to ", "
+      return "frontmost=" & frontmost & " enabled=" & (enabled of theItem) & " windows=" & ((name of windows) as text)
+    end tell
+  end tell
+end run
+EOF
+}
+
+# <window name> <menu item title> <command...>. Clicks the View menu's item until the command succeeds, which shows
+# the click took effect. Each click gets 5 s to show, so a click that worked is never followed by one that undoes it.
+choose_view_menu_item() {
+  local window=$1 item=$2
+  shift 2
+  for _ in {1..6}; do
+    click_view_menu_item "$window" "$item" || true
+    wait_until 5 "$@" && return 0
+  done
+  echo "View → $item: $(describe_view_menu_item "$item" 2>&1)"
+  return 1
 }
 
 # <window name>. Prints `left` or `right`: the side of the Preview the Source is on. Fails outside Split mode.
@@ -225,7 +257,12 @@ source_is_on() {
 }
 
 side_default() {
-  defaults read "$domain" "$side_key"
+  defaults read "$domain" "$side_key" 2> /dev/null
+}
+
+# <left|right>. Fails until the default names that side.
+side_default_is() {
+  [[ "$(side_default)" == "$1" ]]
 }
 
 defaults delete "$domain" "$side_key" > /dev/null 2>&1 || true
@@ -275,33 +312,40 @@ split="$work/split"
 mkdir -p "$split"
 printf '# split\n\ntext\n' > "$split/split.md"
 launch "$split/split.md"
-wait_until 10 click_view_menu_item "Show Source" || fail "Couldn't click View → Show Source"
-if wait_until 20 source_is_on split.md left; then
-  echo "The Source starts on the left"
+if choose_view_menu_item split.md "Show Source" source_side split.md; then
+  if source_is_on split.md left; then
+    echo "The Source starts on the left"
+  else
+    fail "With no default, the Source isn't on the Preview's left: $(source_side split.md 2>&1)"
+  fi
 else
-  fail "With no default, the Source isn't on the Preview's left: $(source_side split.md 2>&1)"
+  fail "View → Show Source didn't show the Source: $(source_side split.md 2>&1)"
   describe_window split.md
 fi
-if wait_until 10 click_view_menu_item "Source on Right"; then
+if choose_view_menu_item split.md "Source on Right" side_default_is right; then
   if wait_until 20 source_is_on split.md right; then
     echo "View → Source on Right moved the Source to the right"
   else
     fail "View → Source on Right left the Source on the $(source_side split.md 2>&1)"
+    describe_window split.md
   fi
-  [[ "$(side_default)" == right ]] || fail "View → Source on Right left $side_key '$(side_default 2>&1)'"
 else
-  fail "Couldn't click View → Source on Right"
+  fail "View → Source on Right left $side_key '$(side_default)'"
 fi
 quit
 
 # A new launch reads the side the last one chose.
 defaults write "$domain" "$side_key" right
 launch "$split/split.md"
-wait_until 10 click_view_menu_item "Show Source" || fail "Couldn't click View → Show Source"
-if wait_until 20 source_is_on split.md right; then
-  echo "A relaunch kept the Source on the right"
+if choose_view_menu_item split.md "Show Source" source_side split.md; then
+  if source_is_on split.md right; then
+    echo "A relaunch kept the Source on the right"
+  else
+    fail "With $side_key right, the Source isn't on the Preview's right: $(source_side split.md 2>&1)"
+  fi
 else
-  fail "With $side_key right, the Source isn't on the Preview's right: $(source_side split.md 2>&1)"
+  fail "View → Show Source didn't show the Source: $(source_side split.md 2>&1)"
+  describe_window split.md
 fi
 quit
 
