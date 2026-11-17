@@ -237,8 +237,15 @@ on run argv
         try
           set theRole to role of e
           -- The Source is the window's only text area, and the Preview its only web area.
-          if theRole is "AXTextArea" and sourceX is missing value then set sourceX to item 1 of (position of e)
-          if theRole is "AXWebArea" and previewX is missing value then set previewX to item 1 of (position of e)
+          -- Read into a variable first: `item 1 of (position of e)` asks System Events for an item of the property.
+          if theRole is "AXTextArea" and sourceX is missing value then
+            set thePosition to position of e
+            set sourceX to item 1 of thePosition
+          end if
+          if theRole is "AXWebArea" and previewX is missing value then
+            set thePosition to position of e
+            set previewX to item 1 of thePosition
+          end if
         end try
       end repeat
       if sourceX is missing value then error "the window has no Source"
