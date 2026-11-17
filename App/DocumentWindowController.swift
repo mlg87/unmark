@@ -3,8 +3,8 @@ import SwiftUI
 import UnmarkCore
 
 /// A document's window: the SwiftUI content under a toolbar with the Outline and Split mode toggles. The toolbar
-/// buttons and their View menu items send `toggleOutline(_:)` and `toggleSource(_:)` up the responder chain, which
-/// reaches this controller.
+/// buttons and the View menu's items send `toggleOutline(_:)`, `toggleSource(_:)`, and `toggleSourceSide(_:)` up the
+/// responder chain, which reaches this controller.
 @MainActor
 final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate, NSMenuItemValidation,
     NSToolbarItemValidation
@@ -49,6 +49,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         set { UserDefaults.standard.set(newValue, forKey: OutlineVisibility.key) }
     }
 
+    /// The Source's side in Split mode is one choice for every window (unmark-ilr), which each window's content and
+    /// Settings observe.
+    private static var sourcePaneSide: SourcePaneSide {
+        get { SourcePaneSide(defaultsValue: UserDefaults.standard.string(forKey: SourcePaneSide.defaultsKey)) }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: SourcePaneSide.defaultsKey) }
+    }
+
     @objc func toggleOutline(_ sender: Any?) {
         Self.isOutlineVisible.toggle()
     }
@@ -56,6 +63,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     @objc func toggleSource(_ sender: Any?) {
         state.isSourceVisible.toggle()
         toggleSourceToolbarItem?.toolTip = Self.toggleSourceToolTip(sourceVisible: state.isSourceVisible)
+    }
+
+    /// View → Source on Right. It works in Preview mode too, for the next time a window shows the Source.
+    @objc func toggleSourceSide(_ sender: Any?) {
+        Self.sourcePaneSide = Self.sourcePaneSide.opposite
     }
 
     /// Edit → Find sends `performTextFinderAction(_:)` up the responder chain, which reaches the controller whenever
@@ -71,6 +83,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         }
         if menuItem.action == #selector(toggleSource(_:)) {
             menuItem.title = Self.toggleSourceTitle(sourceVisible: state.isSourceVisible)
+        }
+        if menuItem.action == #selector(toggleSourceSide(_:)) {
+            menuItem.state = Self.sourcePaneSide == .right ? .on : .off
         }
         if let step = Self.zoomStep(for: menuItem.action) {
             let zoom = focusedPaneZoom(after: step)

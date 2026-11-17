@@ -92,7 +92,7 @@ unmark README.md
 
 ### Preview mode and Split mode
 
-Every window opens in Preview mode. View → Show Source (<kbd>⇧⌘E</kbd>), or the button at the window's top right, switches it to Split mode, with the Source on the left and the Preview on the right. Scrolling either one keeps the other on the same line, and the Preview shows each edit as you type. Clicking a task-list checkbox in the Preview ticks it in the Source, in either mode.
+Every window opens in Preview mode. View → Show Source (<kbd>⇧⌘E</kbd>), or the button at the window's top right, switches it to Split mode, with the Source on the left and the Preview on the right. View → Source on Right puts the Source on the Preview's right instead, in every window. Scrolling either one keeps the other on the same line, and the Preview shows each edit as you type. Clicking a task-list checkbox in the Preview ticks it in the Source, in either mode.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/split-dark.png">
@@ -212,7 +212,7 @@ Unmark → Settings… (<kbd>⌘,</kbd>) has five sections:
 
 | Section | What it does |
 | --- | --- |
-| **Source** | The Source's font, from the monospaced fonts installed (SF Mono by default), and its size, 9 to 36 pt. Open windows follow each change. |
+| **Source** | The Source's font, from the monospaced fonts installed (SF Mono by default), its size, 9 to 36 pt, and its position in Split mode, left or right of the Preview. Open windows follow each change. |
 | **Defaults** | Make Unmark the Default Markdown App, so Finder opens markdown files in Unmark. |
 | **Command-Line Tool** | Install Command-Line Tool links `/usr/local/bin/unmark` to the tool inside the running copy of Unmark, after the standard administrator password prompt. It shows `Installed at /usr/local/bin/unmark` only while that link resolves to this copy's tool; a link left behind when the app moved shows `Not installed` and a Reinstall button. |
 | **Agent Skills** | Install Skills links Unmark's documentation skills into `~/.agents/skills`, which Codex, Gemini CLI, and Qwen Code read, and into `~/.claude/skills` when you use Claude Code. The links point into the app, so the skills update with it. Remove takes them out again. A skill folder that Unmark didn't create is never replaced. |
