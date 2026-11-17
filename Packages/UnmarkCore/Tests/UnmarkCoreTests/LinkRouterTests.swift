@@ -107,4 +107,50 @@ struct LinkRouterTests {
             LinkRouter.route(url: absent, documentURL: document)
                 == .missingFile(directory.appending(path: "absent.md").standardizedFileURL))
     }
+
+    // MARK: Navigations the Preview's web view is asked to make
+
+    /// A link as WebKit resolves it against the document's `<base href>`.
+    private static func resolved(_ href: String) throws -> URL {
+        let base = PreviewURL.documentBaseURL(forDocumentAt: document)
+        return try #require(URL(string: href, relativeTo: base)?.absoluteURL)
+    }
+
+    @Test func rendererPageLoads() {
+        #expect(LinkRouter.navigation(to: PreviewURL.rendererPage, isLinkClick: false, inMainFrame: true) == .load)
+    }
+
+    @Test(arguments: ["other.md", "other.md#sec", "image.png", "https://example.com/", "mailto:me@example.com"])
+    func clickedLinkIsFollowed(href: String) throws {
+        let url = try Self.resolved(href)
+        #expect(LinkRouter.navigation(to: url, isLinkClick: true, inMainFrame: true) == .followLink(url))
+    }
+
+    /// Open Link in the context menu navigates without a click.
+    @Test(arguments: ["other.md", "other.md#sec", "image.png", "https://example.com/", "mailto:me@example.com"])
+    func linkFollowedWithoutAClickIsFollowed(href: String) throws {
+        let url = try Self.resolved(href)
+        #expect(LinkRouter.navigation(to: url, isLinkClick: false, inMainFrame: true) == .followLink(url))
+    }
+
+    @Test func fileDroppedOnThePreviewIsFollowed() {
+        let url = URL(fileURLWithPath: "/repo/docs/My Notes/other.md")
+        #expect(LinkRouter.navigation(to: url, isLinkClick: false, inMainFrame: true) == .followLink(url))
+    }
+
+    /// A relative link can climb out of `doc/` to the renderer's own page. Clicked, it's still a link.
+    @Test func clickedLinkToTheRendererPageIsFollowed() {
+        let url = PreviewURL.rendererPage
+        #expect(LinkRouter.navigation(to: url, isLinkClick: true, inMainFrame: true) == .followLink(url))
+    }
+
+    @Test func subframeLoads() throws {
+        let url = try #require(URL(string: "https://example.com/"))
+        #expect(LinkRouter.navigation(to: url, isLinkClick: false, inMainFrame: false) == .load)
+    }
+
+    @Test func clickedLinkInASubframeIsFollowed() throws {
+        let url = try #require(URL(string: "https://example.com/"))
+        #expect(LinkRouter.navigation(to: url, isLinkClick: true, inMainFrame: false) == .followLink(url))
+    }
 }

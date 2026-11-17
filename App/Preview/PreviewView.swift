@@ -43,6 +43,7 @@ struct PreviewView: NSViewRepresentable {
     func makeNSView(context: Context) -> PreviewPaneView {
         let (webView, pageLoaded) = PreviewWebViewPool.shared.take()
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         context.coordinator.webView = webView
         context.coordinator.pageLoaded = pageLoaded
         // The renderer posts `previewScrolled`, `taskToggled`, `currentHeading`, and `outline` to this handler as the
@@ -234,18 +235,19 @@ struct PreviewView: NSViewRepresentable {
             }
         }
 
-        /// Cancels every link click, so the page never leaves the renderer, and hands the URL to `linkActivated`.
-        /// The handler is called before anything else, because WebKit requires it to be called exactly once.
+        /// Cancels every link the user follows, so the page never leaves the renderer, and hands the URL to
+        /// `linkActivated`. The handler is called before anything else, because WebKit requires it to be called
+        /// exactly once.
         func webView(
             _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
         ) {
-            guard navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url else {
+            guard let link = linkFollowed(by: navigationAction) else {
                 decisionHandler(.allow)
                 return
             }
             decisionHandler(.cancel)
-            linkActivated(url)
+            linkActivated(link)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

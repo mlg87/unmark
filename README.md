@@ -103,7 +103,7 @@ Every window opens in Preview mode. View → Show Source (<kbd>⇧⌘E</kbd>), o
 | --- | --- |
 | **Save** | File → Save (<kbd>⌘S</kbd>). There's no autosave; File → Revert to Saved drops unsaved edits. |
 | **Changes from other apps** | Unmark reloads the file. If you have unsaved edits, a banner offers Reload from Disk or Keep My Changes instead. |
-| **Links** | A link to another markdown file opens it in Unmark, a link to a heading scrolls to it, and any other link opens in its default app. |
+| **Links** | A link to another markdown file opens it in its own window, a link to a heading scrolls to it, and any other link opens in its default app. Open Link and Open Link in New Window in a link's context menu do the same as a click. |
 | **Status bar** | The Preview's word count and the Source's line count. |
 
 ### Outline
@@ -321,7 +321,8 @@ flowchart LR
 2. The tool's exit statuses for usage errors and missing files are right.
 3. Launched with `unmark a.md b.md`, the tool exits 0 within 10 s and the app then reports both files open, asked over `com.mlg87.unmark.queryOpen` by `scripts/ci/open-documents.swift`.
 4. `GIT_EDITOR="unmark --wait" git commit` in a scratch repo is still running 5 s after the app reports `COMMIT_EDITMSG` open, then commits the message once `osascript` clicks the window's close button.
-5. `scripts/ci/check-updates.sh` checks Sparkle in copies of the app re-signed with a local feed URL: a scheduled check against an unreachable feed opens no dialog, the Settings toggle reads and writes `SUEnableAutomaticChecks`, and Check for Updates… offers a newer version from an appcast served on `127.0.0.1`.
+5. `scripts/ci/check-document-window.sh` drives a document window through the accessibility API. A link to a sibling markdown file opens that file's window from a click and from Open Link and Open Link in New Window in its context menu. In Split mode the Source starts on the Preview's left, View → Source on Right moves it to the right, and a relaunch keeps it there.
+6. `scripts/ci/check-updates.sh` checks Sparkle in copies of the app re-signed with a local feed URL: a scheduled check against an unreachable feed opens no dialog, the Settings toggle reads and writes `SUEnableAutomaticChecks`, and Check for Updates… offers a newer version from an appcast served on `127.0.0.1`.
 
 The `main: baseline` ruleset requires the `ci` check (pinned to the GitHub Actions app) before a pull request can merge, so red builds can't land on `main`. GitHub lists the check as `ci`; pull requests show it as `CI / ci`.
 
