@@ -385,6 +385,13 @@ jobs:
           [[ $subject == "$message" ]] || fail "git committed '$subject', expected '$message'"
           kill "$pid"
 
+      # A link to a sibling markdown file opens its window from a click and from both context menu items
+      # (unmark-eg8), and Split mode puts the Source on the side View → Source on Right chooses (unmark-ilr). The
+      # runner image grants /usr/bin/osascript Accessibility, which the script drives the window through.
+      - name: Check Preview links and the Source's side
+        timeout-minutes: 8
+        run: scripts/ci/check-document-window.sh "$PWD/build/DerivedData/Build/Products/Release/Unmark.app"
+
       # unmark-1793451444246-41-143393c8's acceptance criteria for Sparkle: no error dialog when the feed can't be
       # reached, the Settings toggle drives SUEnableAutomaticChecks, and Check for Updates… offers a newer version.
       - name: Check Sparkle updates

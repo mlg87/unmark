@@ -3,7 +3,8 @@ import SwiftUI
 import UnmarkCore
 
 /// Settings' General form (epic #9). It writes the defaults every document window reads through `@AppStorage`, so open
-/// Source panes follow each change as it's made, and zooming the Source shows here as its new size (q43).
+/// Source panes follow each change as it's made, and zooming the Source or moving it from the View menu shows here
+/// (q43).
 struct GeneralSettingsView: View {
     private static let width: CGFloat = 480
 
@@ -11,6 +12,7 @@ struct GeneralSettingsView: View {
 
     @AppStorage(SourceFont.familyKey) private var sourceFontFamily = SourceFont.defaultFamily
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
+    @AppStorage(SourcePaneSide.defaultsKey) private var sourcePaneSide = SourcePaneSide.left
     /// Listed once, when Settings first opens.
     @State private var monospacedFamilies = SourceFont.installedMonospacedFamilies()
 
@@ -32,6 +34,11 @@ struct GeneralSettingsView: View {
                             .labelsHidden()
                         Text("pt")
                     }
+                }
+                // The Source's side in Split mode, which View → Source on Right also switches (unmark-ilr).
+                Picker("Position", selection: $sourcePaneSide) {
+                    Text("Left of the Preview").tag(SourcePaneSide.left)
+                    Text("Right of the Preview").tag(SourcePaneSide.right)
                 }
             }
             DefaultMarkdownAppSection()

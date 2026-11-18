@@ -40,3 +40,28 @@ public enum LinkRouter {
         return .external(item)
     }
 }
+
+/// What the Preview's web view does with a navigation it's asked to make (unmark-eg8).
+public enum PreviewNavigation: Equatable, Sendable {
+    /// The web view loads it.
+    case load
+    /// The web view stays where it is, and the URL goes where `LinkRouter.route` sends it.
+    case followLink(URL)
+}
+
+extension LinkRouter {
+    /// Decides a navigation to `url`. The Preview's main frame only ever loads the renderer, so any other URL it's
+    /// asked to load is a link the user followed. A click is one, and so is Open Link in the context menu or a file
+    /// dropped on the Preview, which WebKit doesn't report as clicks. Left alone, those would replace the document
+    /// with the link's target.
+    public static func navigation(to url: URL, isLinkClick: Bool, inMainFrame: Bool) -> PreviewNavigation {
+        if isLinkClick {
+            return .followLink(url)
+        }
+        guard inMainFrame else { return .load }
+        if case .renderer = PreviewURL.resource(for: url) {
+            return .load
+        }
+        return .followLink(url)
+    }
+}

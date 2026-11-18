@@ -137,6 +137,11 @@ enum MainMenu {
         menu.addItem(
             withTitle: DocumentWindowController.toggleSourceTitle(sourceVisible: false),
             action: #selector(DocumentWindowController.toggleSource(_:)), keyEquivalent: "E")
+        // `DocumentWindowController` checks it while the Source's side in Split mode is the Preview's right
+        // (unmark-ilr).
+        menu.addItem(
+            withTitle: String(localized: "Source on Right"),
+            action: #selector(DocumentWindowController.toggleSourceSide(_:)), keyEquivalent: "")
         menu.addItem(.separator())
 
         // The window controller zooms whichever pane has the focus (q36).

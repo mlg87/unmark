@@ -173,6 +173,9 @@
     "Installed in %@" : {
 
     },
+    "Left of the Preview" : {
+
+    },
     "Make Unmark the Default Markdown App" : {
 
     },
@@ -203,6 +206,9 @@
     "Paste" : {
 
     },
+    "Position" : {
+
+    },
     "Previous" : {
 
     },
@@ -225,6 +231,9 @@
 
     },
     "Revert to Saved" : {
+
+    },
+    "Right of the Preview" : {
 
     },
     "Run this in Terminal:" : {
@@ -264,6 +273,9 @@
 
     },
     "Source" : {
+
+    },
+    "Source on Right" : {
 
     },
     "Toggle Task" : {

@@ -2,7 +2,7 @@ import SwiftUI
 import UnmarkCore
 
 /// A document window's content: the Outline in a sidebar while it's shown, and the Preview, with the Source beside it
-/// in Split mode. Every window opens in Preview mode (q15).
+/// in Split mode, on the side `SourcePaneSide` names. Every window opens in Preview mode (q15).
 struct DocumentWindow: View {
     /// Narrow enough to read and edit in, and wide enough that two panes fit the window's 480 pt minimum.
     private static let paneMinWidth: CGFloat = 240
@@ -24,6 +24,7 @@ struct DocumentWindow: View {
     @AppStorage(SourceFont.sizeKey) private var sourceFontSize = SourceFont.defaultSize
     @AppStorage(PreviewZoom.defaultsKey) private var previewZoom = PreviewZoom.actualSize
     @AppStorage(OutlineVisibility.key) private var isOutlineVisible = false
+    @AppStorage(SourcePaneSide.defaultsKey) private var sourcePaneSide = SourcePaneSide.left
     /// Per window, so each window's panes follow only each other.
     @State private var scrollSync = ScrollSync()
 
@@ -53,6 +54,16 @@ struct DocumentWindow: View {
             set: { isOutlineVisible = $0 != .detailOnly })
     }
 
+    /// A Source made for one side isn't the view made for the other, so moving it starts a new text view, which
+    /// scrolls to the Preview's line as it appears.
+    private var source: some View {
+        SourceTextView(
+            text: $state.text, fontFamily: sourceFontFamily, fontSize: sourceFontSize, willEdit: willEdit,
+            didEdit: didEdit, scrollSync: scrollSync
+        )
+        .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
+    }
+
     private var panes: some View {
         VStack(spacing: 0) {
             if state.fileWasDeleted {
@@ -65,15 +76,11 @@ struct DocumentWindow: View {
                     keepChanges: keepChanges)
                 Divider()
             }
-            // One split view in both modes, so toggling adds or removes the Source and keeps the Preview's web view
-            // and its scroll position.
+            // One split view in both modes and for both sides, so showing, hiding, or moving the Source adds or removes
+            // it around the Preview, which keeps its web view and its scroll position.
             HSplitView {
-                if state.isSourceVisible {
-                    SourceTextView(
-                        text: $state.text, fontFamily: sourceFontFamily, fontSize: sourceFontSize, willEdit: willEdit,
-                        didEdit: didEdit, scrollSync: scrollSync
-                    )
-                    .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
+                if state.isSourceVisible, sourcePaneSide == .left {
+                    source
                 }
                 PreviewView(
                     markdown: state.text, documentBaseURL: state.documentBaseURL, scrollRequest: state.scrollRequest,
@@ -105,6 +112,9 @@ struct DocumentWindow: View {
                     scrollSync: scrollSync
                 )
                 .frame(minWidth: Self.paneMinWidth, maxWidth: .infinity)
+                if state.isSourceVisible, sourcePaneSide == .right {
+                    source
+                }
             }
             // Over the panes, so the notice doesn't cover the status bar.
             .overlay(alignment: .bottom) {
