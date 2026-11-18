@@ -2,6 +2,16 @@
 
 Each release's notes, newest first. The Release PR workflow adds them from GitHub's generated notes, and the release PR is the place to edit them: the GitHub release and Sparkle's update dialog show this file's section as merged. See [docs/releasing.md](docs/releasing.md).
 
+## v0.3.0 (2026-11-18)
+
+### What's Changed
+* feat(site): skills scene with five cards and two real examples (unmark-bhp.6) by @mlg87 in https://github.com/mlg87/unmark/pull/261
+* fix(site): fit the pinned skills cards to short windows (unmark-bhp.7) by @mlg87 in https://github.com/mlg87/unmark/pull/262
+* Choose the Source's side in Split mode, and follow context-menu links like a click (unmark-ilr, unmark-eg8) by @mlg87 in https://github.com/mlg87/unmark/pull/265
+
+
+**Full Changelog**: https://github.com/mlg87/unmark/compare/v0.2.0...v0.3.0
+
 ## v0.2.0 (2026-11-15)
 
 ### Agent Skills
